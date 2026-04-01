@@ -1,6 +1,7 @@
 import Foundation
 import HTTPTypes
 
+/// The typed error surface used throughout Comet.
 public enum NetworkError: Error, Sendable {
   case invalidRequest(String)
   case transport(URLError)
@@ -14,21 +15,25 @@ public enum NetworkError: Error, Sendable {
 }
 
 extension NetworkError: LocalizedError, CustomStringConvertible {
+  /// The HTTP status code for an unsuccessful HTTP response, when available.
   public var statusCode: Int? {
     guard case .http(let statusCode, _, _) = self else { return nil }
     return statusCode
   }
 
+  /// The raw HTTP response body for an unsuccessful HTTP response, when available.
   public var bodyData: Data? {
     guard case .http(_, let body, _) = self else { return nil }
     return body
   }
 
+  /// The HTTP response headers for an unsuccessful HTTP response, when available.
   public var responseHeaders: HTTPFields? {
     guard case .http(_, _, let headers) = self else { return nil }
     return headers
   }
 
+  /// A best-effort text representation of the recorded response body.
   public var bodyString: String? {
     guard let bodyData else { return nil }
     let encoding = self.responseHeaders?.suggestedTextEncoding ?? .utf8
@@ -36,6 +41,7 @@ extension NetworkError: LocalizedError, CustomStringConvertible {
       ?? String(data: bodyData, encoding: .utf8)
   }
 
+  /// A pretty-printed JSON representation of the recorded response body, when it contains valid JSON.
   public var prettyBodyJSONString: String? {
     guard let bodyData else { return nil }
 
@@ -51,6 +57,7 @@ extension NetworkError: LocalizedError, CustomStringConvertible {
     }
   }
 
+  /// Indicates whether the error represents a likely connectivity failure.
   public var isConnectivityError: Bool {
     guard case .transport(let urlError) = self else { return false }
     return [
@@ -62,11 +69,13 @@ extension NetworkError: LocalizedError, CustomStringConvertible {
     ].contains(urlError.code)
   }
 
+  /// Indicates whether the request was cancelled.
   public var isCancellationError: Bool {
     if case .cancelled = self { return true }
     return false
   }
 
+  /// Indicates whether the error represents a timeout.
   public var isTimeoutError: Bool {
     switch self {
     case .timeout:
@@ -78,6 +87,7 @@ extension NetworkError: LocalizedError, CustomStringConvertible {
     }
   }
 
+  /// Returns a concise, developer-facing summary suitable for logs and debug UI.
   public var debugSummary: String {
     switch self {
     case .invalidRequest(let message):
@@ -117,6 +127,7 @@ extension NetworkError: LocalizedError, CustomStringConvertible {
 }
 
 public extension NetworkError {
+  /// Normalizes arbitrary thrown errors into ``NetworkError``.
   static func from(_ error: any Error) -> Self {
     if let networkError = error as? Self {
       return networkError

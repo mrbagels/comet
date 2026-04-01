@@ -1,7 +1,9 @@
 import Foundation
 import HTTPTypes
 
+/// Emits human-readable request and response logs, with optional cURL output in verbose mode.
 public struct LoggingMiddleware: Middleware {
+  /// Controls which phases of the request lifecycle get logged.
   public enum LogLevel: Sendable {
     case request
     case response
@@ -13,6 +15,7 @@ public struct LoggingMiddleware: Middleware {
   public var logLevel: LogLevel
   public var logger: @Sendable (String) -> Void
 
+  /// Creates a logging middleware with redaction and output controls.
   public init(
     isEnabled: Bool = true,
     redactedHeaders: Set<String> = ["authorization", "cookie", "set-cookie"],
@@ -27,6 +30,7 @@ public struct LoggingMiddleware: Middleware {
     self.logger = logger
   }
 
+  /// Logs the outgoing request before transport execution when enabled.
   public func prepare(
     _ request: PreparedRequest,
     context: MiddlewareContext
@@ -48,6 +52,7 @@ public struct LoggingMiddleware: Middleware {
     return request
   }
 
+  /// Logs the incoming response or failure after transport execution when enabled.
   public func process(
     result: Result<RawResponse, NetworkError>,
     request: PreparedRequest,

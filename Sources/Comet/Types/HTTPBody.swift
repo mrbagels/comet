@@ -1,11 +1,14 @@
 import Foundation
 import HTTPTypes
 
+/// Builds an HTTP request body and any headers implied by that body.
 public struct HTTPBody: Sendable {
+  /// The concrete body data and headers produced for a specific client configuration.
   public struct Resolved: Sendable {
     public let data: Data?
     public let headers: HTTPFields
 
+    /// Creates a resolved body payload.
     public init(data: Data?, headers: HTTPFields = .init()) {
       self.data = data
       self.headers = headers
@@ -14,14 +17,17 @@ public struct HTTPBody: Sendable {
 
   private let resolve: @Sendable (ClientConfiguration) throws(NetworkError) -> Resolved
 
+  /// Creates a request body from custom resolution logic.
   public init(resolve: @escaping @Sendable (ClientConfiguration) throws(NetworkError) -> Resolved) {
     self.resolve = resolve
   }
 
+  /// Represents the absence of a request body.
   public static let none = HTTPBody { _ in
     Resolved(data: nil)
   }
 
+  /// Creates a raw data body with an optional content type.
   public static func data(_ data: Data, contentType: String? = nil) -> Self {
     HTTPBody { (_: ClientConfiguration) throws(NetworkError) -> Resolved in
       var headers = HTTPFields()
@@ -32,6 +38,7 @@ public struct HTTPBody: Sendable {
     }
   }
 
+  /// Creates a plain-text body using the provided string encoding.
   public static func text(
     _ string: String,
     encoding: String.Encoding = .utf8,
@@ -48,6 +55,7 @@ public struct HTTPBody: Sendable {
     }
   }
 
+  /// Encodes an `Encodable` value as JSON using either the provided encoder or the client's configured encoder.
   public static func json<T: Encodable & Sendable>(
     _ value: T,
     using makeEncoder: (@Sendable () -> JSONEncoder)? = nil
@@ -69,6 +77,7 @@ public struct HTTPBody: Sendable {
     }
   }
 
+  /// Encodes query items using the `application/x-www-form-urlencoded` body format.
   public static func formURLEncoded(_ items: [QueryItem]) -> Self {
     HTTPBody { (_: ClientConfiguration) throws(NetworkError) -> Resolved in
       var components = URLComponents()

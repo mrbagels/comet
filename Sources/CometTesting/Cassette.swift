@@ -2,10 +2,12 @@ import Foundation
 import HTTPTypes
 import Comet
 
+/// A JSON-serializable collection of recorded HTTP exchanges.
 public struct HTTPCassette: Codable, Sendable, Hashable {
   public var recordedAt: Date
   public var exchanges: [RecordedExchange]
 
+  /// Creates a cassette from a list of recorded exchanges.
   public init(
     recordedAt: Date = Date(),
     exchanges: [RecordedExchange]
@@ -14,6 +16,7 @@ public struct HTTPCassette: Codable, Sendable, Hashable {
     self.exchanges = exchanges
   }
 
+  /// Loads a cassette from disk.
   public init(
     contentsOf url: URL,
     decoder: JSONDecoder = Self.jsonDecoder()
@@ -22,10 +25,12 @@ public struct HTTPCassette: Codable, Sendable, Hashable {
     self = try decoder.decode(Self.self, from: data)
   }
 
+  /// Encodes the cassette as JSON data.
   public func encoded(prettyPrinted: Bool = true) throws -> Data {
     try Self.jsonEncoder(prettyPrinted: prettyPrinted).encode(self)
   }
 
+  /// Writes the cassette to disk as JSON.
   public func write(
     to url: URL,
     prettyPrinted: Bool = true
@@ -33,6 +38,7 @@ public struct HTTPCassette: Codable, Sendable, Hashable {
     try self.encoded(prettyPrinted: prettyPrinted).write(to: url, options: .atomic)
   }
 
+  /// Builds the JSON encoder used for cassette export.
   public static func jsonEncoder(prettyPrinted: Bool = true) -> JSONEncoder {
     let encoder = JSONEncoder()
     encoder.dateEncodingStrategy = .iso8601
@@ -42,6 +48,7 @@ public struct HTTPCassette: Codable, Sendable, Hashable {
     return encoder
   }
 
+  /// Builds the JSON decoder used for cassette import.
   public static func jsonDecoder() -> JSONDecoder {
     let decoder = JSONDecoder()
     decoder.dateDecodingStrategy = .iso8601
@@ -49,12 +56,14 @@ public struct HTTPCassette: Codable, Sendable, Hashable {
   }
 }
 
+/// A single recorded request plus its response or failure.
 public struct RecordedExchange: Codable, Sendable, Hashable {
   public var recordedAt: Date
   public var request: RecordedRequest
   public var durationMilliseconds: Int64
   public var outcome: Outcome
 
+  /// Creates a recorded exchange from a request and its outcome.
   public init(
     recordedAt: Date = Date(),
     request: RecordedRequest,
@@ -67,6 +76,7 @@ public struct RecordedExchange: Codable, Sendable, Hashable {
     self.outcome = outcome
   }
 
+  /// Returns the recorded duration as ``Swift/Duration``.
   public var duration: Duration {
     .milliseconds(self.durationMilliseconds)
   }
@@ -82,6 +92,7 @@ public struct RecordedExchange: Codable, Sendable, Hashable {
 }
 
 public extension RecordedExchange {
+  /// The recorded outcome of an exchange.
   enum Outcome: Codable, Sendable, Hashable {
     case success(RecordedResponse)
     case failure(RecordedNetworkError)
@@ -121,6 +132,7 @@ public extension RecordedExchange {
   }
 }
 
+/// A JSON-friendly representation of a prepared request.
 public struct RecordedRequest: Codable, Sendable, Hashable {
   public var method: String
   public var url: String
@@ -128,6 +140,7 @@ public struct RecordedRequest: Codable, Sendable, Hashable {
   public var bodyBase64: String?
   public var timeoutMilliseconds: Int64
 
+  /// Creates a recorded request from individual components.
   public init(
     method: String,
     url: String,
@@ -142,6 +155,7 @@ public struct RecordedRequest: Codable, Sendable, Hashable {
     self.timeoutMilliseconds = timeoutMilliseconds
   }
 
+  /// Snapshots a prepared request for storage in a cassette.
   public init(_ request: PreparedRequest) {
     self.init(
       method: request.method.rawValue,
@@ -152,16 +166,19 @@ public struct RecordedRequest: Codable, Sendable, Hashable {
     )
   }
 
+  /// Returns the decoded request body when one was recorded.
   public var bodyData: Data? {
     self.bodyBase64.flatMap { Data(base64Encoded: $0) }
   }
 
+  /// Returns whether the recorded request matches a prepared request for replay.
   public func matches(_ request: PreparedRequest) -> Bool {
     self.method == request.method.rawValue
       && self.url == request.url.absoluteString
       && self.bodyData == request.body
   }
 
+  /// Reconstructs the prepared request represented by this snapshot.
   public func makePreparedRequest() throws(NetworkError) -> PreparedRequest {
     guard let url = URL(string: self.url) else {
       throw .invalidRequest("Cassette contains an invalid request URL: \(self.url)")
@@ -178,11 +195,13 @@ public struct RecordedRequest: Codable, Sendable, Hashable {
   }
 }
 
+/// A JSON-friendly representation of a raw HTTP response.
 public struct RecordedResponse: Codable, Sendable, Hashable {
   public var statusCode: Int
   public var headers: [RecordedHeader]
   public var bodyBase64: String
 
+  /// Creates a recorded response from individual components.
   public init(
     statusCode: Int,
     headers: [RecordedHeader] = [],
@@ -193,6 +212,7 @@ public struct RecordedResponse: Codable, Sendable, Hashable {
     self.bodyBase64 = bodyBase64
   }
 
+  /// Snapshots a raw response for storage in a cassette.
   public init(_ response: RawResponse) {
     self.init(
       statusCode: response.statusCode,
@@ -201,10 +221,12 @@ public struct RecordedResponse: Codable, Sendable, Hashable {
     )
   }
 
+  /// Returns the decoded response body.
   public var bodyData: Data {
     Data(base64Encoded: self.bodyBase64) ?? Data()
   }
 
+  /// Reconstructs the raw response represented by this snapshot.
   public func makeRawResponse() throws(NetworkError) -> RawResponse {
     try RawResponse(
       data: self.bodyData,
@@ -214,7 +236,9 @@ public struct RecordedResponse: Codable, Sendable, Hashable {
   }
 }
 
+/// A JSON-friendly representation of a ``NetworkError``.
 public struct RecordedNetworkError: Codable, Sendable, Hashable {
+  /// The stored error category used for replay.
   public enum Kind: String, Codable, Sendable, Hashable {
     case invalidRequest
     case transport
@@ -234,6 +258,7 @@ public struct RecordedNetworkError: Codable, Sendable, Hashable {
   public var bodyBase64: String?
   public var urlErrorCode: Int?
 
+  /// Creates a recorded error from individual components.
   public init(
     kind: Kind,
     message: String? = nil,
@@ -250,6 +275,7 @@ public struct RecordedNetworkError: Codable, Sendable, Hashable {
     self.urlErrorCode = urlErrorCode
   }
 
+  /// Snapshots a runtime ``NetworkError`` for storage in a cassette.
   public init(_ error: NetworkError) {
     switch error {
     case .invalidRequest(let message):
@@ -282,10 +308,12 @@ public struct RecordedNetworkError: Codable, Sendable, Hashable {
     }
   }
 
+  /// Returns the decoded error body when one was recorded.
   public var bodyData: Data? {
     self.bodyBase64.flatMap { Data(base64Encoded: $0) }
   }
 
+  /// Reconstructs the runtime ``NetworkError`` represented by this snapshot.
   public var networkError: NetworkError {
     switch self.kind {
     case .invalidRequest:
@@ -324,6 +352,7 @@ public struct RecordedNetworkError: Codable, Sendable, Hashable {
   }
 }
 
+/// A single HTTP header stored in a JSON-friendly form.
 public struct RecordedHeader: Codable, Sendable, Hashable {
   public var name: String
   public var value: String
@@ -334,7 +363,9 @@ public struct RecordedHeader: Codable, Sendable, Hashable {
   }
 }
 
+/// Replays a previously recorded cassette as an ``HTTPTransport``.
 public actor ReplayTransport: HTTPTransport {
+  /// Controls how cassette entries are matched during replay.
   public enum Mode: Sendable {
     case matchingRequest
     case sequential
@@ -344,6 +375,7 @@ public actor ReplayTransport: HTTPTransport {
   private let mode: Mode
   private var remainingExchanges: [RecordedExchange]
 
+  /// Creates a replay transport from an in-memory cassette.
   public init(
     cassette: HTTPCassette,
     mode: Mode = .matchingRequest
@@ -353,6 +385,7 @@ public actor ReplayTransport: HTTPTransport {
     self.remainingExchanges = cassette.exchanges
   }
 
+  /// Loads a replay transport from a cassette on disk.
   public init(
     contentsOf url: URL,
     mode: Mode = .matchingRequest,
@@ -362,6 +395,7 @@ public actor ReplayTransport: HTTPTransport {
     self.init(cassette: cassette, mode: mode)
   }
 
+  /// Replays the next matching recorded exchange.
   public func send(_ request: PreparedRequest) async throws(NetworkError) -> RawResponse {
     let exchange: RecordedExchange
 
@@ -391,10 +425,12 @@ public actor ReplayTransport: HTTPTransport {
     return try exchange.replay()
   }
 
+  /// Returns the number of recorded exchanges that have not been consumed yet.
   public func remainingCount() -> Int {
     self.remainingExchanges.count
   }
 
+  /// Restores the replay transport to its initial, fully unconsumed state.
   public func reset() {
     self.remainingExchanges = self.cassette.exchanges
   }

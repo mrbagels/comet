@@ -1,5 +1,6 @@
 import HTTPTypes
 
+/// Describes a typed HTTP request that Comet can build, execute, and decode.
 public protocol APIRequest: Sendable {
   associatedtype Response: Sendable
 
@@ -12,6 +13,7 @@ public protocol APIRequest: Sendable {
   var responseSerializer: ResponseSerializer<Response> { get }
 }
 
+/// Provides sensible defaults for optional request customization points.
 public extension APIRequest {
   var headers: HTTPFields { .init() }
   var queryItems: [QueryItem] { [] }

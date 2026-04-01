@@ -1,6 +1,7 @@
 import Foundation
 import HTTPTypes
 
+/// Executes typed requests against a shared configuration and transport.
 public struct HTTPClient: Sendable {
   private let configuration: ClientConfiguration
   private let transport: any HTTPTransport
@@ -19,6 +20,7 @@ public struct HTTPClient: Sendable {
     self.broadcaster = broadcaster
   }
 
+  /// Creates a client backed by a concrete live transport.
   public static func live(
     configuration: ClientConfiguration,
     transport: some HTTPTransport
@@ -31,6 +33,7 @@ public struct HTTPClient: Sendable {
     )
   }
 
+  /// Creates a client that always fails with the provided error.
   public static func failing(with error: NetworkError) -> Self {
     Self.live(
       configuration: .default(baseURL: URL(string: "https://example.com")!),
@@ -38,10 +41,12 @@ public struct HTTPClient: Sendable {
     )
   }
 
+  /// Streams request lifecycle events emitted by this client.
   public var activity: AsyncStream<NetworkEvent> {
     self.broadcaster.stream()
   }
 
+  /// Sends a typed request, validates the HTTP status, and decodes the response.
   public func send<R: APIRequest>(_ request: R) async throws(NetworkError) -> R.Response {
     let response = try await self.sendRaw(request)
     guard request.options.statusValidation.contains(response.statusCode) else {
@@ -50,11 +55,13 @@ public struct HTTPClient: Sendable {
     return try request.responseSerializer.serialize(response, self.configuration)
   }
 
+  /// Sends a typed request and returns the raw HTTP response before status validation and decoding.
   public func sendRaw<R: APIRequest>(_ request: R) async throws(NetworkError) -> RawResponse {
     let prepared = try RequestBuilder.build(request, configuration: self.configuration)
     return try await self.sendPrepared(prepared, options: request.options)
   }
 
+  /// Executes a prepared request directly, applying middleware, retries, and optional deduplication.
   public func sendPrepared(
     _ request: PreparedRequest,
     options: RequestOptions = .init()

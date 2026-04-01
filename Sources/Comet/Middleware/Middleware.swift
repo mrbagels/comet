@@ -1,5 +1,6 @@
 import Foundation
 
+/// Intercepts requests before transport execution and results after transport execution.
 public protocol Middleware: Sendable {
   func prepare(
     _ request: PreparedRequest,
@@ -14,6 +15,7 @@ public protocol Middleware: Sendable {
 }
 
 public extension Middleware {
+  /// Returns the request unchanged before transport execution.
   func prepare(
     _ request: PreparedRequest,
     context: MiddlewareContext
@@ -21,6 +23,7 @@ public extension Middleware {
     request
   }
 
+  /// Passes the result through unchanged after transport execution.
   func process(
     result: Result<RawResponse, NetworkError>,
     request: PreparedRequest,
@@ -30,12 +33,14 @@ public extension Middleware {
   }
 }
 
+/// Describes how middleware wants request execution to continue.
 public enum MiddlewareResult: Sendable {
   case proceed(Result<RawResponse, NetworkError>)
   case retry(PreparedRequest, after: Duration = .zero)
   case fail(NetworkError)
 }
 
+/// Carries per-request execution state into middleware hooks.
 public struct MiddlewareContext: Sendable {
   public let requestID: UUID
   public let attempt: Int

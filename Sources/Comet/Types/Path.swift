@@ -1,8 +1,10 @@
 import Foundation
 
+/// Represents a URL path built from safely encoded segments.
 public struct Path: Sendable, Hashable, ExpressibleByStringLiteral, CustomStringConvertible {
   private let segments: [String]
 
+  /// Creates a path from a slash-delimited raw string.
   public init(_ rawValue: String) {
     self.segments = rawValue
       .split(separator: "/")
@@ -10,6 +12,7 @@ public struct Path: Sendable, Hashable, ExpressibleByStringLiteral, CustomString
       .filter { !$0.isEmpty }
   }
 
+  /// Creates a path from a string literal.
   public init(stringLiteral value: String) {
     self.init(value)
   }
@@ -18,6 +21,7 @@ public struct Path: Sendable, Hashable, ExpressibleByStringLiteral, CustomString
     self.segments = segments.filter { !$0.isEmpty }
   }
 
+  /// The percent-encoded path string.
   public var rawValue: String {
     self.segments
       .map(Self.encode(segment:))
@@ -28,6 +32,7 @@ public struct Path: Sendable, Hashable, ExpressibleByStringLiteral, CustomString
     self.rawValue
   }
 
+  /// Appends another path segment.
   public static func / (lhs: Path, rhs: String) -> Path {
     Path(
       segments: lhs.segments
@@ -35,6 +40,7 @@ public struct Path: Sendable, Hashable, ExpressibleByStringLiteral, CustomString
     )
   }
 
+  /// Appends a path segment created from a lossless string convertible value.
   public static func / <T: LosslessStringConvertible>(lhs: Path, rhs: T) -> Path {
     lhs / String(rhs)
   }

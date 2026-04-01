@@ -3,6 +3,7 @@ import HTTPTypes
 import Comet
 
 public extension HTTPClient {
+  /// Creates a client backed by ``MockTransport`` for deterministic tests.
   static func mock(
     baseURL: URL = URL(string: "https://example.com")!,
     handler: @escaping @Sendable (PreparedRequest) async throws(NetworkError) -> RawResponse
@@ -13,6 +14,7 @@ public extension HTTPClient {
     )
   }
 
+  /// Creates a client that always succeeds with the encoded value.
   static func succeeding<T: Encodable & Sendable>(
     with value: T,
     baseURL: URL = URL(string: "https://example.com")!,
@@ -29,6 +31,7 @@ public extension HTTPClient {
     }
   }
 
+  /// Creates a client that always fails with the provided error.
   static func failing(
     baseURL: URL = URL(string: "https://example.com")!,
     with error: NetworkError = .cancelled

@@ -11,6 +11,7 @@ private enum CometHTTPClientKey: DependencyKey {
 }
 
 public extension DependencyValues {
+  /// The Comet client dependency used by `CometTCA` helpers.
   var httpClient: HTTPClient {
     get { self[CometHTTPClientKey.self] }
     set { self[CometHTTPClientKey.self] = newValue }

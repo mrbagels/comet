@@ -1,11 +1,13 @@
 import Foundation
 
+/// Retries retryable transport failures and configured HTTP status codes using backoff.
 public struct RetryMiddleware: Middleware {
   public var maxAttempts: Int
   public var backoff: BackoffStrategy
   public var jitter: Double
   public var retryableStatusCodes: Set<Int>
 
+  /// Creates retry behavior with configurable attempts, backoff, jitter, and retryable status codes.
   public init(
     maxAttempts: Int = 3,
     backoff: BackoffStrategy = .exponential(base: .seconds(0.5), multiplier: 2, max: .seconds(8)),
@@ -18,6 +20,7 @@ public struct RetryMiddleware: Middleware {
     self.retryableStatusCodes = retryableStatusCodes
   }
 
+  /// Examines the current result and decides whether the request should be retried.
   public func process(
     result: Result<RawResponse, NetworkError>,
     request: PreparedRequest,
@@ -68,6 +71,7 @@ public struct RetryMiddleware: Middleware {
   }
 }
 
+/// The retry delay policy used by ``RetryMiddleware``.
 public enum BackoffStrategy: Sendable {
   case constant(Duration)
   case linear(Duration)

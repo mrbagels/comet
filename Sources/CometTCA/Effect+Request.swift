@@ -2,6 +2,7 @@ import ComposableArchitecture
 import Comet
 
 public extension Effect where Action: Sendable {
+  /// Builds an effect that executes a Comet request and maps the typed result into an action.
   static func request<R: APIRequest>(
     _ request: R,
     using client: HTTPClient,

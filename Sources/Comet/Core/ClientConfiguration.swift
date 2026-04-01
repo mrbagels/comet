@@ -1,11 +1,13 @@
 import Foundation
 import HTTPTypes
 
+/// Selects the built-in JSON encoder and decoder presets used by ``ClientConfiguration``.
 public enum JSONCodingPreset: Sendable {
   case standard
   case snakeCaseISO8601
 }
 
+/// Holds the shared behavior for a family of requests executed by an ``HTTPClient``.
 public struct ClientConfiguration: Sendable {
   public var baseURL: URL
   public var defaultHeaders: HTTPFields
@@ -20,6 +22,7 @@ public struct ClientConfiguration: Sendable {
   public var makeRequestID: @Sendable () -> UUID
   public var randomDouble: @Sendable (ClosedRange<Double>) -> Double
 
+  /// Creates a client configuration with injectable defaults for headers, middleware, time, and randomness.
   public init(
     baseURL: URL,
     defaultHeaders: HTTPFields = .init(),
@@ -48,6 +51,7 @@ public struct ClientConfiguration: Sendable {
     self.randomDouble = randomDouble
   }
 
+  /// Creates an app-friendly configuration using Comet's standard JSON defaults.
   public static func `default`(
     baseURL: URL,
     jsonPreset: JSONCodingPreset = .standard
@@ -60,22 +64,27 @@ public struct ClientConfiguration: Sendable {
     )
   }
 
+  /// Returns the standard JSON encoder used by Comet.
   public static func defaultJSONEncoder() -> JSONEncoder {
     Self.jsonEncoder()
   }
 
+  /// Returns the standard JSON decoder used by Comet.
   public static func defaultJSONDecoder() -> JSONDecoder {
     Self.jsonDecoder()
   }
 
+  /// Returns the snake_case plus ISO-8601 encoder preset used by Comet.
   public static func snakeCaseJSONEncoder() -> JSONEncoder {
     Self.jsonEncoder(preset: .snakeCaseISO8601)
   }
 
+  /// Returns the snake_case plus ISO-8601 decoder preset used by Comet.
   public static func snakeCaseJSONDecoder() -> JSONDecoder {
     Self.jsonDecoder(preset: .snakeCaseISO8601)
   }
 
+  /// Builds a JSON encoder for the requested preset.
   public static func jsonEncoder(
     preset: JSONCodingPreset = .standard
   ) -> JSONEncoder {
@@ -90,6 +99,7 @@ public struct ClientConfiguration: Sendable {
     return encoder
   }
 
+  /// Builds a JSON decoder for the requested preset.
   public static func jsonDecoder(
     preset: JSONCodingPreset = .standard
   ) -> JSONDecoder {

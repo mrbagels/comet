@@ -1,6 +1,6 @@
 # Comet — Architecture
 
-> Swift 6.2+ · iOS 18+ today · transport seam designed for broader environments over time
+> Swift 6.2+ · iOS 18+ today · shipped live transport: `URLSession` · server-side transport is future work
 
 This document reflects the current implemented architecture of Comet.
 
@@ -112,7 +112,6 @@ Deferred for later:
 - caching and stale-while-revalidate
 - ETag handling
 - distributed tracing
-- recorder/replay
 - mock server
 - reachability
 - batch requests

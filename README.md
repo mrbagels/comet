@@ -1,12 +1,16 @@
 # Comet
 
-Comet is a modern Swift networking library built as a Swift package for long-term reuse across app projects today, with a transport seam designed to grow into broader environments over time.
+Comet is a modern Swift networking library for Apple-platform apps today. It ships with a `URLSession`-backed live transport and a transport seam that also supports mocks, recorders, replayers, and future non-`URLSession` transports.
 
 ## Package Products
 
 - `Comet`: typed request building, serialization, middleware, retry, deduplication, and activity events
 - `CometTesting`: mocks, recorders, JSON cassettes, and replay transports
 - `CometTCA`: lightweight Composable Architecture integration
+
+## Platform Status
+
+Comet’s shipped live transport is `URLSessionTransport`, so the production-ready story today is Apple-platform client apps. The core abstractions are intentionally transport-replaceable, but a server-side live transport does not ship yet.
 
 ## Install
 

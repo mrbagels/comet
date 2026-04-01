@@ -1,14 +1,17 @@
 import Foundation
 
+/// Converts a ``RawResponse`` into a typed value after transport, middleware, and status validation.
 public struct ResponseSerializer<Value: Sendable>: Sendable {
   public let serialize: @Sendable (RawResponse, ClientConfiguration) throws(NetworkError) -> Value
 
+  /// Creates a serializer from custom response transformation logic.
   public init(
     serialize: @escaping @Sendable (RawResponse, ClientConfiguration) throws(NetworkError) -> Value
   ) {
     self.serialize = serialize
   }
 
+  /// Decodes a JSON response using either the provided decoder factory or the client's configured decoder.
   public static func json<T: Decodable & Sendable>(
     _ type: T.Type,
     using makeDecoder: (@Sendable () -> JSONDecoder)? = nil
@@ -25,12 +28,14 @@ public struct ResponseSerializer<Value: Sendable>: Sendable {
     }
   }
 
+  /// Returns the response body as raw ``Foundation/Data``.
   public static var data: ResponseSerializer<Data> {
     ResponseSerializer<Data> { response, _ in
       response.data
     }
   }
 
+  /// Returns the response body as text, respecting the response charset when available.
   public static func string(
     encoding: String.Encoding? = nil,
     fallbackEncoding: String.Encoding = .utf8
@@ -51,12 +56,14 @@ public struct ResponseSerializer<Value: Sendable>: Sendable {
     }
   }
 
+  /// Returns the response body as text using a fixed encoding.
   public static func string(
     encoding: String.Encoding
   ) -> ResponseSerializer<String> {
     self.string(encoding: Optional(encoding), fallbackEncoding: encoding)
   }
 
+  /// Validates that the response body is empty and returns ``EmptyResponse``.
   public static var empty: ResponseSerializer<EmptyResponse> {
     ResponseSerializer<EmptyResponse> { (response: RawResponse, _: ClientConfiguration) throws(NetworkError) -> EmptyResponse in
       guard response.data.isEmpty else {
@@ -73,6 +80,7 @@ public struct ResponseSerializer<Value: Sendable>: Sendable {
     }
   }
 
+  /// Builds a serializer from custom transformation logic that only needs the raw response.
   public static func custom<T: Sendable>(
     _ serialize: @escaping @Sendable (RawResponse) throws(NetworkError) -> T
   ) -> ResponseSerializer<T> {

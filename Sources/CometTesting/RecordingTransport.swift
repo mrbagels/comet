@@ -1,11 +1,13 @@
 import Foundation
 import Comet
 
+/// Wraps another transport and records full request/response exchanges as it forwards traffic.
 public actor RecordingTransport: HTTPTransport {
   private let base: any HTTPTransport
   private let now: @Sendable () -> Date
   private var exchanges: [RecordedExchange] = []
 
+  /// Creates a recorder around another transport.
   public init(
     base: any HTTPTransport,
     now: @escaping @Sendable () -> Date = Date.init
@@ -14,6 +16,7 @@ public actor RecordingTransport: HTTPTransport {
     self.now = now
   }
 
+  /// Sends a request through the base transport and records the full outcome.
   public func send(_ request: PreparedRequest) async throws(NetworkError) -> RawResponse {
     let recordedAt = self.now()
     let start = ContinuousClock().now
@@ -43,14 +46,17 @@ public actor RecordingTransport: HTTPTransport {
     }
   }
 
+  /// Returns the recorded requests in their original prepared form.
   public func recorded() -> [PreparedRequest] {
     self.exchanges.compactMap { try? $0.request.makePreparedRequest() }
   }
 
+  /// Returns the recorded exchanges including duration and outcome details.
   public func recordedExchanges() -> [RecordedExchange] {
     self.exchanges
   }
 
+  /// Packages the recorded exchanges into a serializable cassette.
   public func cassette() -> HTTPCassette {
     HTTPCassette(
       recordedAt: self.exchanges.first?.recordedAt ?? self.now(),
@@ -58,6 +64,7 @@ public actor RecordingTransport: HTTPTransport {
     )
   }
 
+  /// Writes the current recording session to a JSON cassette on disk.
   public func writeCassette(
     to url: URL,
     prettyPrinted: Bool = true
@@ -65,6 +72,7 @@ public actor RecordingTransport: HTTPTransport {
     try self.cassette().write(to: url, prettyPrinted: prettyPrinted)
   }
 
+  /// Clears all currently recorded exchanges.
   public func reset() {
     self.exchanges.removeAll()
   }

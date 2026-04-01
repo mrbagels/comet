@@ -1,10 +1,13 @@
+/// Represents an HTTP method while preserving support for custom verbs.
 public struct HTTPMethod: RawRepresentable, Sendable, Hashable, ExpressibleByStringLiteral, CustomStringConvertible {
   public let rawValue: String
 
+  /// Creates an HTTP method, normalizing the raw value to uppercase.
   public init(rawValue: String) {
     self.rawValue = rawValue.uppercased()
   }
 
+  /// Creates an HTTP method from a string literal.
   public init(stringLiteral value: String) {
     self.init(rawValue: value)
   }
