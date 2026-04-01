@@ -1,14 +1,34 @@
 import Foundation
 
 public final class EventBroadcaster<Event: Sendable>: @unchecked Sendable {
+  public enum BufferingPolicy: Sendable, Equatable {
+    case unbounded
+    case bufferingNewest(Int)
+    case bufferingOldest(Int)
+
+    fileprivate var asyncStreamPolicy: AsyncStream<Event>.Continuation.BufferingPolicy {
+      switch self {
+      case .unbounded:
+        .unbounded
+      case .bufferingNewest(let limit):
+        .bufferingNewest(limit)
+      case .bufferingOldest(let limit):
+        .bufferingOldest(limit)
+      }
+    }
+  }
+
   private let lock = NSLock()
   private var continuations: [UUID: AsyncStream<Event>.Continuation] = [:]
+  private let bufferingPolicy: BufferingPolicy
 
-  public init() {}
+  public init(bufferingPolicy: BufferingPolicy = .bufferingNewest(100)) {
+    self.bufferingPolicy = bufferingPolicy
+  }
 
   public func stream() -> AsyncStream<Event> {
     let id = UUID()
-    return AsyncStream { continuation in
+    return AsyncStream(bufferingPolicy: self.bufferingPolicy.asyncStreamPolicy) { continuation in
       self.withLock {
         self.continuations[id] = continuation
       }

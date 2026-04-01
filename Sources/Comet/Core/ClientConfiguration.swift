@@ -11,6 +11,7 @@ public struct ClientConfiguration: Sendable {
   public var defaultHeaders: HTTPFields
   public var timeout: Duration
   public var middleware: [any Middleware]
+  public var activityBufferingPolicy: EventBroadcaster<NetworkEvent>.BufferingPolicy
 
   public var makeJSONEncoder: @Sendable () -> JSONEncoder
   public var makeJSONDecoder: @Sendable () -> JSONDecoder
@@ -24,6 +25,7 @@ public struct ClientConfiguration: Sendable {
     defaultHeaders: HTTPFields = .init(),
     timeout: Duration = .seconds(30),
     middleware: [any Middleware] = [],
+    activityBufferingPolicy: EventBroadcaster<NetworkEvent>.BufferingPolicy = .bufferingNewest(100),
     makeJSONEncoder: @escaping @Sendable () -> JSONEncoder = Self.defaultJSONEncoder,
     makeJSONDecoder: @escaping @Sendable () -> JSONDecoder = Self.defaultJSONDecoder,
     now: @escaping @Sendable () -> ContinuousClock.Instant = { ContinuousClock().now },
@@ -37,6 +39,7 @@ public struct ClientConfiguration: Sendable {
     self.defaultHeaders = defaultHeaders
     self.timeout = timeout
     self.middleware = middleware
+    self.activityBufferingPolicy = activityBufferingPolicy
     self.makeJSONEncoder = makeJSONEncoder
     self.makeJSONDecoder = makeJSONDecoder
     self.now = now
@@ -51,6 +54,7 @@ public struct ClientConfiguration: Sendable {
   ) -> Self {
     Self(
       baseURL: baseURL,
+      activityBufferingPolicy: .bufferingNewest(100),
       makeJSONEncoder: { Self.jsonEncoder(preset: jsonPreset) },
       makeJSONDecoder: { Self.jsonDecoder(preset: jsonPreset) }
     )

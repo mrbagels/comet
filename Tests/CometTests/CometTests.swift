@@ -142,6 +142,10 @@ private func durationMilliseconds(_ duration: Duration) -> Int64 {
   #expect(prepared.url.absoluteString == "https://cdn.example.com/files/test?hello=world")
 }
 
+@Test func requestOptionsDefaultToNoAPIVersionPrefix() {
+  #expect(RequestOptions().apiVersion == nil)
+}
+
 @Test func requestBuilderPreservesRepeatedHeaders() throws {
   var defaultHeaders = HTTPFields()
   defaultHeaders[values: .accept] = ["text/html"]
@@ -241,6 +245,44 @@ private func durationMilliseconds(_ duration: Duration) -> Int64 {
   )
 
   _ = try await client.send(request)
+}
+
+@Test func stringSerializerUsesCharsetFromResponseHeaders() throws {
+  let response = RawResponse(
+    data: Data([0x63, 0x61, 0x66, 0xE9]),
+    statusCode: 200,
+    headers: {
+      var headers = HTTPFields()
+      headers[.contentType] = "text/plain; charset=iso-8859-1"
+      return headers
+    }()
+  )
+
+  let string = try ResponseSerializer<String>.string().serialize(
+    response,
+    .default(baseURL: URL(string: "https://example.com")!)
+  )
+
+  #expect(string == "café")
+}
+
+@Test func stringSerializerPrefersExplicitEncodingWhenProvided() throws {
+  let response = RawResponse(
+    data: Data("hello".utf8),
+    statusCode: 200,
+    headers: {
+      var headers = HTTPFields()
+      headers[.contentType] = "text/plain; charset=iso-8859-1"
+      return headers
+    }()
+  )
+
+  let string = try ResponseSerializer<String>.string(encoding: .utf8).serialize(
+    response,
+    .default(baseURL: URL(string: "https://example.com")!)
+  )
+
+  #expect(string == "hello")
 }
 
 @Test func retryMiddlewareUsesInjectedRandomnessAndEmitsEvents() async throws {
@@ -439,4 +481,66 @@ private func durationMilliseconds(_ duration: Duration) -> Int64 {
 
   #expect(String(decoding: standardData, as: UTF8.self).contains("userId"))
   #expect(String(decoding: snakeCaseData, as: UTF8.self).contains("user_id"))
+}
+
+@Test func networkErrorExposesReadableHTTPMetadata() throws {
+  let body = Data(#"{"message":"not found","code":404}"#.utf8)
+  var headers = HTTPFields()
+  headers[.contentType] = "application/json; charset=utf-8"
+  let error = NetworkError.http(statusCode: 404, body: body, headers: headers)
+
+  #expect(error.statusCode == 404)
+  #expect(error.bodyString == #"{"message":"not found","code":404}"#)
+  #expect(error.prettyBodyJSONString?.contains(#""message" : "not found""#) == true)
+  #expect(error.debugSummary.contains("HTTP 404"))
+}
+
+@Test func networkErrorFlagsConnectivityAndTimeoutCases() {
+  let transportError = NetworkError.transport(URLError(.notConnectedToInternet))
+  let timeoutError = NetworkError.timeout
+
+  #expect(transportError.isConnectivityError)
+  #expect(!transportError.isTimeoutError)
+  #expect(timeoutError.isTimeoutError)
+  #expect(!timeoutError.isConnectivityError)
+}
+
+@Test func preparedRequestBuildsURLRequest() {
+  var headers = HTTPFields()
+  headers[.contentType] = "application/json"
+
+  let prepared = PreparedRequest(
+    url: URL(string: "https://example.com/todos/1")!,
+    method: .post,
+    headers: headers,
+    body: Data("{}".utf8),
+    timeout: .seconds(5)
+  )
+
+  let request = prepared.urlRequest
+
+  #expect(request.url?.absoluteString == "https://example.com/todos/1")
+  #expect(request.httpMethod == "POST")
+  #expect(request.httpBody == Data("{}".utf8))
+  #expect(request.timeoutInterval == 5)
+  #expect(request.value(forHTTPHeaderField: "Content-Type") == "application/json")
+}
+
+@Test func eventBroadcasterUsesBoundedNewestBuffering() async {
+  let broadcaster = EventBroadcaster<Int>(bufferingPolicy: .bufferingNewest(2))
+  let stream = broadcaster.stream()
+  var iterator = stream.makeAsyncIterator()
+
+  broadcaster.emit(1)
+  broadcaster.emit(2)
+  broadcaster.emit(3)
+  broadcaster.finish()
+
+  let first = await iterator.next()
+  let second = await iterator.next()
+  let third = await iterator.next()
+
+  #expect(first == 2)
+  #expect(second == 3)
+  #expect(third == nil)
 }

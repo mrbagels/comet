@@ -45,11 +45,36 @@ extension HTTPFields {
       result[entry.key.rawName] = entry.value
     }
   }
+
+  var suggestedTextEncoding: String.Encoding? {
+    guard let contentType = self[.contentType] else { return nil }
+
+    let charsetParameter = contentType
+      .split(separator: ";")
+      .dropFirst()
+      .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+      .first { $0.lowercased().hasPrefix("charset=") }
+      .map { String($0.dropFirst("charset=".count)) }
+
+    let charset = charsetParameter?
+      .trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
+
+    guard let charset else { return nil }
+    return String.Encoding(ianaCharsetName: charset)
+  }
 }
 
 extension Duration {
   var timeInterval: Double {
     let components = self.components
     return Double(components.seconds) + Double(components.attoseconds) / 1_000_000_000_000_000_000
+  }
+}
+
+extension String.Encoding {
+  init?(ianaCharsetName: String) {
+    let encoding = CFStringConvertIANACharSetNameToEncoding(ianaCharsetName as CFString)
+    guard encoding != kCFStringEncodingInvalidId else { return nil }
+    self.init(rawValue: CFStringConvertEncodingToNSStringEncoding(encoding))
   }
 }

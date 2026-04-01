@@ -32,21 +32,29 @@ public struct ResponseSerializer<Value: Sendable>: Sendable {
   }
 
   public static func string(
-    encoding: String.Encoding = .utf8
+    encoding: String.Encoding? = nil,
+    fallbackEncoding: String.Encoding = .utf8
   ) -> ResponseSerializer<String> {
     ResponseSerializer<String> { (response: RawResponse, _: ClientConfiguration) throws(NetworkError) -> String in
-      guard let string = String(data: response.data, encoding: encoding) else {
+      let resolvedEncoding = encoding ?? response.headers.suggestedTextEncoding ?? fallbackEncoding
+      guard let string = String(data: response.data, encoding: resolvedEncoding) else {
         throw NetworkError.decoding(
           DecodingError.dataCorrupted(
             .init(
               codingPath: [],
-              debugDescription: "Unable to decode string using \(encoding)"
+              debugDescription: "Unable to decode string using \(resolvedEncoding)"
             )
           )
         )
       }
       return string
     }
+  }
+
+  public static func string(
+    encoding: String.Encoding
+  ) -> ResponseSerializer<String> {
+    self.string(encoding: Optional(encoding), fallbackEncoding: encoding)
   }
 
   public static var empty: ResponseSerializer<EmptyResponse> {

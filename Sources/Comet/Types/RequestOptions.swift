@@ -10,7 +10,7 @@ public struct RequestOptions: Sendable {
   public var middleware: [any Middleware]
 
   public init(
-    apiVersion: String? = "v1",
+    apiVersion: String? = nil,
     absoluteURL: URL? = nil,
     timeout: Duration? = nil,
     idempotencyKey: String? = nil,

@@ -21,4 +21,13 @@ public struct PreparedRequest: Sendable {
     self.body = body
     self.timeout = timeout
   }
+
+  public var urlRequest: URLRequest {
+    var request = URLRequest(url: self.url)
+    request.httpMethod = self.method.rawValue
+    request.httpBody = self.body
+    request.timeoutInterval = self.timeout.timeInterval
+    request.allHTTPHeaderFields = self.headers.combinedForFoundation
+    return request
+  }
 }

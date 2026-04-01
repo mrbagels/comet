@@ -27,7 +27,7 @@ public struct HTTPClient: Sendable {
       configuration: configuration,
       transport: transport,
       deduplicator: RequestDeduplicator(),
-      broadcaster: EventBroadcaster()
+      broadcaster: EventBroadcaster(bufferingPolicy: configuration.activityBufferingPolicy)
     )
   }
 
