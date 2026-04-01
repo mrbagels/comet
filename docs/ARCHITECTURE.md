@@ -485,6 +485,8 @@ Current helpers:
 
 - `MockTransport`
 - `RecordingTransport`
+- `ReplayTransport`
+- `HTTPCassette`
 - `HTTPClient.mock`
 - `HTTPClient.succeeding`
 - `HTTPClient.failing`
@@ -497,6 +499,16 @@ Current modes:
 - `routes(_:)` for method/path/query-aware matching
 
 This is the main low-friction testing seam for request code.
+
+### Recorder And Replay
+
+`RecordingTransport` now records full exchanges, not just requests:
+
+- request URL, method, headers, body, and timeout
+- response status, headers, body, or the resulting `NetworkError`
+- exchange duration and recording timestamp
+
+`HTTPCassette` serializes those exchanges as JSON fixtures, and `ReplayTransport` plays them back either by matching requests or by consuming them sequentially.
 
 ---
 
@@ -536,7 +548,7 @@ The project is generated from `project.yml` with XcodeGen.
 - server-side Swift support currently means the core abstractions are transport-replaceable, not that a Vapor/AsyncHTTPClient transport ships today
 - repeated headers are preserved inside Comet but combined at `Foundation` boundaries
 - activity events cover request lifecycle, not decode lifecycle
-- distributed tracing, caching, and recorder/replay are still future work
+- distributed tracing and caching are still future work
 
 ---
 
@@ -547,5 +559,5 @@ When Comet grows beyond this MVP, the highest-value next additions are likely:
 - a server-side live transport
 - distributed tracing/context propagation
 - caching primitives
-- richer recorder/replay tools
+- WebSocket support
 - targeted docs and examples for real app integration

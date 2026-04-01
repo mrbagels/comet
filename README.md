@@ -4,19 +4,142 @@ Comet is a modern Swift networking library built as a Swift package for long-ter
 
 ## Package Products
 
-- `Comet`: core request building, serialization, transport, middleware, retry, deduplication, and activity events
-- `CometTesting`: mock and recording transports for deterministic verification
+- `Comet`: typed request building, serialization, middleware, retry, deduplication, and activity events
+- `CometTesting`: mocks, recorders, JSON cassettes, and replay transports
 - `CometTCA`: lightweight Composable Architecture integration
 
-## Repository Layout
+## Install
 
-- `Sources/`: package source targets
-- `Tests/`: package test targets
-- `Examples/CometPlayground/`: XcodeGen-driven iOS demo app
-- `docs/ARCHITECTURE.md`: architecture notes
-- `docs/IMPLEMENTATION_PLAN.md`: implementation plan and rollout notes
+```swift
+.package(url: "https://github.com/mrbagels/comet.git", from: "0.1.0")
+```
+
+Import the target you need:
+
+```swift
+import Comet
+import CometTesting
+```
 
 ## Quick Start
+
+### Authenticated JSON
+
+```swift
+import Comet
+import HTTPTypes
+
+struct User: Decodable, Sendable {
+  let id: Int
+  let name: String
+}
+
+struct GetUser: APIRequest {
+  let userID: Int
+
+  var path: Path { "users" / self.userID }
+  let method: HTTPMethod = .get
+  let responseSerializer: ResponseSerializer<User> = .json(User.self)
+
+  // API versioning is opt-in. Add it only when your server expects it.
+  var options: RequestOptions {
+    .init(apiVersion: "v1")
+  }
+}
+
+let client = HTTPClient.live(
+  configuration: ClientConfiguration(
+    baseURL: URL(string: "https://api.example.com")!,
+    middleware: [
+      BearerTokenMiddleware {
+        await authStore.accessToken
+      }
+    ]
+  ),
+  transport: URLSessionTransport()
+)
+
+let user = try await client.send(GetUser(userID: 42))
+```
+
+### Plain Text And Raw HTTP
+
+```swift
+import Comet
+import HTTPTypes
+
+struct ExampleDomainRequest: APIRequest {
+  let path: Path = "ignored"
+  let method: HTTPMethod = .get
+  let responseSerializer: ResponseSerializer<String> = .string()
+
+  var options: RequestOptions {
+    .init(absoluteURL: URL(string: "https://example.com")!)
+  }
+}
+
+let client = HTTPClient.live(
+  configuration: .default(baseURL: URL(string: "https://placeholder.invalid")!),
+  transport: URLSessionTransport()
+)
+
+let html = try await client.send(ExampleDomainRequest())
+let raw = try await client.sendRaw(ExampleDomainRequest())
+```
+
+### Retries, Logging, And Activity
+
+```swift
+import Comet
+
+let client = HTTPClient.live(
+  configuration: ClientConfiguration(
+    baseURL: URL(string: "https://api.example.com")!,
+    middleware: [
+      RetryMiddleware(maxAttempts: 3),
+      LoggingMiddleware(logLevel: .verbose)
+    ]
+  ),
+  transport: URLSessionTransport()
+)
+
+Task {
+  for await event in client.activity {
+    print(event)
+  }
+}
+```
+
+### Deterministic Testing And Replay Fixtures
+
+```swift
+import Comet
+import CometTesting
+
+let recorder = RecordingTransport(base: URLSessionTransport())
+let liveClient = HTTPClient.live(
+  configuration: .default(baseURL: URL(string: "https://api.example.com")!),
+  transport: recorder
+)
+
+_ = try await liveClient.send(GetUser(userID: 42))
+
+let cassetteURL = URL(fileURLWithPath: "Tests/Fixtures/get-user-42.json")
+let cassette = await recorder.cassette()
+try cassette.write(to: cassetteURL)
+
+let replay = try ReplayTransport(contentsOf: cassetteURL)
+let replayClient = HTTPClient.live(
+  configuration: .default(baseURL: URL(string: "https://api.example.com")!),
+  transport: replay
+)
+
+let recordedUser = try await replayClient.send(GetUser(userID: 42))
+```
+
+`MockTransport` is still the fastest path for fully in-memory tests. `RecordingTransport` and `ReplayTransport` are for higher-fidelity fixture workflows when you want to capture live traffic once and replay it deterministically later.
+
+## Verification
 
 Run the package tests:
 
@@ -34,8 +157,19 @@ xcodegen generate
 Run the example smoke tests from the command line:
 
 ```sh
-xcodebuild test -project CometPlayground.xcodeproj -scheme CometPlaygroundApp -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.5'
+xcodebuild test -project CometPlayground.xcodeproj -scheme CometPlaygroundApp -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=latest'
 ```
+
+GitHub Actions runs both the Swift package suite and the iOS example smoke tests on every push to `master` and `dev`.
+
+## Repository Layout
+
+- `Sources/`: package source targets
+- `Tests/`: package test targets
+- `Examples/CometPlayground/`: XcodeGen-driven iOS demo app
+- `.github/workflows/ci.yml`: package and iOS smoke test automation
+- `docs/ARCHITECTURE.md`: architecture notes
+- `docs/IMPLEMENTATION_PLAN.md`: implementation plan and rollout notes
 
 ## Example App
 

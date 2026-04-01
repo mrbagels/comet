@@ -113,6 +113,7 @@ Delivered:
 
 - `MockTransport`
 - `RecordingTransport`
+- JSON cassette export and replay
 - `HTTPClient` testing factories
 - generated iOS playground app
 - mock and live demo flows
@@ -177,7 +178,9 @@ The package tests currently cover:
 - deduplication for concurrent callers
 - logging middleware behavior
 - mock route matching
-- recording transport behavior
+- recording transport request/response/failure capture
+- cassette JSON round-tripping
+- replay transport fixtures
 - TCA dependency and effect integration
 
 ### Playground Tests

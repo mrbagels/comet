@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+      - dev
+  pull_request:
+
+jobs:
+  package-tests:
+    runs-on: macos-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Run Swift package tests
+        run: swift test
+
+  ios-playground:
+    runs-on: macos-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+
+      - name: Generate playground project
+        working-directory: Examples/CometPlayground
+        run: xcodegen generate
+
+      - name: Select available iPhone simulator
+        id: simulator
+        run: |
+          SIMULATOR_ID=$(xcrun simctl list devices available --json | ruby -rjson -e '
+            devices = JSON.parse(STDIN.read).fetch("devices").values.flatten
+            candidates = devices.select { |device| device["isAvailable"] && device["name"].start_with?("iPhone") }
+            preferred_names = ["iPhone 17 Pro", "iPhone 16 Pro", "iPhone 15 Pro"]
+            device = preferred_names.lazy.map { |name| candidates.find { |candidate| candidate["name"] == name } }.find(&:itself) || candidates.first
+            abort("No available iPhone simulator found.") unless device
+            print device["udid"]
+          ')
+          echo "id=$SIMULATOR_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Run iOS smoke tests
+        working-directory: Examples/CometPlayground
+        run: |
+          xcodebuild test \
+            -project CometPlayground.xcodeproj \
+            -scheme CometPlaygroundApp \
+            -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}"
