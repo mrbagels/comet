@@ -4,6 +4,8 @@ import Comet
 import CometTesting
 
 enum DemoClientFactory {
+  private static let liveWebSocketURL = URL(string: "wss://ws.postman-echo.com/raw")!
+
   static func makeClient(mode: DemoCatalog.ClientMode) -> HTTPClient {
     switch mode {
     case .mock:
@@ -60,6 +62,40 @@ enum DemoClientFactory {
       return .live(
         configuration: .default(baseURL: URL(string: "https://jsonplaceholder.typicode.com")!),
         transport: URLSessionTransport()
+      )
+    }
+  }
+
+  static func makeWebSocketClient(mode: DemoCatalog.ClientMode) -> WebSocketClient {
+    switch mode {
+    case .mock:
+      return .live(
+        transport: MockWebSocketTransport(
+          selectedSubprotocol: "comet.demo.v1",
+          echoSentMessages: true
+        )
+      )
+
+    case .live:
+      return .live(
+        transport: URLSessionWebSocketTransport(configuration: .ephemeral)
+      )
+    }
+  }
+
+  static func makeWebSocketRequest(mode: DemoCatalog.ClientMode) -> WebSocketRequest {
+    switch mode {
+    case .mock:
+      return WebSocketRequest(
+        url: URL(string: "wss://comet.local/socket")!,
+        subprotocols: ["comet.demo.v1"],
+        timeout: .seconds(10)
+      )
+
+    case .live:
+      return WebSocketRequest(
+        url: self.liveWebSocketURL,
+        timeout: .seconds(10)
       )
     }
   }

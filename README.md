@@ -4,13 +4,13 @@ Comet is a modern Swift networking library for Apple-platform apps today. It shi
 
 ## Package Products
 
-- `Comet`: typed request building, serialization, middleware, retry, deduplication, and activity events
-- `CometTesting`: mocks, recorders, JSON cassettes, and replay transports
+- `Comet`: typed HTTP requests, WebSocket connections, middleware, retry, deduplication, and activity events
+- `CometTesting`: mocks, recorders, JSON cassettes, replay transports, and mock WebSocket sessions
 - `CometTCA`: lightweight Composable Architecture integration
 
 ## Platform Status
 
-Comet’s shipped live transport is `URLSessionTransport`, so the production-ready story today is Apple-platform client apps. The core abstractions are intentionally transport-replaceable, but a server-side live transport does not ship yet.
+Comet’s shipped live transports are `URLSessionTransport` and `URLSessionWebSocketTransport`, so the production-ready story today is Apple-platform client apps. The core abstractions are intentionally transport-replaceable, but a server-side live transport does not ship yet.
 
 ## Install
 
@@ -114,6 +114,27 @@ Task {
 }
 ```
 
+### WebSocket Sessions
+
+```swift
+import Comet
+
+let sockets = WebSocketClient.live(
+  transport: URLSessionWebSocketTransport()
+)
+
+let connection = try await sockets.connect(
+  WebSocketRequest(
+    url: URL(string: "wss://ws.postman-echo.com/raw")!,
+    timeout: .seconds(10)
+  )
+)
+
+try await connection.send(.text(#"{"kind":"echo","library":"Comet"}"#))
+let reply = try await connection.receive()
+try await connection.close(code: .normalClosure)
+```
+
 ### Deterministic Testing And Replay Fixtures
 
 ```swift
@@ -142,6 +163,8 @@ let recordedUser = try await replayClient.send(GetUser(userID: 42))
 ```
 
 `MockTransport` is still the fastest path for fully in-memory tests. `RecordingTransport` and `ReplayTransport` are for higher-fidelity fixture workflows when you want to capture live traffic once and replay it deterministically later.
+
+For realtime tests, `MockWebSocketTransport` gives you the same deterministic control for handshake, echo, queued inbound messages, ping tracking, and close frames.
 
 ## Verification
 
@@ -182,7 +205,8 @@ The example project is an iPhone-first verification app for the package. It give
 - an iOS app target: `CometPlaygroundApp`
 - a focused smoke test target: `CometPlaygroundTests`
 - deterministic mock verification with `CometTesting.MockTransport`
-- live transport checks through `URLSessionTransport`
+- deterministic socket verification with `CometTesting.MockWebSocketTransport`
+- live transport checks through `URLSessionTransport` and `URLSessionWebSocketTransport`
 - focused proof, activity, and detail flows showing which APIs are being exercised and what output to verify
 
 The full walkthrough lives in [Examples/CometPlayground/README.md](Examples/CometPlayground/README.md).
@@ -191,6 +215,9 @@ The full walkthrough lives in [Examples/CometPlayground/README.md](Examples/Come
 
 If you want to understand or modify the example apps, start here:
 
+- [Sources/Comet/WebSockets/WebSocketTypes.swift](Sources/Comet/WebSockets/WebSocketTypes.swift)
+- [Sources/Comet/WebSockets/URLSessionWebSocketTransport.swift](Sources/Comet/WebSockets/URLSessionWebSocketTransport.swift)
+- [Sources/CometTesting/MockWebSocketTransport.swift](Sources/CometTesting/MockWebSocketTransport.swift)
 - [DemoCatalog.swift](Examples/CometPlayground/App/DemoCatalog.swift)
 - [RootView.swift](Examples/CometPlayground/App/RootView.swift)
 - [HomeTab.swift](Examples/CometPlayground/App/HomeTab.swift)

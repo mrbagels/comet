@@ -36,7 +36,7 @@ struct HomeTab: View {
         .font(.system(size: 40, weight: .bold, design: .rounded))
         .foregroundStyle(ThemeColor.ink)
 
-      Text("Switch transports, run a proof track, and only move into details when you need the deeper output.")
+      Text("Switch transports, run HTTP or socket proofs, and only move into details when you need the deeper output.")
         .font(.system(.title3))
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
@@ -62,7 +62,7 @@ struct HomeTab: View {
       HStack(alignment: .top, spacing: 16) {
         VStack(alignment: .leading, spacing: 8) {
           SectionEyebrow(text: "Session")
-          Text("Choose a transport once, then jump into the flow you want to demonstrate.")
+          Text("Choose a transport once, then jump into the HTTP or realtime flow you want to demonstrate.")
             .font(.system(.body, design: .rounded).weight(.medium))
             .foregroundStyle(ThemeColor.ink)
             .fixedSize(horizontal: false, vertical: true)
@@ -117,7 +117,7 @@ struct HomeTab: View {
     GlassPanel {
       VStack(alignment: .leading, spacing: 10) {
         SectionEyebrow(text: "Explore")
-        Text("Use dedicated tabs and detail screens when you need the full proof surface or the raw event history.")
+        Text("Use dedicated tabs and detail screens when you need the full proof surface, a socket transcript, or the raw event history.")
           .font(.system(.body))
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)

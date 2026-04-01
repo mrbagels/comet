@@ -64,7 +64,7 @@ private struct ProofsOverviewPanel: View {
       HStack(alignment: .top, spacing: 16) {
         VStack(alignment: .leading, spacing: 8) {
           SectionEyebrow(text: "Focused Flow")
-          Text("Open a track, pick a single scenario, and keep the verification criteria next to the real output.")
+          Text("Open a track, pick a single HTTP or socket scenario, and keep the verification criteria next to the real output.")
             .font(.system(.body, design: .rounded).weight(.medium))
             .foregroundStyle(ThemeColor.ink)
             .fixedSize(horizontal: false, vertical: true)
@@ -85,7 +85,7 @@ private struct ProofsOverviewPanel: View {
       }
       .pickerStyle(.segmented)
 
-      Text("Switch the transport here when you want every proof detail page to run against a different client.")
+      Text("Switch the transport here when you want every proof detail page to run against a different HTTP and WebSocket client setup.")
         .font(.system(.subheadline))
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)

@@ -243,6 +243,7 @@ public struct RecordedNetworkError: Codable, Sendable, Hashable {
     case invalidRequest
     case transport
     case http
+    case webSocketClosed
     case decoding
     case encoding
     case middleware
@@ -293,6 +294,12 @@ public struct RecordedNetworkError: Codable, Sendable, Hashable {
         headers: headers.recordedHeaders,
         bodyBase64: body.base64EncodedString()
       )
+    case .webSocketClosed(let code, let reason):
+      self.init(
+        kind: .webSocketClosed,
+        statusCode: Int(code.rawValue),
+        bodyBase64: reason?.base64EncodedString()
+      )
     case .decoding(let error):
       self.init(kind: .decoding, message: String(describing: error))
     case .encoding(let message):
@@ -325,6 +332,11 @@ public struct RecordedNetworkError: Codable, Sendable, Hashable {
         statusCode: self.statusCode ?? 0,
         body: self.bodyData ?? Data(),
         headers: (try? HTTPFields(recordedHeaders: self.headers)) ?? .init()
+      )
+    case .webSocketClosed:
+      return .webSocketClosed(
+        code: WebSocketCloseCode(rawValue: UInt16(self.statusCode ?? Int(WebSocketCloseCode.normalClosure.rawValue))),
+        reason: self.bodyData
       )
     case .decoding:
       return .decoding(

@@ -8,6 +8,7 @@ final class DemoCatalog {
   enum DemoCategory: String, CaseIterable, Identifiable {
     case requests
     case transport
+    case realtime
 
     var id: String { self.rawValue }
 
@@ -15,6 +16,7 @@ final class DemoCatalog {
       switch self {
       case .requests: "Requests"
       case .transport: "Transport"
+      case .realtime: "Realtime"
       }
     }
 
@@ -24,6 +26,8 @@ final class DemoCatalog {
         "Typed serialization, URL shaping, and content transforms."
       case .transport:
         "Status validation, raw inspection, and payload-free flows."
+      case .realtime:
+        "Bidirectional sessions, echo transcripts, and socket transport swaps."
       }
     }
 
@@ -31,6 +35,7 @@ final class DemoCatalog {
       switch self {
       case .requests: "point.3.connected.trianglepath.dotted"
       case .transport: "waveform.path.ecg.rectangle"
+      case .realtime: "dot.radiowaves.left.and.right"
       }
     }
 
@@ -44,6 +49,7 @@ final class DemoCatalog {
     case text
     case empty
     case raw
+    case webSocket
 
     var id: String { self.rawValue }
 
@@ -53,6 +59,7 @@ final class DemoCatalog {
       case .text: "Plain Text"
       case .empty: "Empty Response"
       case .raw: "Raw Response"
+      case .webSocket: "WebSocket Echo"
       }
     }
 
@@ -66,6 +73,8 @@ final class DemoCatalog {
         "Validate a 204-style endpoint using `EmptyResponse`."
       case .raw:
         "Inspect bytes, headers, and status directly with `sendRaw`."
+      case .webSocket:
+        "Open a socket, send JSON, and inspect the echoed transcript with the WebSocket client surface."
       }
     }
 
@@ -75,6 +84,8 @@ final class DemoCatalog {
         .requests
       case .empty, .raw:
         .transport
+      case .webSocket:
+        .realtime
       }
     }
 
@@ -84,6 +95,7 @@ final class DemoCatalog {
       case .text: "text.page"
       case .empty: "checkmark.circle.badge.xmark"
       case .raw: "bolt.horizontal.circle"
+      case .webSocket: "dot.radiowaves.up.forward"
       }
     }
 
@@ -97,6 +109,13 @@ final class DemoCatalog {
         ["HTTPClient.send", "EmptyResponse", "StatusValidation"]
       case .raw:
         ["HTTPClient.sendRaw", "RawResponse", "HTTPFields"]
+      case .webSocket:
+        [
+          "WebSocketClient.connect",
+          "WebSocketRequest",
+          "URLSessionWebSocketTransport",
+          "MockWebSocketTransport"
+        ]
       }
     }
 
@@ -142,6 +161,16 @@ final class DemoCatalog {
           "Status is `200` and the body bytes are non-empty.",
           "The raw payload is visible without decoding first."
         ]
+      case (.webSocket, .mock):
+        [
+          "The transcript shows a mocked socket URL and negotiated subprotocol.",
+          "The echoed payload matches the JSON message sent over the connection."
+        ]
+      case (.webSocket, .live):
+        [
+          "The transcript shows a live `wss://` endpoint and echoed payload.",
+          "The connection closes cleanly after the response is received."
+        ]
       }
     }
   }
@@ -162,9 +191,9 @@ final class DemoCatalog {
     var blurb: String {
       switch self {
       case .mock:
-        "Deterministic responses from `CometTesting.MockTransport`."
+        "Deterministic HTTP and socket flows from `MockTransport` and `MockWebSocketTransport`."
       case .live:
-        "Real HTTPS traffic through `URLSessionTransport`."
+        "Real HTTP and WebSocket traffic through URLSession-backed transports."
       }
     }
   }
@@ -194,11 +223,13 @@ final class DemoCatalog {
   var runSummary = "Start in Mock mode and run the proof set to verify Comet end-to-end."
 
   private var client: HTTPClient
+  private var socketClient: WebSocketClient
   private let activityObserver = ActivityObserver()
 
   init() {
     self.demoStates = Self.makeInitialStates()
     self.client = DemoClientFactory.makeClient(mode: .mock)
+    self.socketClient = DemoClientFactory.makeWebSocketClient(mode: .mock)
     self.subscribeToActivity()
   }
 
@@ -258,10 +289,26 @@ final class DemoCatalog {
           status: .passed,
           detail: "Inspected a raw response before decoding."
         )
+      case .webSocket:
+        let transcript = try await self.runWebSocketDemo()
+        self.demoStates[demo] = DemoState(
+          output: Self.prettyPrintedJSON(for: transcript),
+          status: .passed,
+          detail: "Opened a socket, echoed JSON, and closed the session cleanly."
+        )
       }
 
       self.runSummary = "Latest success: \(demo.title) in \(self.mode.title) mode."
     } catch {
+      if demo == .webSocket {
+        self.recordSocketEvent(
+          "failed socket",
+          details: [
+            self.mode.rawValue,
+            error.localizedDescription
+          ]
+        )
+      }
       self.demoStates[demo] = DemoState(
         output: "Error: \(error)",
         status: .failed,
@@ -299,10 +346,67 @@ final class DemoCatalog {
 
   private func configureClient() {
     self.client = DemoClientFactory.makeClient(mode: self.mode)
+    self.socketClient = DemoClientFactory.makeWebSocketClient(mode: self.mode)
     self.demoStates = Self.makeInitialStates()
     self.activityLog.removeAll()
     self.runSummary = "Switched to \(self.mode.title) mode. Run any scenario to verify the active transport."
     self.subscribeToActivity()
+  }
+
+  private func runWebSocketDemo() async throws -> WebSocketDemoTranscript {
+    let request = DemoClientFactory.makeWebSocketRequest(mode: self.mode)
+    let payload = WebSocketDemoPayload(
+      kind: "echo",
+      mode: self.mode.rawValue,
+      library: "Comet",
+      note: self.mode == .mock
+        ? "Mock echo routed through CometTesting."
+        : "Live echo routed through URLSessionWebSocketTransport."
+    )
+
+    self.recordSocketEvent(
+      "started socket",
+      details: [
+        self.mode.rawValue,
+        request.url.absoluteString
+      ]
+    )
+
+    let connection = try await self.socketClient.connect(request)
+    let outboundText = Self.prettyPrintedJSON(for: payload)
+
+    try await connection.send(.text(outboundText))
+    let reply = try await connection.receive()
+    try await connection.close(code: .normalClosure, reason: Data("Comet demo complete".utf8))
+
+    let inboundText = Self.messageText(from: reply)
+    let inboundPayload = Self.decodeJSON(WebSocketDemoPayload.self, from: inboundText)
+
+    self.recordSocketEvent(
+      "completed socket",
+      details: [
+        self.mode.rawValue,
+        request.url.host() ?? request.url.absoluteString,
+        "close \(WebSocketCloseCode.normalClosure.rawValue)"
+      ]
+    )
+
+    return WebSocketDemoTranscript(
+      endpoint: request.url.absoluteString,
+      transport: self.mode == .mock ? "MockWebSocketTransport" : "URLSessionWebSocketTransport",
+      negotiatedSubprotocol: connection.selectedSubprotocol,
+      outbound: payload,
+      inbound: inboundPayload,
+      inboundText: inboundText,
+      closeCode: WebSocketCloseCode.normalClosure.rawValue
+    )
+  }
+
+  private func recordSocketEvent(_ title: String, details: [String]) {
+    self.activityLog.insert(
+      ([title] + details).joined(separator: " • "),
+      at: 0
+    )
   }
 
   private func subscribeToActivity() {
@@ -350,6 +454,12 @@ final class DemoCatalog {
         status: .idle,
         detail: "Waiting for the first verification run."
       )
+    case .webSocket:
+      DemoState(
+        output: "Run the WebSocket demo to inspect an echoed session transcript.",
+        status: .idle,
+        detail: "Waiting for the first verification run."
+      )
     }
   }
 
@@ -362,6 +472,20 @@ final class DemoCatalog {
       return String(decoding: data, as: UTF8.self)
     } catch {
       return String(describing: value)
+    }
+  }
+
+  private static func decodeJSON<Value: Decodable>(_ type: Value.Type, from value: String) -> Value? {
+    guard let data = value.data(using: .utf8) else { return nil }
+    return try? JSONDecoder().decode(type, from: data)
+  }
+
+  private static func messageText(from message: WebSocketMessage) -> String {
+    switch message {
+    case .text(let value):
+      return value
+    case .data(let data):
+      return String(decoding: data, as: UTF8.self)
     }
   }
 

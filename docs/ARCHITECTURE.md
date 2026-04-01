@@ -1,6 +1,6 @@
 # Comet — Architecture
 
-> Swift 6.2+ · iOS 18+ today · shipped live transport: `URLSession` · server-side transport is future work
+> Swift 6.2+ · iOS 18+ today · shipped live transports: `URLSession` HTTP and WebSocket · server-side transport is future work
 
 This document reflects the current implemented architecture of Comet.
 
@@ -85,6 +85,9 @@ The current MVP includes:
 - `HTTPClient`
 - `HTTPTransport`
 - `URLSessionTransport`
+- `WebSocketClient`
+- `WebSocketTransport`
+- `URLSessionWebSocketTransport`
 - `APIRequest`
 - `Path`
 - `HTTPBody`
@@ -106,7 +109,6 @@ The current MVP includes:
 
 Deferred for later:
 
-- WebSocket
 - SSE and streaming response APIs
 - upload/download progress APIs
 - caching and stale-while-revalidate
@@ -132,6 +134,9 @@ Sources/Comet/
 │   ├── PreparedRequest.swift
 │   ├── RequestBuilder.swift
 │   └── URLSessionTransport.swift
+├── WebSockets/
+│   ├── URLSessionWebSocketTransport.swift
+│   └── WebSocketTypes.swift
 ├── Debug/
 │   └── CURLCommand.swift
 ├── Deduplication/
@@ -169,6 +174,7 @@ Sources/CometTCA/
 
 Sources/CometTesting/
 ├── HTTPClient+Testing.swift
+├── MockWebSocketTransport.swift
 ├── MockTransport.swift
 └── RecordingTransport.swift
 ```
@@ -189,6 +195,11 @@ APIRequest
   → status validation
   → ResponseSerializer<Response>
   → typed Response
+
+WebSocketRequest
+  → WebSocketTransport.connect
+  → WebSocketConnection
+  → send / receive / ping / close
 ```
 
 ### Important Boundary Decisions
@@ -197,6 +208,7 @@ APIRequest
 - `send` applies `RequestOptions.statusValidation` and then runs the serializer.
 - activity events describe the underlying request lifecycle, including retries.
 - deduplication is opt-in through `RequestOptions.deduplicationKey`.
+- WebSocket sessions use a dedicated `WebSocketClient` surface instead of forcing socket behavior through `APIRequest`.
 
 ---
 
@@ -346,6 +358,27 @@ Responsibilities:
 - map transport failures into `NetworkError`
 - return `RawResponse`
 
+### `WebSocketTransport`
+
+```swift
+public protocol WebSocketTransport: Sendable {
+    func connect(_ request: WebSocketRequest) async throws(NetworkError) -> WebSocketConnection
+}
+```
+
+`WebSocketClient` mirrors the role `HTTPClient` plays for HTTP requests, but keeps realtime sessions on their own execution surface.
+
+### `URLSessionWebSocketTransport`
+
+`URLSessionWebSocketTransport` is the shipped live socket transport for app-side usage.
+
+Responsibilities:
+
+- adapt `WebSocketRequest` into a `URLRequest`
+- connect with `URLSessionWebSocketTask`
+- expose a type-erased `WebSocketConnection`
+- normalize close frames and transport failures into `NetworkError`
+
 ### Repeated Header Behavior
 
 Inside Comet, repeated headers are preserved in `HTTPFields`.
@@ -459,6 +492,7 @@ public enum NetworkError: Error, Sendable {
     case invalidRequest(String)
     case transport(URLError)
     case http(statusCode: Int, body: Data, headers: HTTPFields)
+    case webSocketClosed(code: WebSocketCloseCode, reason: Data?)
     case decoding(DecodingError)
     case encoding(String)
     case middleware(String)
@@ -483,6 +517,7 @@ Design notes:
 Current helpers:
 
 - `MockTransport`
+- `MockWebSocketTransport`
 - `RecordingTransport`
 - `ReplayTransport`
 - `HTTPCassette`
@@ -498,6 +533,15 @@ Current modes:
 - `routes(_:)` for method/path/query-aware matching
 
 This is the main low-friction testing seam for request code.
+
+### `MockWebSocketTransport`
+
+`MockWebSocketTransport` is the realtime equivalent:
+
+- record handshake requests
+- optionally echo sent messages
+- queue inbound messages deterministically
+- track ping and close behavior
 
 ### Recorder And Replay
 

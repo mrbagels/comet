@@ -16,12 +16,14 @@ What exists today:
 - generated iOS playground app using XcodeGen
 - typed request pipeline built around `APIRequest`, `HTTPBody`, and `ResponseSerializer`
 - pluggable transport seam with `URLSessionTransport`
+- pluggable WebSocket seam with `WebSocketClient` and `URLSessionWebSocketTransport`
 - route safety via `Path`
 - request-level and global middleware
 - retry behavior with injected randomness and sleep
 - runtime logging middleware
 - in-flight deduplication
 - request activity stream
+- mock WebSocket sessions for tests and demos
 - test utilities and TCA integration
 
 Verified commands:
@@ -112,11 +114,13 @@ Completed.
 Delivered:
 
 - `MockTransport`
+- `MockWebSocketTransport`
 - `RecordingTransport`
 - JSON cassette export and replay
 - `HTTPClient` testing factories
 - generated iOS playground app
 - mock and live demo flows
+- WebSocket demo flow
 
 ### Phase 4 — Minimal TCA Support
 
@@ -141,6 +145,21 @@ Delivered:
 - safer text body encoding behavior
 - default JSON behavior made less opinionated
 - stronger package and playground coverage
+
+### Phase 6 — Realtime Support
+
+Completed.
+
+Delivered:
+
+- `WebSocketRequest`
+- `WebSocketConnection`
+- `WebSocketTransport`
+- `WebSocketClient`
+- `URLSessionWebSocketTransport`
+- `MockWebSocketTransport`
+- package coverage for WebSocket request building and mock socket sessions
+- demo app coverage for a focused WebSocket echo proof
 
 ---
 
@@ -181,6 +200,7 @@ The package tests currently cover:
 - recording transport request/response/failure capture
 - cassette JSON round-tripping
 - replay transport fixtures
+- WebSocket request building and mock session control
 - TCA dependency and effect integration
 
 ### Playground Tests
@@ -188,7 +208,7 @@ The package tests currently cover:
 The generated playground app currently covers:
 
 - initial mock-mode startup on iOS
-- executing the mock proof flow end to end
+- executing the mock proof flow end to end, including the WebSocket echo demo
 
 ---
 
@@ -216,8 +236,8 @@ Recommended scope:
 
 - a new architecture pass
 - broad new feature work
-- transport expansion
-- cache/tracing/realtime design work
+- server-side transport expansion
+- cache/tracing/SSE design work
 
 ---
 
@@ -225,10 +245,9 @@ Recommended scope:
 
 If we keep tightening before real project adoption, the highest-value follow-ups are:
 
-- add a concise README or quick-start guide
-- add one end-to-end example of an authenticated JSON request
-- add one end-to-end example of a non-JSON request
-- add CI for `swift test` and the playground build/test command
+- add a fresh-client integration smoke check outside this repository
+- add richer DocC walkthroughs for cassette and WebSocket flows
+- evaluate whether WebSocket activity should have a first-class event surface
 - add a small “server-side direction” note once the future transport choice is made
 
 ---

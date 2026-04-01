@@ -6,6 +6,7 @@ public enum NetworkError: Error, Sendable {
   case invalidRequest(String)
   case transport(URLError)
   case http(statusCode: Int, body: Data, headers: HTTPFields)
+  case webSocketClosed(code: WebSocketCloseCode, reason: Data?)
   case decoding(DecodingError)
   case encoding(String)
   case middleware(String)
@@ -102,6 +103,11 @@ extension NetworkError: LocalizedError, CustomStringConvertible {
         return "HTTP \(statusCode)\n\(bodyString)"
       }
       return "HTTP \(statusCode)"
+    case .webSocketClosed(let code, let reason):
+      if let reason, let reasonString = String(data: reason, encoding: .utf8), !reasonString.isEmpty {
+        return "WebSocket closed (\(code.rawValue)): \(reasonString)"
+      }
+      return "WebSocket closed (\(code.rawValue))"
     case .decoding(let error):
       return "Decoding error: \(error)"
     case .encoding(let message):

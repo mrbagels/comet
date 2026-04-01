@@ -25,6 +25,8 @@ final class CometPlaygroundSmokeTests: XCTestCase {
     XCTAssertTrue(model.state(for: .text).output.contains("Comet mock text response"))
     XCTAssertTrue(model.state(for: .empty).output.contains("EmptyResponse"))
     XCTAssertTrue(model.state(for: .raw).output.contains("status: 200"))
+    XCTAssertTrue(model.state(for: .webSocket).output.contains("\"transport\" : \"MockWebSocketTransport\""))
+    XCTAssertTrue(model.state(for: .webSocket).output.contains("\"negotiatedSubprotocol\" : \"comet.demo.v1\""))
     XCTAssertGreaterThanOrEqual(model.activityLog.count, DemoCatalog.Demo.allCases.count)
   }
 
