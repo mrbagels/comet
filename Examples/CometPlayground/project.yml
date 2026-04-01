@@ -35,6 +35,8 @@ targets:
         product: Comet
       - package: CometPackage
         product: CometTesting
+      - package: CometPackage
+        product: HTTPTypes
   CometPlaygroundTests:
     type: bundle.unit-test
     platform: iOS

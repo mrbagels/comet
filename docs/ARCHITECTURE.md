@@ -578,6 +578,7 @@ It currently demonstrates:
 - text responses
 - empty responses
 - raw responses
+- WebSocket echo transcripts
 - mock vs live client modes
 - activity event viewing
 
@@ -587,10 +588,11 @@ The project is generated from `project.yml` with XcodeGen.
 
 ## Current Limitations
 
-- the shipped live transport is still `URLSession` only
+- the shipped live transports are `URLSession`-backed and Apple-platform specific
 - server-side Swift support currently means the core abstractions are transport-replaceable, not that a Vapor/AsyncHTTPClient transport ships today
 - repeated headers are preserved inside Comet but combined at `Foundation` boundaries
 - activity events cover request lifecycle, not decode lifecycle
+- WebSocket activity is currently demo-driven rather than part of `NetworkEvent`
 - distributed tracing and caching are still future work
 
 ---
@@ -602,5 +604,5 @@ When Comet grows beyond this MVP, the highest-value next additions are likely:
 - a server-side live transport
 - distributed tracing/context propagation
 - caching primitives
-- WebSocket support
+- SSE and streaming response APIs
 - targeted docs and examples for real app integration

@@ -260,7 +260,6 @@ These remain intentionally out of the MVP:
 - distributed tracing
 - caching
 - ETag support
-- recorder/replay
 - mock server
 - reachability
 - streaming APIs
