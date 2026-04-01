@@ -1,0 +1,59 @@
+name: CometPlayground
+options:
+  minimumXcodeGenVersion: 2.44.1
+packages:
+  CometPackage:
+    path: ../..
+settings:
+  base:
+    SWIFT_VERSION: 6.0
+targets:
+  CometPlaygroundApp:
+    type: application
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: App
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.comet.playground
+        PRODUCT_NAME: CometPlaygroundApp
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UILaunchStoryboardName: LaunchScreen
+        IPHONEOS_DEPLOYMENT_TARGET: "18.0"
+        TARGETED_DEVICE_FAMILY: 1
+        CODE_SIGN_STYLE: Automatic
+      configs:
+        debug:
+          CODE_SIGNING_ALLOWED: NO
+          CODE_SIGNING_REQUIRED: NO
+    scheme:
+      testTargets:
+        - CometPlaygroundTests
+    dependencies:
+      - package: CometPackage
+        product: Comet
+      - package: CometPackage
+        product: CometTesting
+  CometPlaygroundTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: Tests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.comet.playground.tests
+        GENERATE_INFOPLIST_FILE: YES
+        IPHONEOS_DEPLOYMENT_TARGET: "18.0"
+        CODE_SIGN_STYLE: Automatic
+      configs:
+        debug:
+          CODE_SIGNING_ALLOWED: NO
+          CODE_SIGNING_REQUIRED: NO
+    dependencies:
+      - target: CometPlaygroundApp
+      - package: CometPackage
+        product: Comet
+      - package: CometPackage
+        product: CometTesting
