@@ -187,7 +187,16 @@ Run the example smoke tests from the command line:
 xcodebuild test -project CometPlayground.xcodeproj -scheme CometPlaygroundApp -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=latest'
 ```
 
-GitHub Actions runs both the Swift package suite and the iOS example smoke tests on every push to `master` and `dev`.
+GitHub Actions runs both the Swift package suite and the iOS example smoke tests on every push to `next` and `master`.
+
+## Branching
+
+This repo now follows the shared package branch model:
+
+- `next` is the default integration branch for upcoming work
+- `master` is the stable release branch
+- short-lived `feat/`, `fix/`, `refactor/`, `docs/`, `chore/`, `spike/`, and `hotfix/` branches should branch from `next`
+- normal work merges back into `next`, and releases promote from `master`
 
 ## Repository Layout
 
