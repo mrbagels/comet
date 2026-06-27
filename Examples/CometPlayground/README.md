@@ -86,7 +86,7 @@ Each scenario in the UI shows the exact Comet API surface it is proving. The dem
 - [App/PlaygroundStyle.swift](App/PlaygroundStyle.swift): shared liquid glass styling and UI primitives
 - [App/DemoRequests.swift](App/DemoRequests.swift): request definitions
 - [App/DemoClientFactory.swift](App/DemoClientFactory.swift): mock and live HTTP/WebSocket wiring
-- [App/Assets.xcassets](App/Assets.xcassets): bundled Comet brand icon
+- [App/Assets.xcassets](App/Assets.xcassets): bundled Comet brand icon and app icon
 - [project.yml](project.yml): XcodeGen target configuration
 
 ## Command-Line Checks

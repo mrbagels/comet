@@ -6,6 +6,16 @@ Comet is still pre-1.0. The `0.1.x` line is the public-prep patch line while
 the larger structure and API refactor continues. `0.2.0` is reserved for the
 completed v2 foundation.
 
+## 0.1.3 - 2026-06-27
+
+### Added
+
+- Playground app icon set generated from the Comet gradient mark.
+
+### Changed
+
+- Restored the XcodeGen app icon compiler setting now that the playground has a valid `AppIcon` asset.
+
 ## 0.1.2 - 2026-06-27
 
 ### Added

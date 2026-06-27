@@ -41,7 +41,7 @@ The shipped live HTTP and WebSocket transports are `URLSession`-backed. Server-s
 ## Install
 
 ```swift
-.package(url: "https://github.com/mrbagels/comet.git", from: "0.1.2")
+.package(url: "https://github.com/mrbagels/comet.git", from: "0.1.3")
 ```
 
 Import the target you need:
@@ -229,7 +229,7 @@ GitHub Actions runs the Swift package suite, secret scanning, public API diff re
 Check for public API changes against the latest patch release:
 
 ```sh
-swift package diagnose-api-breaking-changes v0.1.1
+swift package diagnose-api-breaking-changes v0.1.2
 ```
 
 ## Branching
@@ -241,7 +241,7 @@ swift package diagnose-api-breaking-changes v0.1.1
 
 ## Brand Assets
 
-SVG brand assets live in [Resources/Brand](Resources/Brand). The README uses the gradient icon directly from that folder, and the playground app bundles the same mark through its asset catalog.
+SVG brand assets live in [Resources/Brand](Resources/Brand). The README uses the gradient icon directly from that folder, and the playground app bundles the same mark through its asset catalog and app icon set.
 
 ## Repository Layout
 

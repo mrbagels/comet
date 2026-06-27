@@ -30,7 +30,7 @@ xcodebuild test -project CometPlayground.xcodeproj -scheme CometPlaygroundApp -d
 If you change public API, run:
 
 ```sh
-swift package diagnose-api-breaking-changes v0.1.1
+swift package diagnose-api-breaking-changes v0.1.2
 ```
 
 Expected public API movement should be mentioned in `CHANGELOG.md`.
