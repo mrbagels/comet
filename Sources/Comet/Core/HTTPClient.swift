@@ -29,7 +29,7 @@ public struct HTTPClient: Sendable {
       configuration: configuration,
       transport: transport,
       deduplicator: RequestDeduplicator(),
-      broadcaster: EventBroadcaster(bufferingPolicy: configuration.activityBufferingPolicy)
+      broadcaster: EventBroadcaster(bufferingPolicy: configuration.activityBufferingPolicy.asyncStreamPolicy)
     )
   }
 
@@ -98,11 +98,11 @@ public struct HTTPClient: Sendable {
       middleware: self.configuration.middleware + options.middleware,
       sleep: self.configuration.sleep,
       onRetry: { id, attempt, delay in
-        self.broadcaster.emit(.requestRetried(id: id, attempt: attempt, delay: delay))
+        self.broadcaster.emit(.requestRetried(id: id, attempt: attempt, delay: delay, metadata: request.metadata))
       }
     )
 
-    self.broadcaster.emit(.requestStarted(id: requestID, method: request.method, url: request.url))
+    self.broadcaster.emit(.requestStarted(id: requestID, method: request.method, url: request.url, metadata: request.metadata))
     do {
       let response = try await chain.execute(
         request,
@@ -110,12 +110,12 @@ public struct HTTPClient: Sendable {
         perform: self.performTransport
       )
       let duration = context.startTime.duration(to: self.configuration.now())
-      self.broadcaster.emit(.requestCompleted(id: requestID, statusCode: response.statusCode, duration: duration))
+      self.broadcaster.emit(.requestCompleted(id: requestID, statusCode: response.statusCode, duration: duration, metadata: request.metadata))
       return response
     } catch {
       let networkError = NetworkError.from(error)
       let duration = context.startTime.duration(to: self.configuration.now())
-      self.broadcaster.emit(.requestFailed(id: requestID, error: networkError, duration: duration))
+      self.broadcaster.emit(.requestFailed(id: requestID, error: networkError, duration: duration, metadata: request.metadata))
       throw networkError
     }
   }

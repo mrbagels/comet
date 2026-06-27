@@ -1,6 +1,6 @@
 import Foundation
 
-public actor RequestDeduplicator {
+actor RequestDeduplicator {
   private struct Entry {
     let id: UUID
     let task: Task<RawResponse, Error>
@@ -8,9 +8,9 @@ public actor RequestDeduplicator {
 
   private var inFlight: [String: Entry] = [:]
 
-  public init() {}
+  init() {}
 
-  public func deduplicate(
+  func deduplicate(
     key: String,
     perform: @escaping @Sendable () async throws -> RawResponse
   ) async throws(NetworkError) -> RawResponse {

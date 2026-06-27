@@ -12,8 +12,14 @@ public struct RequestOptions: Sendable {
   public var idempotencyKey: String?
   /// Deduplicates concurrent in-flight requests that share the same key.
   public var deduplicationKey: String?
+  /// Carries human-readable request identity into logs, activity, traces, and fixtures.
+  public var metadata: RequestMetadata
   /// Controls which HTTP status codes are considered successful.
   public var statusValidation: StatusValidation
+  /// Overrides the client's redaction policy for this request.
+  public var redactionPolicy: RedactionPolicy?
+  /// Controls whether retry middleware may retry this request.
+  public var retryPolicy: RequestRetryPolicy?
   /// Adds per-request middleware on top of the client's shared middleware.
   public var middleware: [any Middleware]
 
@@ -24,7 +30,10 @@ public struct RequestOptions: Sendable {
     timeout: Duration? = nil,
     idempotencyKey: String? = nil,
     deduplicationKey: String? = nil,
+    metadata: RequestMetadata = .none,
     statusValidation: StatusValidation = .successCodes,
+    redactionPolicy: RedactionPolicy? = nil,
+    retryPolicy: RequestRetryPolicy? = nil,
     middleware: [any Middleware] = []
   ) {
     self.apiVersion = apiVersion
@@ -32,7 +41,10 @@ public struct RequestOptions: Sendable {
     self.timeout = timeout
     self.idempotencyKey = idempotencyKey
     self.deduplicationKey = deduplicationKey
+    self.metadata = metadata
     self.statusValidation = statusValidation
+    self.redactionPolicy = redactionPolicy
+    self.retryPolicy = retryPolicy
     self.middleware = middleware
   }
 }

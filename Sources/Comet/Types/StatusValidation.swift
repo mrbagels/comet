@@ -10,6 +10,17 @@ public enum StatusValidation: Sendable {
     .exact(Set(codes))
   }
 
+  /// Treats any 2xx response or `304 Not Modified` as successful.
+  public static let successOrNotModified: Self = .custom { statusCode in
+    (200..<300).contains(statusCode) || statusCode == 304
+  }
+
+  /// Treats 2xx and 3xx responses as successful.
+  public static let successAndRedirects: Self = .range(200...399)
+
+  /// Treats no-content responses as successful.
+  public static let noContent: Self = .exact([204, 205])
+
   /// Returns whether the provided status code satisfies this validation rule.
   public func contains(_ statusCode: Int) -> Bool {
     switch self {

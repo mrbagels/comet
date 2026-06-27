@@ -20,14 +20,18 @@ extension HTTPFields {
     }
   }
 
-  func redactedDescription(redactedHeaders: Set<String>) -> String {
+  func redactedDescription(redactionPolicy: RedactionPolicy) -> String {
     self
       .map { field in
         let name = field.name.canonicalName
-        let value = redactedHeaders.contains(name.lowercased()) ? "<redacted>" : field.value
+        let value = redactionPolicy.redactedHeaderValue(name: name, value: field.value)
         return "\(name): \(value)"
       }
       .joined(separator: ", ")
+  }
+
+  func redactedDescription(redactedHeaders: Set<String>) -> String {
+    self.redactedDescription(redactionPolicy: RedactionPolicy(redactedHeaders: redactedHeaders))
   }
 
   var combinedForFoundation: [String: String] {

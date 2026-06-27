@@ -11,21 +11,22 @@ public struct LoggingMiddleware: Middleware {
   }
 
   public var isEnabled: Bool
-  public var redactedHeaders: Set<String>
+  public var redactionPolicy: RedactionPolicy?
   public var logLevel: LogLevel
   public var logger: @Sendable (String) -> Void
 
   /// Creates a logging middleware with redaction and output controls.
   public init(
     isEnabled: Bool = true,
-    redactedHeaders: Set<String> = ["authorization", "cookie", "set-cookie"],
+    redactedHeaders: Set<String>? = nil,
+    redactionPolicy: RedactionPolicy? = nil,
     logLevel: LogLevel = .response,
     logger: @escaping @Sendable (String) -> Void = { message in
       fputs(message + "\n", stderr)
     }
   ) {
     self.isEnabled = isEnabled
-    self.redactedHeaders = redactedHeaders
+    self.redactionPolicy = redactionPolicy ?? redactedHeaders.map { RedactionPolicy(redactedHeaders: $0) }
     self.logLevel = logLevel
     self.logger = logger
   }
@@ -39,11 +40,14 @@ public struct LoggingMiddleware: Middleware {
 
     switch self.logLevel {
     case .request, .verbose:
-      let headerSummary = request.headers.redactedDescription(redactedHeaders: self.redactedHeaders)
-      let bodySize = request.body?.count ?? 0
-      self.logger("[Comet][\(context.requestID)] → \(request.method.rawValue) \(request.url.absoluteString) headers=\(headerSummary) body=\(bodySize)b")
+      let redactionPolicy = self.redactionPolicy ?? request.redactionPolicy
+      let headerSummary = request.headers.redactedDescription(redactionPolicy: redactionPolicy)
+      let body = redactionPolicy.recordedRequestBody(for: request)
+      let bodySize = body.data?.count ?? 0
+      let name = request.metadata.displayName.map { " \($0)" } ?? ""
+      self.logger("[Comet][\(context.requestID)]\(name) → \(request.method.rawValue) \(request.url.absoluteString) headers=\(headerSummary) body=\(bodySize)b")
       if self.logLevel == .verbose {
-        self.logger(request.curlCommand(redactedHeaders: self.redactedHeaders))
+        self.logger(request.curlCommand(redactionPolicy: redactionPolicy))
       }
     case .response:
       break
@@ -62,11 +66,12 @@ public struct LoggingMiddleware: Middleware {
 
     switch self.logLevel {
     case .response, .verbose:
+      let name = request.metadata.displayName.map { " \($0)" } ?? ""
       switch result {
       case .success(let response):
-        self.logger("[Comet][\(context.requestID)] ← \(response.statusCode) \(request.url.absoluteString) body=\(response.data.count)b")
+        self.logger("[Comet][\(context.requestID)]\(name) ← \(response.statusCode) \(request.url.absoluteString) body=\(response.data.count)b")
       case .failure(let error):
-        self.logger("[Comet][\(context.requestID)] ← error \(error) \(request.url.absoluteString)")
+        self.logger("[Comet][\(context.requestID)]\(name) ← error \(error) \(request.url.absoluteString)")
       }
     case .request:
       break

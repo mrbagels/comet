@@ -23,7 +23,10 @@ enum RequestBuilder {
       method: request.method,
       headers: headers,
       body: body.data,
-      timeout: timeout
+      timeout: timeout,
+      metadata: request.options.metadata,
+      redactionPolicy: request.options.redactionPolicy ?? configuration.redactionPolicy,
+      retryPolicy: request.options.retryPolicy
     )
   }
 

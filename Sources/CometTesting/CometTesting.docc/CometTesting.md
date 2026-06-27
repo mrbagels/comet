@@ -11,6 +11,7 @@ Use it for:
 - fully in-memory unit tests with ``MockTransport``
 - fully in-memory realtime tests with ``MockWebSocketTransport``
 - recording live traffic with ``RecordingTransport``
+- redacting sensitive cassette data with ``RecordingRedaction``
 - serializing recordings as JSON with ``HTTPCassette``
 - replaying fixtures deterministically with ``ReplayTransport``
 
@@ -27,6 +28,7 @@ Use it for:
 ### Recorder And Replay
 
 - ``RecordingTransport``
+- ``RecordingRedaction``
 - ``HTTPCassette``
 - ``ReplayTransport``
 - ``RecordedExchange``

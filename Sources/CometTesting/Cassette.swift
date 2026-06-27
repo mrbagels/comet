@@ -139,6 +139,7 @@ public struct RecordedRequest: Codable, Sendable, Hashable {
   public var headers: [RecordedHeader]
   public var bodyBase64: String?
   public var timeoutMilliseconds: Int64
+  public var bodyWasRedacted: Bool
 
   /// Creates a recorded request from individual components.
   public init(
@@ -146,24 +147,60 @@ public struct RecordedRequest: Codable, Sendable, Hashable {
     url: String,
     headers: [RecordedHeader] = [],
     bodyBase64: String? = nil,
-    timeoutMilliseconds: Int64
+    timeoutMilliseconds: Int64,
+    bodyWasRedacted: Bool = false
   ) {
     self.method = method
     self.url = url
     self.headers = headers
     self.bodyBase64 = bodyBase64
     self.timeoutMilliseconds = timeoutMilliseconds
+    self.bodyWasRedacted = bodyWasRedacted
   }
 
   /// Snapshots a prepared request for storage in a cassette.
-  public init(_ request: PreparedRequest) {
+  public init(
+    _ request: PreparedRequest,
+    redaction: RecordingRedaction = RecordingRedaction()
+  ) {
+    let body = redaction.recordedRequestBody(for: request)
     self.init(
       method: request.method.rawValue,
       url: request.url.absoluteString,
-      headers: request.headers.recordedHeaders,
-      bodyBase64: request.body?.base64EncodedString(),
-      timeoutMilliseconds: request.timeout.millisecondsValue
+      headers: request.headers.recordedHeaders(redaction: redaction),
+      bodyBase64: body.data?.base64EncodedString(),
+      timeoutMilliseconds: request.timeout.millisecondsValue,
+      bodyWasRedacted: body.wasRedacted
     )
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case method
+    case url
+    case headers
+    case bodyBase64
+    case timeoutMilliseconds
+    case bodyWasRedacted
+  }
+
+  public init(from decoder: any Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    self.method = try container.decode(String.self, forKey: .method)
+    self.url = try container.decode(String.self, forKey: .url)
+    self.headers = try container.decode([RecordedHeader].self, forKey: .headers)
+    self.bodyBase64 = try container.decodeIfPresent(String.self, forKey: .bodyBase64)
+    self.timeoutMilliseconds = try container.decode(Int64.self, forKey: .timeoutMilliseconds)
+    self.bodyWasRedacted = try container.decodeIfPresent(Bool.self, forKey: .bodyWasRedacted) ?? false
+  }
+
+  public func encode(to encoder: any Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(self.method, forKey: .method)
+    try container.encode(self.url, forKey: .url)
+    try container.encode(self.headers, forKey: .headers)
+    try container.encodeIfPresent(self.bodyBase64, forKey: .bodyBase64)
+    try container.encode(self.timeoutMilliseconds, forKey: .timeoutMilliseconds)
+    try container.encode(self.bodyWasRedacted, forKey: .bodyWasRedacted)
   }
 
   /// Returns the decoded request body when one was recorded.
@@ -175,7 +212,7 @@ public struct RecordedRequest: Codable, Sendable, Hashable {
   public func matches(_ request: PreparedRequest) -> Bool {
     self.method == request.method.rawValue
       && self.url == request.url.absoluteString
-      && self.bodyData == request.body
+      && (self.bodyWasRedacted || self.bodyData == request.body)
   }
 
   /// Reconstructs the prepared request represented by this snapshot.
@@ -200,25 +237,56 @@ public struct RecordedResponse: Codable, Sendable, Hashable {
   public var statusCode: Int
   public var headers: [RecordedHeader]
   public var bodyBase64: String
+  public var bodyWasRedacted: Bool
 
   /// Creates a recorded response from individual components.
   public init(
     statusCode: Int,
     headers: [RecordedHeader] = [],
-    bodyBase64: String
+    bodyBase64: String,
+    bodyWasRedacted: Bool = false
   ) {
     self.statusCode = statusCode
     self.headers = headers
     self.bodyBase64 = bodyBase64
+    self.bodyWasRedacted = bodyWasRedacted
   }
 
   /// Snapshots a raw response for storage in a cassette.
-  public init(_ response: RawResponse) {
+  public init(
+    _ response: RawResponse,
+    redaction: RecordingRedaction = RecordingRedaction()
+  ) {
+    let body = redaction.recordedResponseBody(for: response)
     self.init(
       statusCode: response.statusCode,
-      headers: response.headers.recordedHeaders,
-      bodyBase64: response.data.base64EncodedString()
+      headers: response.headers.recordedHeaders(redaction: redaction),
+      bodyBase64: body.data.base64EncodedString(),
+      bodyWasRedacted: body.wasRedacted
     )
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case statusCode
+    case headers
+    case bodyBase64
+    case bodyWasRedacted
+  }
+
+  public init(from decoder: any Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    self.statusCode = try container.decode(Int.self, forKey: .statusCode)
+    self.headers = try container.decode([RecordedHeader].self, forKey: .headers)
+    self.bodyBase64 = try container.decode(String.self, forKey: .bodyBase64)
+    self.bodyWasRedacted = try container.decodeIfPresent(Bool.self, forKey: .bodyWasRedacted) ?? false
+  }
+
+  public func encode(to encoder: any Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(self.statusCode, forKey: .statusCode)
+    try container.encode(self.headers, forKey: .headers)
+    try container.encode(self.bodyBase64, forKey: .bodyBase64)
+    try container.encode(self.bodyWasRedacted, forKey: .bodyWasRedacted)
   }
 
   /// Returns the decoded response body.
@@ -277,7 +345,10 @@ public struct RecordedNetworkError: Codable, Sendable, Hashable {
   }
 
   /// Snapshots a runtime ``NetworkError`` for storage in a cassette.
-  public init(_ error: NetworkError) {
+  public init(
+    _ error: NetworkError,
+    redaction: RecordingRedaction = RecordingRedaction()
+  ) {
     switch error {
     case .invalidRequest(let message):
       self.init(kind: .invalidRequest, message: message)
@@ -288,11 +359,14 @@ public struct RecordedNetworkError: Codable, Sendable, Hashable {
         urlErrorCode: urlError.code.rawValue
       )
     case .http(let statusCode, let body, let headers):
+      let recordedBody = redaction.recordedResponseBody(
+        for: RawResponse(data: body, statusCode: statusCode, headers: headers)
+      )
       self.init(
         kind: .http,
         statusCode: statusCode,
-        headers: headers.recordedHeaders,
-        bodyBase64: body.base64EncodedString()
+        headers: headers.recordedHeaders(redaction: redaction),
+        bodyBase64: recordedBody.data.base64EncodedString()
       )
     case .webSocketClosed(let code, let reason):
       self.init(
@@ -460,8 +534,16 @@ private extension HTTPFields {
   }
 
   var recordedHeaders: [RecordedHeader] {
+    self.recordedHeaders(redaction: RecordingRedaction(redactedHeaders: []))
+  }
+
+  func recordedHeaders(redaction: RecordingRedaction) -> [RecordedHeader] {
     self.map { field in
-      RecordedHeader(name: field.name.rawName, value: field.value)
+      let name = field.name.rawName
+      return RecordedHeader(
+        name: name,
+        value: redaction.redacts(headerName: name) ? "<redacted>" : field.value
+      )
     }
   }
 }

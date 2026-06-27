@@ -5,15 +5,47 @@ import Comet
 public actor RecordingTransport: HTTPTransport {
   private let base: any HTTPTransport
   private let now: @Sendable () -> Date
+  private let redaction: RecordingRedaction
   private var exchanges: [RecordedExchange] = []
 
   /// Creates a recorder around another transport.
   public init(
+    base: any HTTPTransport
+  ) {
+    self.base = base
+    self.now = Date.init
+    self.redaction = RecordingRedaction()
+  }
+
+  /// Creates a recorder around another transport with custom redaction rules.
+  public init(
     base: any HTTPTransport,
-    now: @escaping @Sendable () -> Date = Date.init
+    redaction: RecordingRedaction
+  ) {
+    self.base = base
+    self.now = Date.init
+    self.redaction = redaction
+  }
+
+  /// Creates a recorder around another transport with injectable time.
+  public init(
+    base: any HTTPTransport,
+    now: @escaping @Sendable () -> Date
   ) {
     self.base = base
     self.now = now
+    self.redaction = RecordingRedaction()
+  }
+
+  /// Creates a recorder around another transport with injectable time and custom redaction rules.
+  public init(
+    base: any HTTPTransport,
+    now: @escaping @Sendable () -> Date,
+    redaction: RecordingRedaction
+  ) {
+    self.base = base
+    self.now = now
+    self.redaction = redaction
   }
 
   /// Sends a request through the base transport and records the full outcome.
@@ -26,9 +58,9 @@ public actor RecordingTransport: HTTPTransport {
       self.exchanges.append(
         RecordedExchange(
           recordedAt: recordedAt,
-          request: RecordedRequest(request),
+          request: RecordedRequest(request, redaction: self.redaction),
           duration: start.duration(to: ContinuousClock().now),
-          outcome: .success(RecordedResponse(response))
+          outcome: .success(RecordedResponse(response, redaction: self.redaction))
         )
       )
       return response
@@ -37,9 +69,9 @@ public actor RecordingTransport: HTTPTransport {
       self.exchanges.append(
         RecordedExchange(
           recordedAt: recordedAt,
-          request: RecordedRequest(request),
+          request: RecordedRequest(request, redaction: self.redaction),
           duration: start.duration(to: ContinuousClock().now),
-          outcome: .failure(RecordedNetworkError(networkError))
+          outcome: .failure(RecordedNetworkError(networkError, redaction: self.redaction))
         )
       )
       throw networkError

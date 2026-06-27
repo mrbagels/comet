@@ -21,6 +21,7 @@ The shipped live transports today are ``URLSessionTransport`` and ``URLSessionWe
 - ``HTTPClient``
 - ``ClientConfiguration``
 - ``RequestOptions``
+- ``RequestMetadata``
 - ``ResponseSerializer``
 - ``HTTPBody``
 - ``Path``
@@ -42,5 +43,8 @@ The shipped live transports today are ``URLSessionTransport`` and ``URLSessionWe
 - ``Middleware``
 - ``BearerTokenMiddleware``
 - ``RetryMiddleware``
+- ``RequestRetryPolicy``
 - ``LoggingMiddleware``
 - ``NetworkEvent``
+- ``NetworkActivityBufferingPolicy``
+- ``RedactionPolicy``

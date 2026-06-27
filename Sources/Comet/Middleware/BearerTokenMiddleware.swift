@@ -23,7 +23,10 @@ public struct BearerTokenMiddleware: Middleware {
       method: request.method,
       headers: headers,
       body: request.body,
-      timeout: request.timeout
+      timeout: request.timeout,
+      metadata: request.metadata,
+      redactionPolicy: request.redactionPolicy,
+      retryPolicy: request.retryPolicy
     )
   }
 }

@@ -1,4 +1,4 @@
-# Comet — Architecture
+# Comet Architecture
 
 > Swift 6.2+ · iOS 18+ today · shipped live transports: `URLSession` HTTP and WebSocket · server-side transport is future work
 
@@ -249,10 +249,14 @@ Defaults exist for `headers`, `queryItems`, `body`, and `options`.
 - `timeout`
 - `idempotencyKey`
 - `deduplicationKey`
+- `metadata`
 - `statusValidation`
+- `redactionPolicy`
+- `retryPolicy`
 - request-level middleware
 
 `statusValidation` defaults to `.successCodes`.
+Request metadata flows into activity events and logs. Request redaction and retry policy override shared defaults only when supplied.
 
 ### `HTTPBody`
 
@@ -302,6 +306,9 @@ It is the transport-facing response model for middleware, raw request flows, and
 - `.exact`
 - `.range`
 - `.custom`
+- `.successOrNotModified`
+- `.successAndRedirects`
+- `.noContent`
 
 Use `sendRaw` when the caller wants to handle all statuses manually.
 
@@ -427,6 +434,8 @@ Current characteristics:
 
 - retries retryable transport failures
 - retries configurable HTTP status codes
+- defaults to retrying safe methods and requests carrying an `Idempotency-Key`
+- supports per-request retry opt-in or opt-out through `RequestRetryPolicy`
 - uses injected sleep behavior
 - uses injected random jitter behavior through `MiddlewareContext`
 - emits retry activity events
@@ -437,8 +446,9 @@ Current characteristics:
 
 - works at runtime in debug, release, and server builds
 - supports `.request`, `.response`, and `.verbose`
-- redacts sensitive headers
-- `.verbose` includes a cURL representation
+- uses the shared `RedactionPolicy`
+- includes request metadata labels when present
+- `.verbose` includes a shell-quoted cURL representation
 
 ---
 
@@ -461,6 +471,7 @@ Important behavior:
 
 - each subscriber gets its own stream
 - registration and removal are synchronous inside the broadcaster
+- events include request metadata when present
 - events represent request execution, not post-decode business success
 
 The broadcaster is currently a small lock-backed reference type rather than an actor. That keeps subscription setup simple and avoids registration races.

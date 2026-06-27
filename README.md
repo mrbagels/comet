@@ -8,6 +8,15 @@ Comet is a modern Swift networking library for Apple-platform apps today. It shi
 - `CometTesting`: mocks, recorders, JSON cassettes, replay transports, and mock WebSocket sessions
 - `CometTCA`: lightweight Composable Architecture integration
 
+## Toolchain And Platforms
+
+- Swift 6.2
+- iOS 18+
+- macOS 15+
+- visionOS 2+
+
+The live HTTP and WebSocket transports are `URLSession`-backed. Server-side Swift support is possible through the transport protocols, but a server live transport is not included today.
+
 ## Platform Status
 
 Comet’s shipped live transports are `URLSessionTransport` and `URLSessionWebSocketTransport`, so the production-ready story today is Apple-platform client apps. The core abstractions are intentionally transport-replaceable, but a server-side live transport does not ship yet.
@@ -15,7 +24,7 @@ Comet’s shipped live transports are `URLSessionTransport` and `URLSessionWebSo
 ## Install
 
 ```swift
-.package(url: "https://github.com/mrbagels/comet.git", from: "0.1.0")
+.package(url: "https://github.com/mrbagels/comet.git", from: "0.1.1")
 ```
 
 Import the target you need:
@@ -114,6 +123,18 @@ Task {
 }
 ```
 
+Requests can carry metadata into logs and activity events, and retry behavior is conservative by default. `RetryMiddleware` retries safe methods such as `GET` automatically, while write requests need an idempotency key or an explicit retry policy.
+
+```swift
+var options: RequestOptions {
+  .init(
+    idempotencyKey: "create-user-\(draft.id)",
+    metadata: RequestMetadata(name: "CreateUser", tags: ["users"]),
+    statusValidation: .successOrNotModified
+  )
+}
+```
+
 ### WebSocket Sessions
 
 ```swift
@@ -164,6 +185,20 @@ let recordedUser = try await replayClient.send(GetUser(userID: 42))
 
 `MockTransport` is still the fastest path for fully in-memory tests. `RecordingTransport` and `ReplayTransport` are for higher-fidelity fixture workflows when you want to capture live traffic once and replay it deterministically later.
 
+Recorded cassettes can include URLs, headers, request bodies, response bodies, cookies, and authorization data. `RecordingTransport` redacts common sensitive headers by default and supports custom request/response body redaction. Review generated fixtures before committing them.
+
+```swift
+let recorder = RecordingTransport(
+  base: URLSessionTransport(),
+  redaction: RecordingRedaction(
+    redactRequestBody: { request in request.url.path.contains("sessions") },
+    redactResponseBody: { response in response.headers[.contentType] == "application/json" }
+  )
+)
+```
+
+`RecordingRedaction` is an alias for Comet’s shared `RedactionPolicy`, so the same policy shape can be used for cassettes, logging, and cURL output.
+
 For realtime tests, `MockWebSocketTransport` gives you the same deterministic control for handshake, echo, queued inbound messages, ping tracking, and close frames.
 
 ## Verification
@@ -188,6 +223,14 @@ xcodebuild test -project CometPlayground.xcodeproj -scheme CometPlaygroundApp -d
 ```
 
 GitHub Actions runs both the Swift package suite and the iOS example smoke tests on every push to `next` and `master`.
+
+Check for public API changes against the latest release tag:
+
+```sh
+swift package diagnose-api-breaking-changes v0.1.0
+```
+
+The `0.1.x` line is the public-prep patch line. The broader structure and API refactor will continue through patch releases until the completed v2 foundation becomes `0.2.0`.
 
 ## Branching
 

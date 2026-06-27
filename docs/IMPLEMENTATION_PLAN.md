@@ -1,4 +1,4 @@
-# Comet — MVP Status And Implementation Plan
+# Comet MVP Status And Implementation Plan
 
 > This file now serves two purposes:
 > 1. record what the MVP already implements
@@ -55,7 +55,7 @@ Examples/
 
 ## Phase Status
 
-### Phase 0 — Contracts And Scaffolding
+### Phase 0: Contracts And Scaffolding
 
 Completed.
 
@@ -67,7 +67,7 @@ Delivered:
 - XcodeGen project definition
 - generated playground project
 
-### Phase 1 — Core Request / Response Foundation
+### Phase 1: Core Request / Response Foundation
 
 Completed.
 
@@ -91,7 +91,7 @@ Delivered:
 - `URLSessionTransport`
 - `HTTPClient`
 
-### Phase 2 — Middleware, Deduplication, Observability
+### Phase 2: Middleware, Deduplication, Observability
 
 Completed.
 
@@ -107,7 +107,7 @@ Delivered:
 - `EventBroadcaster`
 - debug cURL rendering
 
-### Phase 3 — Testing Helpers And Playground
+### Phase 3: Testing Helpers And Playground
 
 Completed.
 
@@ -122,7 +122,7 @@ Delivered:
 - mock and live demo flows
 - WebSocket demo flow
 
-### Phase 4 — Minimal TCA Support
+### Phase 4: Minimal TCA Support
 
 Completed.
 
@@ -131,7 +131,7 @@ Delivered:
 - `DependencyValues.httpClient`
 - `Effect.request`
 
-### Phase 5 — Hardening Pass
+### Phase 5: Hardening Pass
 
 Completed for the current MVP.
 
@@ -146,7 +146,7 @@ Delivered:
 - default JSON behavior made less opinionated
 - stronger package and playground coverage
 
-### Phase 6 — Realtime Support
+### Phase 6: Realtime Support
 
 Completed.
 

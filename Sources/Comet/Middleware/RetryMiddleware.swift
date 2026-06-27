@@ -6,18 +6,21 @@ public struct RetryMiddleware: Middleware {
   public var backoff: BackoffStrategy
   public var jitter: Double
   public var retryableStatusCodes: Set<Int>
+  public var defaultPolicy: RequestRetryPolicy
 
   /// Creates retry behavior with configurable attempts, backoff, jitter, and retryable status codes.
   public init(
     maxAttempts: Int = 3,
     backoff: BackoffStrategy = .exponential(base: .seconds(0.5), multiplier: 2, max: .seconds(8)),
     jitter: Double = 0.1,
-    retryableStatusCodes: Set<Int> = [429, 500, 502, 503, 504]
+    retryableStatusCodes: Set<Int> = [429, 500, 502, 503, 504],
+    defaultPolicy: RequestRetryPolicy = .automatic
   ) {
     self.maxAttempts = maxAttempts
     self.backoff = backoff
     self.jitter = jitter
     self.retryableStatusCodes = retryableStatusCodes
+    self.defaultPolicy = defaultPolicy
   }
 
   /// Examines the current result and decides whether the request should be retried.
@@ -39,6 +42,10 @@ public struct RetryMiddleware: Middleware {
     }
 
     guard shouldRetry else {
+      return .proceed(result)
+    }
+
+    guard (request.retryPolicy ?? self.defaultPolicy).allowsRetry(for: request) else {
       return .proceed(result)
     }
 

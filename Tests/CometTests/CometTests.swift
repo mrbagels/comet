@@ -146,6 +146,26 @@ private func durationMilliseconds(_ duration: Duration) -> Int64 {
   #expect(RequestOptions().apiVersion == nil)
 }
 
+@Test func requestBuilderCarriesMetadataAndRedactionPolicy() throws {
+  let configuration = ClientConfiguration.default(baseURL: URL(string: "https://example.com")!)
+  let policy = RedactionPolicy(redactedHeaders: ["x-secret"])
+  let metadata = RequestMetadata(name: "GetSecret", tags: ["secrets"], operationID: "getSecret")
+  let request = TestRequest(
+    path: "secret",
+    method: .get,
+    responseSerializer: .data,
+    options: RequestOptions(
+      metadata: metadata,
+      redactionPolicy: policy
+    )
+  )
+
+  let prepared = try RequestBuilder.build(request, configuration: configuration)
+
+  #expect(prepared.metadata == metadata)
+  #expect(prepared.redactionPolicy.redacts(headerName: "X-Secret"))
+}
+
 @Test func requestBuilderPreservesRepeatedHeaders() throws {
   var defaultHeaders = HTTPFields()
   defaultHeaders[values: .accept] = ["text/html"]
@@ -209,6 +229,19 @@ private func durationMilliseconds(_ duration: Duration) -> Int64 {
 
   let response = try await client.send(request)
   #expect(response == "cached")
+}
+
+@Test func statusValidationPresetsCoverCommonHTTPCases() {
+  #expect(StatusValidation.successOrNotModified.contains(200))
+  #expect(StatusValidation.successOrNotModified.contains(304))
+  #expect(!StatusValidation.successOrNotModified.contains(404))
+
+  #expect(StatusValidation.successAndRedirects.contains(302))
+  #expect(!StatusValidation.successAndRedirects.contains(400))
+
+  #expect(StatusValidation.noContent.contains(204))
+  #expect(StatusValidation.noContent.contains(205))
+  #expect(!StatusValidation.noContent.contains(200))
 }
 
 @Test func httpClientThrowsHTTPErrorOnNonSuccessStatus() async {
@@ -315,7 +348,8 @@ private func durationMilliseconds(_ duration: Duration) -> Int64 {
   let request = TestRequest(
     path: "retry",
     method: .get,
-    responseSerializer: .string()
+    responseSerializer: .string(),
+    options: RequestOptions(metadata: RequestMetadata(name: "RetryProof", tags: ["retries"]))
   )
 
   let response = try await client.send(request)
@@ -326,23 +360,106 @@ private func durationMilliseconds(_ duration: Duration) -> Int64 {
   #expect(await sleepRecorder.snapshot().map(durationMilliseconds) == [1_500])
   #expect(events.count == 3)
 
-  guard case .requestStarted = events[0] else {
+  guard case .requestStarted(_, _, _, let startedMetadata) = events[0] else {
     Issue.record("Expected requestStarted as the first activity event.")
     return
   }
+  #expect(startedMetadata.displayName == "RetryProof")
 
-  guard case .requestRetried(_, let attempt, let delay) = events[1] else {
+  guard case .requestRetried(_, let attempt, let delay, let retryMetadata) = events[1] else {
     Issue.record("Expected requestRetried as the second activity event.")
     return
   }
   #expect(attempt == 1)
   #expect(durationMilliseconds(delay) == 1_500)
+  #expect(retryMetadata.tags == ["retries"])
 
-  guard case .requestCompleted(_, let statusCode, _) = events[2] else {
+  guard case .requestCompleted(_, let statusCode, _, let completedMetadata) = events[2] else {
     Issue.record("Expected requestCompleted as the third activity event.")
     return
   }
   #expect(statusCode == 200)
+  #expect(completedMetadata.displayName == "RetryProof")
+}
+
+@Test func retryMiddlewareDoesNotRetryUnsafeWritesWithoutOptIn() async {
+  let transportState = SequenceTransportState(results: [
+    .failure(.timeout),
+    .success(RawResponse(data: Data("ok".utf8), statusCode: 200))
+  ])
+  let client = HTTPClient.live(
+    configuration: ClientConfiguration(
+      baseURL: URL(string: "https://example.com")!,
+      middleware: [RetryMiddleware(maxAttempts: 2)],
+      sleep: { _ in }
+    ),
+    transport: SequenceTransport(state: transportState)
+  )
+  let request = TestRequest(
+    path: "write",
+    method: .post,
+    responseSerializer: .string(),
+    body: .text("unsafe")
+  )
+
+  await #expect(throws: NetworkError.self) {
+    _ = try await client.send(request)
+  }
+  #expect(await transportState.count() == 1)
+}
+
+@Test func retryMiddlewareRetriesWritesWithIdempotencyKey() async throws {
+  let transportState = SequenceTransportState(results: [
+    .failure(.timeout),
+    .success(RawResponse(data: Data("ok".utf8), statusCode: 200))
+  ])
+  let client = HTTPClient.live(
+    configuration: ClientConfiguration(
+      baseURL: URL(string: "https://example.com")!,
+      middleware: [RetryMiddleware(maxAttempts: 2)],
+      sleep: { _ in }
+    ),
+    transport: SequenceTransport(state: transportState)
+  )
+  let request = TestRequest(
+    path: "write",
+    method: .post,
+    responseSerializer: .string(),
+    body: .text("safe"),
+    options: RequestOptions(idempotencyKey: "write-1")
+  )
+
+  let response = try await client.send(request)
+
+  #expect(response == "ok")
+  #expect(await transportState.count() == 2)
+}
+
+@Test func retryMiddlewareHonorsExplicitRequestRetryPolicy() async throws {
+  let transportState = SequenceTransportState(results: [
+    .failure(.timeout),
+    .success(RawResponse(data: Data("ok".utf8), statusCode: 200))
+  ])
+  let client = HTTPClient.live(
+    configuration: ClientConfiguration(
+      baseURL: URL(string: "https://example.com")!,
+      middleware: [RetryMiddleware(maxAttempts: 2)],
+      sleep: { _ in }
+    ),
+    transport: SequenceTransport(state: transportState)
+  )
+  let request = TestRequest(
+    path: "write",
+    method: .post,
+    responseSerializer: .string(),
+    body: .text("explicit"),
+    options: RequestOptions(retryPolicy: .always)
+  )
+
+  let response = try await client.send(request)
+
+  #expect(response == "ok")
+  #expect(await transportState.count() == 2)
 }
 
 @Test func deduplicationCoalescesConcurrentCallers() async throws {
@@ -439,7 +556,8 @@ private func durationMilliseconds(_ duration: Duration) -> Int64 {
     path: "logs",
     method: .post,
     responseSerializer: .string(),
-    body: .text("hello")
+    body: .text("hello"),
+    options: RequestOptions(metadata: RequestMetadata(name: "LogProof"))
   )
 
   _ = try await requestClient.send(request)
@@ -452,6 +570,7 @@ private func durationMilliseconds(_ duration: Duration) -> Int64 {
 
   #expect(requestLogs.count == 1)
   #expect(requestLogs[0].contains("→"))
+  #expect(requestLogs[0].contains("LogProof"))
   #expect(!requestLogs[0].contains("←"))
 
   #expect(responseLogs.count == 1)
@@ -461,6 +580,32 @@ private func durationMilliseconds(_ duration: Duration) -> Int64 {
   #expect(verboseLogs.contains(where: { $0.contains("→") }))
   #expect(verboseLogs.contains(where: { $0.contains("curl") }))
   #expect(verboseLogs.contains(where: { $0.contains("← 200") }))
+}
+
+@Test func curlCommandIsShellSafeAndUsesRedactionPolicy() {
+  var headers = HTTPFields()
+  headers[.authorization] = "Bearer secret"
+  headers[HTTPField.Name("X-Name")!] = "O'Reilly"
+
+  let prepared = PreparedRequest(
+    url: URL(string: "https://example.com/search?q=hello%20world")!,
+    method: .post,
+    headers: headers,
+    body: Data("hello 'world'".utf8),
+    timeout: .seconds(5),
+    redactionPolicy: RedactionPolicy(
+      redactedHeaders: ["authorization"],
+      redactRequestBody: { _ in true }
+    )
+  )
+
+  let curl = prepared.curlCommand()
+
+  #expect(curl.contains("-X 'POST'"))
+  #expect(curl.contains("-H 'authorization: <redacted>'"))
+  #expect(curl.contains("-H 'x-name: O'\\''Reilly'"))
+  #expect(curl.contains("--data-raw '<redacted>'"))
+  #expect(curl.contains("'https://example.com/search?q=hello%20world'"))
 }
 
 @Test func textBodyThrowsWhenEncodingFails() {

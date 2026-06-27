@@ -491,15 +491,21 @@ final class DemoCatalog {
 
   private static func describe(_ event: NetworkEvent) -> String {
     switch event {
-    case .requestStarted(let id, let method, let url):
-      return "\(method.rawValue) started • \(id.uuidString.prefix(8)) • \(url.absoluteString)"
-    case .requestCompleted(let id, let statusCode, let duration):
-      return "completed \(statusCode) • \(id.uuidString.prefix(8)) • \(duration.formatted(.units(allowed: [.seconds, .milliseconds], width: .narrow)))"
-    case .requestFailed(let id, let error, let duration):
-      return "failed • \(id.uuidString.prefix(8)) • \(duration.formatted(.units(allowed: [.seconds, .milliseconds], width: .narrow))) • \(error)"
-    case .requestRetried(let id, let attempt, let delay):
-      return "retry \(attempt) • \(id.uuidString.prefix(8)) • \(delay.formatted(.units(allowed: [.seconds, .milliseconds], width: .narrow)))"
+    case .requestStarted(let id, let method, let url, let metadata):
+      return "\(metadata.eventPrefix)\(method.rawValue) started • \(id.uuidString.prefix(8)) • \(url.absoluteString)"
+    case .requestCompleted(let id, let statusCode, let duration, let metadata):
+      return "\(metadata.eventPrefix)completed \(statusCode) • \(id.uuidString.prefix(8)) • \(duration.formatted(.units(allowed: [.seconds, .milliseconds], width: .narrow)))"
+    case .requestFailed(let id, let error, let duration, let metadata):
+      return "\(metadata.eventPrefix)failed • \(id.uuidString.prefix(8)) • \(duration.formatted(.units(allowed: [.seconds, .milliseconds], width: .narrow))) • \(error)"
+    case .requestRetried(let id, let attempt, let delay, let metadata):
+      return "\(metadata.eventPrefix)retry \(attempt) • \(id.uuidString.prefix(8)) • \(delay.formatted(.units(allowed: [.seconds, .milliseconds], width: .narrow)))"
     }
+  }
+}
+
+private extension RequestMetadata {
+  var eventPrefix: String {
+    self.displayName.map { "\($0) • " } ?? ""
   }
 }
 

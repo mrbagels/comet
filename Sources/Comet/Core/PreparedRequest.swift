@@ -8,6 +8,9 @@ public struct PreparedRequest: Sendable {
   public let headers: HTTPFields
   public let body: Data?
   public let timeout: Duration
+  public let metadata: RequestMetadata
+  public let redactionPolicy: RedactionPolicy
+  public let retryPolicy: RequestRetryPolicy?
 
   /// Creates a prepared request from concrete transport-ready values.
   public init(
@@ -15,13 +18,19 @@ public struct PreparedRequest: Sendable {
     method: HTTPMethod,
     headers: HTTPFields = .init(),
     body: Data? = nil,
-    timeout: Duration
+    timeout: Duration,
+    metadata: RequestMetadata = .none,
+    redactionPolicy: RedactionPolicy = .safeDefault,
+    retryPolicy: RequestRetryPolicy? = nil
   ) {
     self.url = url
     self.method = method
     self.headers = headers
     self.body = body
     self.timeout = timeout
+    self.metadata = metadata
+    self.redactionPolicy = redactionPolicy
+    self.retryPolicy = retryPolicy
   }
 
   /// Bridges the prepared request back to ``Foundation/URLRequest`` for transport implementations that need it.

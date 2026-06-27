@@ -1,34 +1,35 @@
 import Foundation
 
-public final class EventBroadcaster<Event: Sendable>: @unchecked Sendable {
-  public enum BufferingPolicy: Sendable, Equatable {
-    case unbounded
-    case bufferingNewest(Int)
-    case bufferingOldest(Int)
+/// Controls how many activity events an ``HTTPClient`` buffers for each observer.
+public enum NetworkActivityBufferingPolicy: Sendable, Equatable {
+  case unbounded
+  case bufferingNewest(Int)
+  case bufferingOldest(Int)
 
-    fileprivate var asyncStreamPolicy: AsyncStream<Event>.Continuation.BufferingPolicy {
-      switch self {
-      case .unbounded:
-        .unbounded
-      case .bufferingNewest(let limit):
-        .bufferingNewest(limit)
-      case .bufferingOldest(let limit):
-        .bufferingOldest(limit)
-      }
+  var asyncStreamPolicy: AsyncStream<NetworkEvent>.Continuation.BufferingPolicy {
+    switch self {
+    case .unbounded:
+      .unbounded
+    case .bufferingNewest(let limit):
+      .bufferingNewest(limit)
+    case .bufferingOldest(let limit):
+      .bufferingOldest(limit)
     }
   }
+}
 
+final class EventBroadcaster<Event: Sendable>: @unchecked Sendable {
   private let lock = NSLock()
   private var continuations: [UUID: AsyncStream<Event>.Continuation] = [:]
-  private let bufferingPolicy: BufferingPolicy
+  private let bufferingPolicy: AsyncStream<Event>.Continuation.BufferingPolicy
 
-  public init(bufferingPolicy: BufferingPolicy = .bufferingNewest(100)) {
+  init(bufferingPolicy: AsyncStream<Event>.Continuation.BufferingPolicy = .bufferingNewest(100)) {
     self.bufferingPolicy = bufferingPolicy
   }
 
-  public func stream() -> AsyncStream<Event> {
+  func stream() -> AsyncStream<Event> {
     let id = UUID()
-    return AsyncStream(bufferingPolicy: self.bufferingPolicy.asyncStreamPolicy) { continuation in
+    return AsyncStream(bufferingPolicy: self.bufferingPolicy) { continuation in
       self.withLock {
         self.continuations[id] = continuation
       }
@@ -38,13 +39,13 @@ public final class EventBroadcaster<Event: Sendable>: @unchecked Sendable {
     }
   }
 
-  public func remove(id: UUID) {
+  func remove(id: UUID) {
     self.withLock {
       self.continuations[id] = nil
     }
   }
 
-  public func emit(_ event: Event) {
+  func emit(_ event: Event) {
     let continuations = self.withLock {
       Array(self.continuations.values)
     }
@@ -53,7 +54,7 @@ public final class EventBroadcaster<Event: Sendable>: @unchecked Sendable {
     }
   }
 
-  public func finish() {
+  func finish() {
     let continuations = self.withLock {
       let active = Array(self.continuations.values)
       self.continuations.removeAll()

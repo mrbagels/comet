@@ -89,6 +89,89 @@ import CometTesting
   #expect(recordedError.bodyData == Data(#"{"message":"offline"}"#.utf8))
 }
 
+@Test func recordingTransportRedactsSensitiveHeadersByDefault() async throws {
+  let transport = RecordingTransport(
+    base: MockTransport { _ in
+      var headers = HTTPFields()
+      headers[HTTPField.Name("Set-Cookie")!] = "session=secret"
+      return RawResponse(data: Data("ok".utf8), statusCode: 200, headers: headers)
+    }
+  )
+
+  var requestHeaders = HTTPFields()
+  requestHeaders[.authorization] = "Bearer secret"
+  requestHeaders[.cookie] = "session=secret"
+
+  _ = try await transport.send(
+    PreparedRequest(
+      url: URL(string: "https://example.com/private")!,
+      method: .get,
+      headers: requestHeaders,
+      timeout: .seconds(1)
+    )
+  )
+
+  let exchange = await transport.recordedExchanges().first
+
+  #expect(exchange?.request.headers.contains(RecordedHeader(name: "Authorization", value: "<redacted>")) == true)
+  #expect(exchange?.request.headers.contains(RecordedHeader(name: "Cookie", value: "<redacted>")) == true)
+
+  guard case .success(let response) = exchange?.outcome else {
+    Issue.record("Expected the exchange to record a response.")
+    return
+  }
+
+  #expect(response.headers.contains(RecordedHeader(name: "Set-Cookie", value: "<redacted>")))
+}
+
+@Test func recordingTransportCanRedactBodiesBeforeWritingCassettes() async throws {
+  let redaction = RecordingRedaction(
+    redactRequestBody: { _ in true },
+    redactResponseBody: { _ in true }
+  )
+  let transport = RecordingTransport(
+    base: MockTransport { _ in
+      RawResponse(data: Data("private response".utf8), statusCode: 200)
+    },
+    redaction: redaction
+  )
+
+  _ = try await transport.send(
+    PreparedRequest(
+      url: URL(string: "https://example.com/private")!,
+      method: .post,
+      body: Data("private request".utf8),
+      timeout: .seconds(1)
+    )
+  )
+
+  let cassette = await transport.cassette()
+  let exchange = try #require(cassette.exchanges.first)
+
+  #expect(exchange.request.bodyWasRedacted)
+  #expect(exchange.request.bodyData == Data("<redacted>".utf8))
+
+  guard case .success(let response) = exchange.outcome else {
+    Issue.record("Expected the exchange to record a response.")
+    return
+  }
+
+  #expect(response.bodyWasRedacted)
+  #expect(response.bodyData == Data("<redacted>".utf8))
+
+  let replay = ReplayTransport(cassette: cassette)
+  let replayed = try await replay.send(
+    PreparedRequest(
+      url: URL(string: "https://example.com/private")!,
+      method: .post,
+      body: Data("different request body".utf8),
+      timeout: .seconds(1)
+    )
+  )
+
+  #expect(replayed.data == Data("<redacted>".utf8))
+}
+
 @Test func cassetteRoundTripsThroughJSON() throws {
   let recordedAt = Date(timeIntervalSince1970: 1_717_171_717)
   let cassette = HTTPCassette(
