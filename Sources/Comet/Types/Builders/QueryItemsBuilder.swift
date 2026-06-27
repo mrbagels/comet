@@ -16,6 +16,10 @@ public enum QueryItemsBuilder {
     expression
   }
 
+  public static func buildExpression(_ expression: [QueryItem?]) -> [QueryItem] {
+    expression.compactMap(\.self)
+  }
+
   public static func buildOptional(_ component: [QueryItem]?) -> [QueryItem] {
     component ?? []
   }

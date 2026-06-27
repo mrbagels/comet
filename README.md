@@ -41,7 +41,7 @@ The shipped live HTTP and WebSocket transports are `URLSession`-backed. Server-s
 ## Install
 
 ```swift
-.package(url: "https://github.com/mrbagels/comet.git", from: "0.1.3")
+.package(url: "https://github.com/mrbagels/comet.git", from: "0.1.4")
 ```
 
 Import the target you need:
@@ -125,6 +125,40 @@ var options: RequestOptions {
     statusValidation: .successOrNotModified
   )
 }
+```
+
+Activity events also expose diagnostic helpers for UI and logging code:
+
+```swift
+for await event in client.activity {
+  print(event.kind)
+  print(event.diagnosticSummary)
+}
+```
+
+### Query Items
+
+`QueryItem` includes helpers for common optional, boolean, collection, joined, and date parameters.
+
+```swift
+var queryItems: [QueryItem] {
+  QueryItems {
+    QueryItem("search", searchTerm)
+    QueryItem.optional("limit", limit)
+    QueryItem.bool("includeArchived", includeArchived)
+    QueryItem.items("tag", values: tags)
+    QueryItem.joined("ids", values: selectedIDs)
+    QueryItem.date("createdAfter", cutoffDate, style: .iso8601)
+  }
+}
+```
+
+### cURL Output
+
+Prepared requests can produce shell-safe cURL output. Multiline is the default for logs, while compact output is useful for copying into single-line fields.
+
+```swift
+let curl = preparedRequest.curlCommand(style: .compact)
 ```
 
 ### WebSocket Sessions
@@ -229,7 +263,7 @@ GitHub Actions runs the Swift package suite, secret scanning, public API diff re
 Check for public API changes against the latest patch release:
 
 ```sh
-swift package diagnose-api-breaking-changes v0.1.2
+swift package diagnose-api-breaking-changes v0.1.3
 ```
 
 ## Branching

@@ -6,6 +6,18 @@ Comet is still pre-1.0. The `0.1.x` line is the public-prep patch line while
 the larger structure and API refactor continues. `0.2.0` is reserved for the
 completed v2 foundation.
 
+## 0.1.4 - 2026-06-27
+
+### Added
+
+- Query item helpers for optional values, boolean flags, repeated items, joined collections, and date encodings.
+- Diagnostic computed properties on `NetworkEvent` for event kind, metadata, status, duration, retry details, and summaries.
+- cURL command formatting styles for multiline and compact output.
+
+### Changed
+
+- `QueryItemsBuilder` now accepts arrays of optional query items and drops absent values.
+
 ## 0.1.3 - 2026-06-27
 
 ### Added

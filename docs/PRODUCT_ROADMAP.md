@@ -575,16 +575,17 @@ Why last:
 
 ## Highest-ROI Initial Backlog
 
-1. Shared redaction policy across `Comet` and `CometTesting`.
-2. Safe, pasteable cURL generation.
-3. Request metadata in options and activity events.
-4. Status validation presets.
-5. Retry safety defaults.
-6. Richer activity event payloads.
-7. Playground failure gallery.
-8. DocC tutorials for core workflows.
-9. Typed API error decoding.
-10. API stability gate policy.
+1. Shared redaction policy across `Comet` and `CometTesting`. Completed in the `0.1.x` patch line.
+2. Safe, pasteable cURL generation. Initial shell-safe and style-selectable output completed in the `0.1.x` patch line.
+3. Request metadata in options and activity events. Completed in the `0.1.x` patch line.
+4. Status validation presets. Completed in the `0.1.x` patch line.
+5. Retry safety defaults. Completed in the `0.1.x` patch line.
+6. Richer activity event payloads. Initial diagnostic properties completed in the `0.1.x` patch line.
+7. Query item builder ergonomics. Initial optional, boolean, collection, joined, and date helpers completed in the `0.1.x` patch line.
+8. Playground failure gallery.
+9. DocC tutorials for core workflows.
+10. Typed API error decoding.
+11. API stability gate policy.
 
 ## Open Design Questions
 

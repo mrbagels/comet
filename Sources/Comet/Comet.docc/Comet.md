@@ -25,6 +25,8 @@ The shipped live transports today are ``URLSessionTransport`` and ``URLSessionWe
 - ``ResponseSerializer``
 - ``HTTPBody``
 - ``Path``
+- ``QueryItem``
+- ``QueryDateEncodingStyle``
 
 ### Transport And Errors
 
@@ -45,6 +47,7 @@ The shipped live transports today are ``URLSessionTransport`` and ``URLSessionWe
 - ``RetryMiddleware``
 - ``RequestRetryPolicy``
 - ``LoggingMiddleware``
+- ``CURLCommandStyle``
 - ``NetworkEvent``
 - ``NetworkActivityBufferingPolicy``
 - ``RedactionPolicy``

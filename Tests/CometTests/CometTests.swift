@@ -124,6 +124,45 @@ private func durationMilliseconds(_ duration: Duration) -> Int64 {
   #expect(built.rawValue == "users/has%20space/42")
 }
 
+@Test func queryItemHelpersCoverCommonEncodings() {
+  let date = Date(timeIntervalSince1970: 1_700_000_000.123)
+  let items = QueryItems {
+    QueryItem("search", "comet")
+    QueryItem("page", 2)
+    QueryItem("missing", Optional<String>.none)
+    QueryItem.optional("limit", Optional(25))
+    QueryItem.flag("debug", isEnabled: true)
+    QueryItem.flag("disabled", isEnabled: false)
+    QueryItem.bool("includeArchived", false)
+    QueryItem.items("tag", values: ["swift", "networking"])
+    QueryItem.joined("ids", values: [1, 2, 3])
+    QueryItem.date("createdAfter", date, style: .secondsSince1970)
+    [
+      QueryItem.optional("optionalArray", Optional("included")),
+      QueryItem.optional("emptyArray", Optional<String>.none)
+    ]
+  }
+
+  let expectedItems = [
+    QueryItem("search", "comet"),
+    QueryItem("page", "2"),
+    QueryItem("limit", "25"),
+    QueryItem("debug", "true"),
+    QueryItem("includeArchived", "false"),
+    QueryItem("tag", "swift"),
+    QueryItem("tag", "networking"),
+    QueryItem("ids", "1,2,3"),
+    QueryItem("createdAfter", "1700000000"),
+    QueryItem("optionalArray", "included")
+  ]
+
+  #expect(items == expectedItems)
+
+  #expect(QueryItem.date("createdAt", Date(timeIntervalSince1970: 0)).value == "1970-01-01T00:00:00Z")
+  #expect(QueryItem.date("createdAt", date, style: .millisecondsSince1970).value == "1700000000123")
+  #expect(QueryItem.joined("empty", values: [Int]()) == nil)
+}
+
 @Test func requestBuilderUsesAbsoluteURLWithoutBaseVersion() throws {
   let configuration = ClientConfiguration.default(baseURL: URL(string: "https://api.example.com")!)
   let request = TestRequest(
@@ -382,6 +421,41 @@ private func durationMilliseconds(_ duration: Duration) -> Int64 {
   #expect(completedMetadata.displayName == "RetryProof")
 }
 
+@Test func networkEventExposesDiagnosticProperties() {
+  let id = UUID()
+  let url = URL(string: "https://example.com/todos/1")!
+  let metadata = RequestMetadata(name: "GetTodo", tags: ["todos"], operationID: "getTodo")
+  let started = NetworkEvent.requestStarted(id: id, method: .get, url: url, metadata: metadata)
+  let completed = NetworkEvent.requestCompleted(id: id, statusCode: 200, duration: .milliseconds(12), metadata: metadata)
+  let failed = NetworkEvent.requestFailed(id: id, error: .timeout, duration: .seconds(1), metadata: metadata)
+  let retried = NetworkEvent.requestRetried(id: id, attempt: 2, delay: .milliseconds(250), metadata: metadata)
+
+  #expect(started.kind == .started)
+  #expect(started.id == id)
+  #expect(started.method == .get)
+  #expect(started.url == url)
+  #expect(started.metadata == metadata)
+  #expect(started.displayName == "GetTodo")
+  #expect(started.diagnosticSummary.contains("started GetTodo GET https://example.com/todos/1"))
+
+  #expect(completed.kind == .completed)
+  #expect(completed.statusCode == 200)
+  #expect(completed.duration == .milliseconds(12))
+  #expect(completed.error == nil)
+  #expect(completed.diagnosticSummary.contains("HTTP 200"))
+
+  #expect(failed.kind == .failed)
+  #expect(failed.error?.isTimeoutError == true)
+  #expect(failed.duration == .seconds(1))
+  #expect(failed.diagnosticSummary.contains("timed out"))
+
+  #expect(retried.kind == .retried)
+  #expect(retried.retryAttempt == 2)
+  #expect(retried.retryDelay == .milliseconds(250))
+  #expect(retried.statusCode == nil)
+  #expect(retried.diagnosticSummary.contains("attempt 2"))
+}
+
 @Test func retryMiddlewareDoesNotRetryUnsafeWritesWithoutOptIn() async {
   let transportState = SequenceTransportState(results: [
     .failure(.timeout),
@@ -606,6 +680,10 @@ private func durationMilliseconds(_ duration: Duration) -> Int64 {
   #expect(curl.contains("-H 'x-name: O'\\''Reilly'"))
   #expect(curl.contains("--data-raw '<redacted>'"))
   #expect(curl.contains("'https://example.com/search?q=hello%20world'"))
+
+  let compact = prepared.curlCommand(style: .compact)
+  #expect(!compact.contains("\\\n"))
+  #expect(compact.contains("curl -X 'POST' -H 'authorization: <redacted>'"))
 }
 
 @Test func textBodyThrowsWhenEncodingFails() {

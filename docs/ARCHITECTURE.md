@@ -250,6 +250,18 @@ Defaults exist for `headers`, `queryItems`, `body`, and `options`.
 - percent-encodes individual segments
 - supports ergonomic segment composition with `/`
 
+### `QueryItem`
+
+`QueryItem` represents URL query parameters and includes helpers for common request definitions:
+
+- optional values
+- boolean values
+- repeated items from collections
+- joined collection values
+- ISO 8601, epoch seconds, and epoch milliseconds date encodings
+
+`QueryItemsBuilder` accepts individual items, optional items, arrays, and arrays of optional items.
+
 ### `RequestOptions`
 
 `RequestOptions` is the main opt-in extension surface:
@@ -459,6 +471,7 @@ Current characteristics:
 - uses the shared `RedactionPolicy`
 - includes request metadata labels when present
 - `.verbose` includes a shell-quoted cURL representation
+- generated cURL output can be formatted as multiline or compact through `CURLCommandStyle`
 
 ---
 
@@ -472,6 +485,21 @@ Current event surface:
 - `.requestCompleted`
 - `.requestFailed`
 - `.requestRetried`
+
+`NetworkEvent` also exposes computed diagnostic properties so callers can inspect activity without pattern matching every event case:
+
+- `kind`
+- `id`
+- `metadata`
+- `displayName`
+- `method`
+- `url`
+- `statusCode`
+- `duration`
+- `error`
+- `retryAttempt`
+- `retryDelay`
+- `diagnosticSummary`
 
 ### `HTTPClient.activity`
 
