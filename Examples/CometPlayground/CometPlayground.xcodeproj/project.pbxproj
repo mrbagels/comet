@@ -10,6 +10,7 @@
 		13488BFC6519757C2FF267DA /* DemoRequests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 287A68CC674071B031248663 /* DemoRequests.swift */; };
 		13E62EDB4744B9ABD0843112 /* DemoCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 748F11897B1DA6D7A4C336D5 /* DemoCatalog.swift */; };
 		2A856EEBD1192F76C30AB512 /* CometPlaygroundApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF6BEEB1A033C772A76749EB /* CometPlaygroundApp.swift */; };
+		2C9B8DA914613A6F5B602BFD /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 351333EDF8D667F652F02C51 /* Assets.xcassets */; };
 		2E16758F5C8CB806DD9A83BB /* HTTPTypes in Frameworks */ = {isa = PBXBuildFile; productRef = BAAC3BD141B89DABD596AD74 /* HTTPTypes */; };
 		34DE2C2F1E0767442EBA8620 /* PlaygroundStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62EBA16DB17AAB51138C8CC5 /* PlaygroundStyle.swift */; };
 		48E48C40049AF9F7D473914C /* Comet in Frameworks */ = {isa = PBXBuildFile; productRef = 5CE47540789D4107D4B0F769 /* Comet */; };
@@ -40,6 +41,7 @@
 /* Begin PBXFileReference section */
 		287A68CC674071B031248663 /* DemoRequests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoRequests.swift; sourceTree = "<group>"; };
 		2EFCF7BB447C392733D24297 /* CometPlaygroundTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = CometPlaygroundTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		351333EDF8D667F652F02C51 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		57EB7885F7DED93E72382ADD /* DemoClientFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoClientFactory.swift; sourceTree = "<group>"; };
 		5E21FF71662C0FC6C05D3E89 /* HomeTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeTab.swift; sourceTree = "<group>"; };
 		62EBA16DB17AAB51138C8CC5 /* PlaygroundStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaygroundStyle.swift; sourceTree = "<group>"; };
@@ -91,6 +93,7 @@
 			isa = PBXGroup;
 			children = (
 				8A213D6855F9A5C291C2BA3F /* ActivityTab.swift */,
+				351333EDF8D667F652F02C51 /* Assets.xcassets */,
 				EF6BEEB1A033C772A76749EB /* CometPlaygroundApp.swift */,
 				748F11897B1DA6D7A4C336D5 /* DemoCatalog.swift */,
 				57EB7885F7DED93E72382ADD /* DemoClientFactory.swift */,
@@ -224,6 +227,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2C9B8DA914613A6F5B602BFD /* Assets.xcassets in Resources */,
 				C4497E87E91B22B521CF03C3 /* LaunchScreen.storyboard in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -407,7 +411,7 @@
 		BDC2C9E362FF8B4E82EEA0EE /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = "";
 				CODE_SIGNING_ALLOWED = NO;
 				CODE_SIGNING_REQUIRED = NO;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
@@ -429,7 +433,7 @@
 		D9B4785A8DBF5ED8AFC7002E /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = "";
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				GENERATE_INFOPLIST_FILE = YES;

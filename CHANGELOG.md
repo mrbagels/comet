@@ -6,6 +6,18 @@ Comet is still pre-1.0. The `0.1.x` line is the public-prep patch line while
 the larger structure and API refactor continues. `0.2.0` is reserved for the
 completed v2 foundation.
 
+## 0.1.2 - 2026-06-27
+
+### Added
+
+- First-party SVG brand assets under `Resources/Brand`.
+- Playground app asset catalog support for the Comet gradient icon.
+
+### Changed
+
+- Reworked the README with the Comet mark, release badges, clearer package positioning, and updated installation instructions.
+- Added brand polish to the playground README and home screen.
+
 ## 0.1.1 - 2026-06-27
 
 ### Added

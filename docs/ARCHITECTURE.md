@@ -42,9 +42,12 @@ comet/
 │   └── CometTestingTests/
 ├── Examples/
 │   └── CometPlayground/
+├── Resources/
+│   └── Brand/
 └── docs/
     ├── ARCHITECTURE.md
-    └── IMPLEMENTATION_PLAN.md
+    ├── IMPLEMENTATION_PLAN.md
+    └── PRODUCT_ROADMAP.md
 ```
 
 ### Products
@@ -75,6 +78,7 @@ CometTesting
 - `CometTCA` owns dependency wiring and effect helpers.
 - `CometTesting` keeps mocks and recorders out of the production surface.
 - `Examples/CometPlayground` is a generated iOS proof-of-concept app, not part of the library package itself.
+- `Resources/Brand` stores first-party SVG assets used by docs, README, and the playground app asset catalog.
 
 ---
 
@@ -141,6 +145,9 @@ Sources/Comet/
 │   └── CURLCommand.swift
 ├── Deduplication/
 │   └── RequestDeduplicator.swift
+├── Diagnostics/
+│   ├── RedactionPolicy.swift
+│   └── RequestMetadata.swift
 ├── Errors/
 │   └── NetworkError.swift
 ├── Middleware/
@@ -148,6 +155,7 @@ Sources/Comet/
 │   ├── LoggingMiddleware.swift
 │   ├── Middleware.swift
 │   ├── MiddlewareChain.swift
+│   ├── RequestRetryPolicy.swift
 │   └── RetryMiddleware.swift
 ├── Observability/
 │   ├── EventBroadcaster.swift
@@ -173,9 +181,11 @@ Sources/CometTCA/
 └── HTTPClient+Dependency.swift
 
 Sources/CometTesting/
+├── Cassette.swift
 ├── HTTPClient+Testing.swift
 ├── MockWebSocketTransport.swift
 ├── MockTransport.swift
+├── RecordingRedaction.swift
 └── RecordingTransport.swift
 ```
 

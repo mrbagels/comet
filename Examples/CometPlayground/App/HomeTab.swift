@@ -30,11 +30,23 @@ struct HomeTab: View {
 
   private var intro: some View {
     VStack(alignment: .leading, spacing: 12) {
-      SectionEyebrow(text: "Comet Playground")
+      HStack(alignment: .center, spacing: 14) {
+        Image("CometIcon")
+          .resizable()
+          .scaledToFit()
+          .frame(width: 58, height: 58)
+          .accessibilityLabel("Comet")
 
-      Text("Focused flows for Comet.")
-        .font(.system(size: 40, weight: .bold, design: .rounded))
-        .foregroundStyle(ThemeColor.ink)
+        VStack(alignment: .leading, spacing: 6) {
+          SectionEyebrow(text: "Comet Playground")
+
+          Text("Network proof lab")
+            .font(.system(size: 34, weight: .bold, design: .rounded))
+            .foregroundStyle(ThemeColor.ink)
+            .lineLimit(2)
+            .minimumScaleFactor(0.78)
+        }
+      }
 
       Text("Switch transports, run HTTP or socket proofs, and only move into details when you need the deeper output.")
         .font(.system(.title3))

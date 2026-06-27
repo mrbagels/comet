@@ -1,12 +1,33 @@
-# Comet
+<p align="center">
+  <img src="Resources/Brand/icon-gradient.svg" alt="Comet logo" width="112">
+</p>
 
-Comet is a modern Swift networking library for Apple-platform apps today. It ships with a `URLSession`-backed live transport and a transport seam that also supports mocks, recorders, replayers, and future non-`URLSession` transports.
+<h1 align="center">Comet</h1>
 
-## Package Products
+<p align="center">
+  <strong>Typed networking for Apple-platform Swift apps.</strong>
+</p>
 
-- `Comet`: typed HTTP requests, WebSocket connections, middleware, retry, deduplication, and activity events
-- `CometTesting`: mocks, recorders, JSON cassettes, replay transports, and mock WebSocket sessions
-- `CometTCA`: lightweight Composable Architecture integration
+<p align="center">
+  <a href="https://github.com/mrbagels/comet/actions/workflows/ci.yml"><img src="https://github.com/mrbagels/comet/actions/workflows/ci.yml/badge.svg?branch=next" alt="CI"></a>
+  <a href="https://github.com/mrbagels/comet/releases"><img src="https://img.shields.io/github/v/release/mrbagels/comet?sort=semver" alt="Latest release"></a>
+  <img src="https://img.shields.io/badge/Swift-6.2-orange" alt="Swift 6.2">
+  <img src="https://img.shields.io/badge/platforms-iOS%2018%2B%20%7C%20macOS%2015%2B%20%7C%20visionOS%202%2B-blue" alt="Supported platforms">
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/mrbagels/comet" alt="License"></a>
+</p>
+
+Comet turns API endpoints into Swift types. It ships with a `URLSession`-backed live client, middleware for production behavior, deterministic testing transports, cassette recording and replay, request activity events, and WebSocket support.
+
+The current `0.1.x` line is the public-prep patch line. The broader structure and API refactor will continue through patch releases until the completed v2 foundation becomes `0.2.0`.
+
+## At A Glance
+
+| Surface | What It Provides |
+| --- | --- |
+| `Comet` | Typed HTTP requests, WebSocket sessions, serializers, middleware, retry, deduplication, and activity events |
+| `CometTesting` | Mock transports, cassette recording, replay transports, and mock WebSocket sessions |
+| `CometTCA` | Lightweight Composable Architecture helpers for request effects |
+| `CometPlayground` | iPhone-first verification app for HTTP, replay, activity, and realtime flows |
 
 ## Toolchain And Platforms
 
@@ -15,16 +36,12 @@ Comet is a modern Swift networking library for Apple-platform apps today. It shi
 - macOS 15+
 - visionOS 2+
 
-The live HTTP and WebSocket transports are `URLSession`-backed. Server-side Swift support is possible through the transport protocols, but a server live transport is not included today.
-
-## Platform Status
-
-Comet’s shipped live transports are `URLSessionTransport` and `URLSessionWebSocketTransport`, so the production-ready story today is Apple-platform client apps. The core abstractions are intentionally transport-replaceable, but a server-side live transport does not ship yet.
+The shipped live HTTP and WebSocket transports are `URLSession`-backed. Server-side Swift support is possible through the transport protocols, but a server live transport is not included today.
 
 ## Install
 
 ```swift
-.package(url: "https://github.com/mrbagels/comet.git", from: "0.1.1")
+.package(url: "https://github.com/mrbagels/comet.git", from: "0.1.2")
 ```
 
 Import the target you need:
@@ -75,32 +92,7 @@ let client = HTTPClient.live(
 let user = try await client.send(GetUser(userID: 42))
 ```
 
-### Plain Text And Raw HTTP
-
-```swift
-import Comet
-import HTTPTypes
-
-struct ExampleDomainRequest: APIRequest {
-  let path: Path = "ignored"
-  let method: HTTPMethod = .get
-  let responseSerializer: ResponseSerializer<String> = .string()
-
-  var options: RequestOptions {
-    .init(absoluteURL: URL(string: "https://example.com")!)
-  }
-}
-
-let client = HTTPClient.live(
-  configuration: .default(baseURL: URL(string: "https://placeholder.invalid")!),
-  transport: URLSessionTransport()
-)
-
-let html = try await client.send(ExampleDomainRequest())
-let raw = try await client.sendRaw(ExampleDomainRequest())
-```
-
-### Retries, Logging, And Activity
+### Retries, Metadata, And Activity
 
 ```swift
 import Comet
@@ -123,7 +115,7 @@ Task {
 }
 ```
 
-Requests can carry metadata into logs and activity events, and retry behavior is conservative by default. `RetryMiddleware` retries safe methods such as `GET` automatically, while write requests need an idempotency key or an explicit retry policy.
+Requests can carry metadata into logs and activity events. Retry behavior is conservative by default: `RetryMiddleware` retries safe methods such as `GET` automatically, while write requests need an idempotency key or an explicit retry policy.
 
 ```swift
 var options: RequestOptions {
@@ -156,7 +148,7 @@ let reply = try await connection.receive()
 try await connection.close(code: .normalClosure)
 ```
 
-### Deterministic Testing And Replay Fixtures
+### Deterministic Testing And Replay
 
 ```swift
 import Comet
@@ -183,9 +175,9 @@ let replayClient = HTTPClient.live(
 let recordedUser = try await replayClient.send(GetUser(userID: 42))
 ```
 
-`MockTransport` is still the fastest path for fully in-memory tests. `RecordingTransport` and `ReplayTransport` are for higher-fidelity fixture workflows when you want to capture live traffic once and replay it deterministically later.
+`MockTransport` is the fastest path for fully in-memory tests. `RecordingTransport` and `ReplayTransport` are for higher-fidelity fixture workflows when you want to capture live traffic once and replay it deterministically later.
 
-Recorded cassettes can include URLs, headers, request bodies, response bodies, cookies, and authorization data. `RecordingTransport` redacts common sensitive headers by default and supports custom request/response body redaction. Review generated fixtures before committing them.
+Recorded cassettes can include URLs, headers, request bodies, response bodies, cookies, and authorization data. `RecordingTransport` redacts common sensitive headers by default and supports custom request and response body redaction. Review generated fixtures before committing them.
 
 ```swift
 let recorder = RecordingTransport(
@@ -197,9 +189,19 @@ let recorder = RecordingTransport(
 )
 ```
 
-`RecordingRedaction` is an alias for Comet’s shared `RedactionPolicy`, so the same policy shape can be used for cassettes, logging, and cURL output.
+`RecordingRedaction` is an alias for Comet's shared `RedactionPolicy`, so the same policy shape can be used for cassettes, logging, and cURL output.
 
-For realtime tests, `MockWebSocketTransport` gives you the same deterministic control for handshake, echo, queued inbound messages, ping tracking, and close frames.
+## Example App
+
+`Examples/CometPlayground` is an iPhone-first verification app generated with XcodeGen. It provides:
+
+- a focused smoke test target: `CometPlaygroundTests`
+- deterministic mock verification with `CometTesting.MockTransport`
+- deterministic socket verification with `CometTesting.MockWebSocketTransport`
+- live transport checks through `URLSessionTransport` and `URLSessionWebSocketTransport`
+- proof, activity, and detail flows showing which APIs are exercised and what output to verify
+
+The full walkthrough lives in [Examples/CometPlayground/README.md](Examples/CometPlayground/README.md).
 
 ## Verification
 
@@ -216,67 +218,51 @@ cd Examples/CometPlayground
 xcodegen generate
 ```
 
-Run the example smoke tests from the command line:
+Run the example smoke tests:
 
 ```sh
 xcodebuild test -project CometPlayground.xcodeproj -scheme CometPlaygroundApp -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=latest'
 ```
 
-GitHub Actions runs both the Swift package suite and the iOS example smoke tests on every push to `next` and `master`.
+GitHub Actions runs the Swift package suite, secret scanning, public API diff reporting, and the iOS example smoke tests on every push to `next` and `master`.
 
-Check for public API changes against the latest release tag:
+Check for public API changes against the latest patch release:
 
 ```sh
-swift package diagnose-api-breaking-changes v0.1.0
+swift package diagnose-api-breaking-changes v0.1.1
 ```
-
-The `0.1.x` line is the public-prep patch line. The broader structure and API refactor will continue through patch releases until the completed v2 foundation becomes `0.2.0`.
 
 ## Branching
 
-This repo now follows the shared package branch model:
+- `next` is the default integration branch for upcoming work.
+- `master` is the stable release branch.
+- Short-lived `feat/`, `fix/`, `refactor/`, `docs/`, `chore/`, `spike/`, and `hotfix/` branches should branch from `next`.
+- Normal work merges back into `next`, and releases promote from `master`.
 
-- `next` is the default integration branch for upcoming work
-- `master` is the stable release branch
-- short-lived `feat/`, `fix/`, `refactor/`, `docs/`, `chore/`, `spike/`, and `hotfix/` branches should branch from `next`
-- normal work merges back into `next`, and releases promote from `master`
+## Brand Assets
+
+SVG brand assets live in [Resources/Brand](Resources/Brand). The README uses the gradient icon directly from that folder, and the playground app bundles the same mark through its asset catalog.
 
 ## Repository Layout
 
 - `Sources/`: package source targets
 - `Tests/`: package test targets
 - `Examples/CometPlayground/`: XcodeGen-driven iOS demo app
+- `Resources/Brand/`: SVG logo and icon files for docs, README, and app assets
 - `.github/workflows/ci.yml`: package and iOS smoke test automation
 - `docs/ARCHITECTURE.md`: architecture notes
 - `docs/IMPLEMENTATION_PLAN.md`: implementation plan and rollout notes
-
-## Example App
-
-The example project is an iPhone-first verification app for the package. It gives you:
-
-- an iOS app target: `CometPlaygroundApp`
-- a focused smoke test target: `CometPlaygroundTests`
-- deterministic mock verification with `CometTesting.MockTransport`
-- deterministic socket verification with `CometTesting.MockWebSocketTransport`
-- live transport checks through `URLSessionTransport` and `URLSessionWebSocketTransport`
-- focused proof, activity, and detail flows showing which APIs are being exercised and what output to verify
-
-The full walkthrough lives in [Examples/CometPlayground/README.md](Examples/CometPlayground/README.md).
+- `docs/PRODUCT_ROADMAP.md`: v2 roadmap and feature planning
 
 ## What To Open First
 
-If you want to understand or modify the example apps, start here:
+If you want to understand or modify the current core flows, start here:
 
+- [Sources/Comet/Core/HTTPClient.swift](Sources/Comet/Core/HTTPClient.swift)
 - [Sources/Comet/WebSockets/WebSocketTypes.swift](Sources/Comet/WebSockets/WebSocketTypes.swift)
-- [Sources/Comet/WebSockets/URLSessionWebSocketTransport.swift](Sources/Comet/WebSockets/URLSessionWebSocketTransport.swift)
 - [Sources/CometTesting/MockWebSocketTransport.swift](Sources/CometTesting/MockWebSocketTransport.swift)
-- [DemoCatalog.swift](Examples/CometPlayground/App/DemoCatalog.swift)
-- [RootView.swift](Examples/CometPlayground/App/RootView.swift)
-- [HomeTab.swift](Examples/CometPlayground/App/HomeTab.swift)
-- [ProofsTab.swift](Examples/CometPlayground/App/ProofsTab.swift)
-- [ActivityTab.swift](Examples/CometPlayground/App/ActivityTab.swift)
-- [DemoDetailScreen.swift](Examples/CometPlayground/App/DemoDetailScreen.swift)
-- [DemoRequests.swift](Examples/CometPlayground/App/DemoRequests.swift)
-- [DemoClientFactory.swift](Examples/CometPlayground/App/DemoClientFactory.swift)
-- [PlaygroundStyle.swift](Examples/CometPlayground/App/PlaygroundStyle.swift)
-- [project.yml](Examples/CometPlayground/project.yml)
+- [Sources/CometTesting/RecordingTransport.swift](Sources/CometTesting/RecordingTransport.swift)
+- [Examples/CometPlayground/App/DemoCatalog.swift](Examples/CometPlayground/App/DemoCatalog.swift)
+- [Examples/CometPlayground/App/HomeTab.swift](Examples/CometPlayground/App/HomeTab.swift)
+- [Examples/CometPlayground/App/ActivityTab.swift](Examples/CometPlayground/App/ActivityTab.swift)
+- [Examples/CometPlayground/project.yml](Examples/CometPlayground/project.yml)

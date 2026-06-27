@@ -49,6 +49,11 @@ Examples/
   CometPlayground/
     project.yml
     CometPlayground.xcodeproj
+Resources/
+  Brand/
+    icon-gradient.svg
+    logo-mark.svg
+    logo-text.svg
 ```
 
 ---

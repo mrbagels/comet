@@ -1,4 +1,8 @@
-# Comet Playground
+<p align="center">
+  <img src="../../Resources/Brand/icon-gradient.svg" alt="Comet logo" width="88">
+</p>
+
+<h1 align="center">Comet Playground</h1>
 
 Comet Playground is the package verification app for this repository. It is generated with XcodeGen and ships as an iOS app target backed by the local Swift package.
 
@@ -82,6 +86,7 @@ Each scenario in the UI shows the exact Comet API surface it is proving. The dem
 - [App/PlaygroundStyle.swift](App/PlaygroundStyle.swift): shared liquid glass styling and UI primitives
 - [App/DemoRequests.swift](App/DemoRequests.swift): request definitions
 - [App/DemoClientFactory.swift](App/DemoClientFactory.swift): mock and live HTTP/WebSocket wiring
+- [App/Assets.xcassets](App/Assets.xcassets): bundled Comet brand icon
 - [project.yml](project.yml): XcodeGen target configuration
 
 ## Command-Line Checks
