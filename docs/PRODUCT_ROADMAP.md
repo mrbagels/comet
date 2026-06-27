@@ -20,6 +20,8 @@ The selected roadmap has five themes:
 
 Add request-level support for decoding structured error bodies.
 
+Status: initial typed error surface completed in the `0.1.x` patch line with `ErrorResponseSerializer`, `APIRequestWithErrorResponse`, and `APIClientError`.
+
 Technical shape:
 
 - Add an error serializer concept, probably in `RequestOptions` or a companion request protocol.
@@ -584,7 +586,7 @@ Why last:
 7. Query item builder ergonomics. Initial optional, boolean, collection, joined, and date helpers completed in the `0.1.x` patch line.
 8. Playground failure gallery.
 9. DocC tutorials for core workflows.
-10. Typed API error decoding.
+10. Typed API error decoding. Initial request-level and call-site decoding completed in the `0.1.x` patch line.
 11. API stability gate policy.
 
 ## Open Design Questions

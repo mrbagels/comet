@@ -153,6 +153,33 @@ var queryItems: [QueryItem] {
 }
 ```
 
+### Typed API Errors
+
+Requests can opt into decoding structured HTTP error bodies while preserving the raw `NetworkError.http` information.
+
+```swift
+struct APIError: Decodable, Sendable {
+  let code: String
+  let message: String
+}
+
+struct CreateUser: APIRequestWithErrorResponse {
+  typealias Response = User
+  typealias ErrorResponse = APIError
+
+  let path: Path = "users"
+  let method: HTTPMethod = .post
+  let responseSerializer: ResponseSerializer<User> = .json(User.self)
+  let errorResponseSerializer: ErrorResponseSerializer<APIError> = .json(APIError.self)
+}
+
+do {
+  let user = try await client.sendWithTypedErrors(CreateUser())
+} catch let error as APIClientError<APIError> {
+  print(error.decodedErrorBody?.message ?? error.networkError.debugSummary)
+}
+```
+
 ### cURL Output
 
 Prepared requests can produce shell-safe cURL output. Multiline is the default for logs, while compact output is useful for copying into single-line fields.

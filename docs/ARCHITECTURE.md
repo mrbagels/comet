@@ -310,6 +310,17 @@ Current serializers:
 
 This keeps the client core format-agnostic while still making JSON ergonomic.
 
+### `ErrorResponseSerializer`
+
+`ErrorResponseSerializer<ErrorResponse>` mirrors `ResponseSerializer` for unsuccessful HTTP responses. It decodes typed domain errors while preserving the raw `NetworkError.http` details inside `APIClientError`.
+
+Typed error decoding is opt-in through either:
+
+- `HTTPClient.send(_:errorResponseSerializer:)`
+- `APIRequestWithErrorResponse` plus `HTTPClient.sendWithTypedErrors(_:)`
+
+The default `HTTPClient.send(_:)` path continues to throw `NetworkError`.
+
 ### `RawResponse`
 
 `RawResponse` carries:

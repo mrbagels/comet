@@ -13,6 +13,21 @@ private struct TestRequest<Response: Sendable>: APIRequest {
   var options: RequestOptions = .init()
 }
 
+private struct TestAPIError: Codable, Sendable, Equatable {
+  let code: String
+  let message: String
+}
+
+private struct TypedErrorRequest: APIRequestWithErrorResponse {
+  typealias Response = String
+  typealias ErrorResponse = TestAPIError
+
+  let path: Path = "typed-error"
+  let method: HTTPMethod = .get
+  let responseSerializer: ResponseSerializer<String> = .string()
+  let errorResponseSerializer: ErrorResponseSerializer<TestAPIError> = .json(TestAPIError.self)
+}
+
 private struct TestTransport: HTTPTransport, Sendable {
   let handler: @Sendable (PreparedRequest) async throws(NetworkError) -> RawResponse
 
@@ -299,6 +314,96 @@ private func durationMilliseconds(_ duration: Duration) -> Int64 {
 
   await #expect(throws: NetworkError.self) {
     _ = try await client.send(request)
+  }
+}
+
+@Test func httpClientDecodesRequestDeclaredTypedErrorResponses() async throws {
+  let errorBody = TestAPIError(code: "validation_failed", message: "Name is required.")
+  let data = try ClientConfiguration.defaultJSONEncoder().encode(errorBody)
+  let client = HTTPClient.live(
+    configuration: .default(baseURL: URL(string: "https://example.com")!),
+    transport: TestTransport { _ in
+      RawResponse(data: data, statusCode: 422)
+    }
+  )
+
+  do {
+    _ = try await client.sendWithTypedErrors(TypedErrorRequest())
+    Issue.record("Expected a typed API client error.")
+  } catch {
+    guard case .api(let response) = error else {
+      Issue.record("Expected a decoded API error, got \(error).")
+      return
+    }
+
+    #expect(response.statusCode == 422)
+    #expect(response.body == errorBody)
+    #expect(response.rawBody == data)
+    #expect(response.networkError.statusCode == 422)
+    #expect(error.decodedErrorBody == errorBody)
+    #expect(error.statusCode == 422)
+  }
+}
+
+@Test func httpClientDecodesTypedErrorResponsesFromCallSiteSerializer() async throws {
+  let errorBody = TestAPIError(code: "missing", message: "Todo was not found.")
+  let data = try ClientConfiguration.defaultJSONEncoder().encode(errorBody)
+  let client = HTTPClient.live(
+    configuration: .default(baseURL: URL(string: "https://example.com")!),
+    transport: TestTransport { _ in
+      RawResponse(data: data, statusCode: 404)
+    }
+  )
+  let request = TestRequest(
+    path: "todos/404",
+    method: .get,
+    responseSerializer: ResponseSerializer<String>.string()
+  )
+
+  do {
+    _ = try await client.send(
+      request,
+      errorResponseSerializer: .json(TestAPIError.self)
+    )
+    Issue.record("Expected a typed API client error.")
+  } catch {
+    #expect(error.decodedErrorBody == errorBody)
+    #expect(error.networkError.statusCode == 404)
+  }
+}
+
+@Test func httpClientPreservesRawHTTPErrorWhenTypedErrorDecodingFails() async {
+  let data = Data("not-json".utf8)
+  let client = HTTPClient.live(
+    configuration: .default(baseURL: URL(string: "https://example.com")!),
+    transport: TestTransport { _ in
+      RawResponse(data: data, statusCode: 500)
+    }
+  )
+  let request = TestRequest(
+    path: "broken",
+    method: .get,
+    responseSerializer: ResponseSerializer<String>.string()
+  )
+
+  do {
+    _ = try await client.send(
+      request,
+      errorResponseSerializer: .json(TestAPIError.self)
+    )
+    Issue.record("Expected a typed API client error.")
+  } catch {
+    guard case .errorResponseDecodingFailed(let networkError, let decodingError) = error else {
+      Issue.record("Expected an error decoding failure, got \(error).")
+      return
+    }
+
+    #expect(networkError.statusCode == 500)
+    #expect(networkError.bodyData == data)
+    guard case .decoding = decodingError else {
+      Issue.record("Expected a decoding error, got \(decodingError).")
+      return
+    }
   }
 }
 

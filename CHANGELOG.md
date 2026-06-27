@@ -6,6 +6,12 @@ Comet is still pre-1.0. The `0.1.x` line is the public-prep patch line while
 the larger structure and API refactor continues. `0.2.0` is reserved for the
 completed v2 foundation.
 
+## Unreleased
+
+### Added
+
+- Typed API error decoding with `ErrorResponseSerializer`, `APIRequestWithErrorResponse`, `APIClientError`, and `HTTPClient.sendWithTypedErrors`.
+
 ## 0.1.4 - 2026-06-27
 
 ### Added

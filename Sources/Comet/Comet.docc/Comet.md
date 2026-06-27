@@ -23,6 +23,8 @@ The shipped live transports today are ``URLSessionTransport`` and ``URLSessionWe
 - ``RequestOptions``
 - ``RequestMetadata``
 - ``ResponseSerializer``
+- ``ErrorResponseSerializer``
+- ``APIRequestWithErrorResponse``
 - ``HTTPBody``
 - ``Path``
 - ``QueryItem``
@@ -39,6 +41,8 @@ The shipped live transports today are ``URLSessionTransport`` and ``URLSessionWe
 - ``URLSessionWebSocketTransport``
 - ``RawResponse``
 - ``NetworkError``
+- ``APIClientError``
+- ``DecodedErrorResponse``
 
 ### Middleware And Activity
 

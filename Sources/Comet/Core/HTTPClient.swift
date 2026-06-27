@@ -50,9 +50,62 @@ public struct HTTPClient: Sendable {
   public func send<R: APIRequest>(_ request: R) async throws(NetworkError) -> R.Response {
     let response = try await self.sendRaw(request)
     guard request.options.statusValidation.contains(response.statusCode) else {
-      throw .http(statusCode: response.statusCode, body: response.data, headers: response.headers)
+      throw Self.httpError(from: response)
     }
     return try request.responseSerializer.serialize(response, self.configuration)
+  }
+
+  /// Sends a typed request and decodes unsuccessful HTTP responses into the request's declared domain error type.
+  public func sendWithTypedErrors<R: APIRequestWithErrorResponse>(
+    _ request: R
+  ) async throws(APIClientError<R.ErrorResponse>) -> R.Response {
+    try await self.send(
+      request,
+      errorResponseSerializer: request.errorResponseSerializer
+    )
+  }
+
+  /// Sends a typed request and decodes unsuccessful HTTP responses with the provided error serializer.
+  public func send<R: APIRequest, ErrorResponse: Sendable>(
+    _ request: R,
+    errorResponseSerializer: ErrorResponseSerializer<ErrorResponse>
+  ) async throws(APIClientError<ErrorResponse>) -> R.Response {
+    let response: RawResponse
+    do {
+      response = try await self.sendRaw(request)
+    } catch {
+      throw .network(NetworkError.from(error))
+    }
+
+    guard request.options.statusValidation.contains(response.statusCode) else {
+      let networkError = Self.httpError(from: response)
+
+      do {
+        let body = try errorResponseSerializer.serialize(response, self.configuration)
+        throw APIClientError.api(
+          DecodedErrorResponse(
+            statusCode: response.statusCode,
+            body: body,
+            rawBody: response.data,
+            headers: response.headers,
+            networkError: networkError
+          )
+        )
+      } catch let error as APIClientError<ErrorResponse> {
+        throw error
+      } catch {
+        throw .errorResponseDecodingFailed(
+          networkError: networkError,
+          decodingError: NetworkError.from(error)
+        )
+      }
+    }
+
+    do {
+      return try request.responseSerializer.serialize(response, self.configuration)
+    } catch {
+      throw .network(NetworkError.from(error))
+    }
   }
 
   /// Sends a typed request and returns the raw HTTP response before status validation and decoding.
@@ -118,6 +171,10 @@ public struct HTTPClient: Sendable {
       self.broadcaster.emit(.requestFailed(id: requestID, error: networkError, duration: duration, metadata: request.metadata))
       throw networkError
     }
+  }
+
+  private static func httpError(from response: RawResponse) -> NetworkError {
+    .http(statusCode: response.statusCode, body: response.data, headers: response.headers)
   }
 }
 

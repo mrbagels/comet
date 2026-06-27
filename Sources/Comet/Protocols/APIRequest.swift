@@ -20,3 +20,10 @@ public extension APIRequest {
   var body: HTTPBody { .none }
   var options: RequestOptions { .init() }
 }
+
+/// Describes a typed request that can decode structured unsuccessful HTTP responses.
+public protocol APIRequestWithErrorResponse: APIRequest {
+  associatedtype ErrorResponse: Sendable
+
+  var errorResponseSerializer: ErrorResponseSerializer<ErrorResponse> { get }
+}
