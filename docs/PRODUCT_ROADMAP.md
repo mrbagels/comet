@@ -578,7 +578,7 @@ Why last:
 ## Highest-ROI Initial Backlog
 
 1. Shared redaction policy across `Comet` and `CometTesting`. Completed in the `0.1.x` patch line.
-2. Safe, pasteable cURL generation. Initial shell-safe and style-selectable output completed in the `0.1.x` patch line.
+2. Safe, pasteable cURL generation. Shell-safe output, compact or multiline formatting, and pretty JSON body output completed in the `0.1.x` patch line.
 3. Request metadata in options and activity events. Completed in the `0.1.x` patch line.
 4. Status validation presets. Completed in the `0.1.x` patch line.
 5. Retry safety defaults. Completed in the `0.1.x` patch line.

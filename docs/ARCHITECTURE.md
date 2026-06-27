@@ -483,6 +483,7 @@ Current characteristics:
 - includes request metadata labels when present
 - `.verbose` includes a shell-quoted cURL representation
 - generated cURL output can be formatted as multiline or compact through `CURLCommandStyle`
+- generated cURL bodies can preserve original text or pretty-print JSON through `CURLCommandOptions`
 
 ---
 

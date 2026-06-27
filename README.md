@@ -182,10 +182,26 @@ do {
 
 ### cURL Output
 
-Prepared requests can produce shell-safe cURL output. Multiline is the default for logs, while compact output is useful for copying into single-line fields.
+Prepared requests can produce shell-safe cURL output. Multiline is the default for logs, while compact output is useful for copying into single-line fields. JSON request bodies can also be pretty-printed when multiline readability matters.
 
 ```swift
 let curl = preparedRequest.curlCommand(style: .compact)
+
+let readableCurl = preparedRequest.curlCommand(
+  options: CURLCommandOptions(
+    style: .multiline,
+    bodyFormatting: .prettyPrintedJSON
+  )
+)
+```
+
+Verbose request logging uses the same options:
+
+```swift
+LoggingMiddleware(
+  logLevel: .verbose,
+  curlCommandOptions: CURLCommandOptions(style: .compact)
+)
 ```
 
 ### WebSocket Sessions

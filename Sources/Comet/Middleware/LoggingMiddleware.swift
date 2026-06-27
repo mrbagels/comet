@@ -13,6 +13,7 @@ public struct LoggingMiddleware: Middleware {
   public var isEnabled: Bool
   public var redactionPolicy: RedactionPolicy?
   public var logLevel: LogLevel
+  public var curlCommandOptions: CURLCommandOptions
   public var logger: @Sendable (String) -> Void
 
   /// Creates a logging middleware with redaction and output controls.
@@ -21,6 +22,7 @@ public struct LoggingMiddleware: Middleware {
     redactedHeaders: Set<String>? = nil,
     redactionPolicy: RedactionPolicy? = nil,
     logLevel: LogLevel = .response,
+    curlCommandOptions: CURLCommandOptions = .init(),
     logger: @escaping @Sendable (String) -> Void = { message in
       fputs(message + "\n", stderr)
     }
@@ -28,6 +30,7 @@ public struct LoggingMiddleware: Middleware {
     self.isEnabled = isEnabled
     self.redactionPolicy = redactionPolicy ?? redactedHeaders.map { RedactionPolicy(redactedHeaders: $0) }
     self.logLevel = logLevel
+    self.curlCommandOptions = curlCommandOptions
     self.logger = logger
   }
 
@@ -47,7 +50,10 @@ public struct LoggingMiddleware: Middleware {
       let name = request.metadata.displayName.map { " \($0)" } ?? ""
       self.logger("[Comet][\(context.requestID)]\(name) → \(request.method.rawValue) \(request.url.absoluteString) headers=\(headerSummary) body=\(bodySize)b")
       if self.logLevel == .verbose {
-        self.logger(request.curlCommand(redactionPolicy: redactionPolicy))
+        self.logger(request.curlCommand(
+          redactionPolicy: redactionPolicy,
+          options: self.curlCommandOptions
+        ))
       }
     case .response:
       break

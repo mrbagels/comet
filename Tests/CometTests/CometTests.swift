@@ -761,6 +761,38 @@ private func durationMilliseconds(_ duration: Duration) -> Int64 {
   #expect(verboseLogs.contains(where: { $0.contains("← 200") }))
 }
 
+@Test func loggingMiddlewareCanEmitCompactCurlCommands() async throws {
+  let verboseSink = LogSink()
+  let client = HTTPClient.live(
+    configuration: ClientConfiguration(
+      baseURL: URL(string: "https://example.com")!,
+      middleware: [
+        LoggingMiddleware(
+          logLevel: .verbose,
+          curlCommandOptions: CURLCommandOptions(style: .compact)
+        ) { message in
+          verboseSink.append(message)
+        }
+      ]
+    ),
+    transport: TestTransport { _ in
+      RawResponse(data: Data("ok".utf8), statusCode: 200)
+    }
+  )
+  let request = TestRequest(
+    path: "logs",
+    method: .post,
+    responseSerializer: .string(),
+    body: .json(["message": "hello"])
+  )
+
+  _ = try await client.send(request)
+
+  let curlLog = verboseSink.snapshot().first { $0.hasPrefix("curl") }
+  #expect(curlLog?.contains("\\\n") == false)
+  #expect(curlLog?.contains("--data-raw") == true)
+}
+
 @Test func curlCommandIsShellSafeAndUsesRedactionPolicy() {
   var headers = HTTPFields()
   headers[.authorization] = "Bearer secret"
@@ -789,6 +821,29 @@ private func durationMilliseconds(_ duration: Duration) -> Int64 {
   let compact = prepared.curlCommand(style: .compact)
   #expect(!compact.contains("\\\n"))
   #expect(compact.contains("curl -X 'POST' -H 'authorization: <redacted>'"))
+}
+
+@Test func curlCommandCanPrettyPrintJSONBodies() {
+  var headers = HTTPFields()
+  headers[.contentType] = "application/json"
+  let prepared = PreparedRequest(
+    url: URL(string: "https://example.com/search")!,
+    method: .post,
+    headers: headers,
+    body: Data(#"{"z":1,"a":{"b":2}}"#.utf8),
+    timeout: .seconds(5)
+  )
+
+  let curl = prepared.curlCommand(
+    options: CURLCommandOptions(
+      style: .multiline,
+      bodyFormatting: .prettyPrintedJSON
+    )
+  )
+
+  #expect(curl.contains("--data-raw '{\n"))
+  #expect(curl.contains(#""a" : {"#))
+  #expect(curl.contains(#""z" : 1"#))
 }
 
 @Test func textBodyThrowsWhenEncodingFails() {
