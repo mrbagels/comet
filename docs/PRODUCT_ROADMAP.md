@@ -182,6 +182,8 @@ Dependencies:
 
 Add workflow-first documentation.
 
+Status: initial workflow tutorials completed in the `0.1.x` patch line for authenticated JSON, retries and activity, typed errors, testing and cassettes, WebSockets, and TCA integration.
+
 Technical shape:
 
 - Add tutorials for authenticated JSON, typed errors, retries, testing, cassettes, WebSockets, and TCA.
@@ -587,7 +589,7 @@ Why last:
 6. Richer activity event payloads. Initial diagnostic properties completed in the `0.1.x` patch line.
 7. Query item builder ergonomics. Initial optional, boolean, collection, joined, and date helpers completed in the `0.1.x` patch line.
 8. Playground failure gallery.
-9. DocC tutorials for core workflows.
+9. DocC tutorials for core workflows. Initial workflow articles completed in the `0.1.x` patch line.
 10. Typed API error decoding. Initial request-level and call-site decoding completed in the `0.1.x` patch line.
 11. API stability gate policy. Initial CI gate completed in the `0.1.x` patch line.
 

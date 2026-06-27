@@ -280,6 +280,10 @@ let recorder = RecordingTransport(
 
 The full walkthrough lives in [Examples/CometPlayground/README.md](Examples/CometPlayground/README.md).
 
+## Documentation
+
+The DocC catalog includes workflow articles for authenticated JSON requests, retries and activity, typed API errors, testing and cassettes, WebSockets, and TCA integration.
+
 ## Verification
 
 Run the package tests:

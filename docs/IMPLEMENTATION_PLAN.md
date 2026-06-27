@@ -25,6 +25,7 @@ What exists today:
 - request activity stream
 - mock WebSocket sessions for tests and demos
 - test utilities and TCA integration
+- DocC workflow tutorials for core package usage
 
 Verified commands:
 
@@ -165,6 +166,19 @@ Delivered:
 - `MockWebSocketTransport`
 - package coverage for WebSocket request building and mock socket sessions
 - demo app coverage for a focused WebSocket echo proof
+
+### Phase 7: Public Documentation
+
+In progress.
+
+Delivered:
+
+- authenticated JSON tutorial
+- retries and activity tutorial
+- typed API errors tutorial
+- testing and cassettes tutorial
+- WebSockets tutorial
+- TCA integration tutorial
 
 ---
 

@@ -15,6 +15,15 @@ The shipped live transports today are ``URLSessionTransport`` and ``URLSessionWe
 
 ## Topics
 
+### Workflow Tutorials
+
+- <doc:AuthenticatedJSON>
+- <doc:RetriesAndActivity>
+- <doc:TypedErrors>
+- <doc:TestingAndCassettes>
+- <doc:WebSockets>
+- <doc:TCAIntegration>
+
 ### Essentials
 
 - ``APIRequest``
