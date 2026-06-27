@@ -30,10 +30,10 @@ xcodebuild test -project CometPlayground.xcodeproj -scheme CometPlaygroundApp -d
 If you change public API, run:
 
 ```sh
-swift package diagnose-api-breaking-changes v0.1.3
+swift package diagnose-api-breaking-changes v0.1.4
 ```
 
-Expected public API movement should be mentioned in `CHANGELOG.md`.
+CI runs `.github/scripts/check-api-breaking-changes.sh` against the latest release tag. Additive API changes should be mentioned in `CHANGELOG.md`. Breaking API changes will fail CI and should wait for a minor release branch with explicit release notes.
 
 ## Style
 

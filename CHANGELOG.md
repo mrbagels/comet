@@ -12,6 +12,7 @@ completed v2 foundation.
 
 - Typed API error decoding with `ErrorResponseSerializer`, `APIRequestWithErrorResponse`, `APIClientError`, and `HTTPClient.sendWithTypedErrors`.
 - cURL command options for pretty-printed JSON request bodies and configurable verbose logging output.
+- A CI API stability gate that fails on public API breaks against the latest release tag.
 
 ## 0.1.4 - 2026-06-27
 

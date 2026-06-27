@@ -28,7 +28,7 @@ What exists today:
 
 Verified commands:
 
-- `swift test`
+- `swift test --disable-xctest`
 - `xcodebuild test -scheme CometPlaygroundApp -project CometPlayground.xcodeproj -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.5'`
 
 ---

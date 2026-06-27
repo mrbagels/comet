@@ -285,7 +285,7 @@ The full walkthrough lives in [Examples/CometPlayground/README.md](Examples/Come
 Run the package tests:
 
 ```sh
-swift test
+swift test --disable-xctest
 ```
 
 Generate the example Xcode project:
@@ -301,12 +301,12 @@ Run the example smoke tests:
 xcodebuild test -project CometPlayground.xcodeproj -scheme CometPlaygroundApp -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=latest'
 ```
 
-GitHub Actions runs the Swift package suite, secret scanning, public API diff reporting, and the iOS example smoke tests on every push to `next` and `master`.
+GitHub Actions runs the Swift package suite, secret scanning, public API break gating, and the iOS example smoke tests on every push to `next` and `master`.
 
 Check for public API changes against the latest patch release:
 
 ```sh
-swift package diagnose-api-breaking-changes v0.1.3
+swift package diagnose-api-breaking-changes v0.1.4
 ```
 
 ## Branching

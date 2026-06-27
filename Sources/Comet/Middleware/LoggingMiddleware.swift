@@ -22,7 +22,27 @@ public struct LoggingMiddleware: Middleware {
     redactedHeaders: Set<String>? = nil,
     redactionPolicy: RedactionPolicy? = nil,
     logLevel: LogLevel = .response,
-    curlCommandOptions: CURLCommandOptions = .init(),
+    logger: @escaping @Sendable (String) -> Void = { message in
+      fputs(message + "\n", stderr)
+    }
+  ) {
+    self.init(
+      isEnabled: isEnabled,
+      redactedHeaders: redactedHeaders,
+      redactionPolicy: redactionPolicy,
+      logLevel: logLevel,
+      curlCommandOptions: .init(),
+      logger: logger
+    )
+  }
+
+  /// Creates a logging middleware with cURL command formatting controls.
+  public init(
+    isEnabled: Bool = true,
+    redactedHeaders: Set<String>? = nil,
+    redactionPolicy: RedactionPolicy? = nil,
+    logLevel: LogLevel = .response,
+    curlCommandOptions: CURLCommandOptions,
     logger: @escaping @Sendable (String) -> Void = { message in
       fputs(message + "\n", stderr)
     }

@@ -58,36 +58,9 @@ jobs:
         with:
           xcode-version: latest-stable
 
-      - name: Report public API changes
+      - name: Gate public API changes
         shell: bash
-        run: |
-          set +e
-
-          BASE_TAG="$(git describe --tags --abbrev=0 2>/dev/null || true)"
-          if [[ -z "$BASE_TAG" ]]; then
-            echo "No release tag found; skipping API diff."
-            exit 0
-          fi
-
-          swift package diagnose-api-breaking-changes "$BASE_TAG" > api-diff.txt 2>&1
-          STATUS=$?
-          cat api-diff.txt
-
-          {
-            echo "### Public API diff"
-            echo
-            echo "Base tag: \`$BASE_TAG\`"
-            echo
-            echo '```'
-            cat api-diff.txt
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          if [[ "$STATUS" -ne 0 ]]; then
-            echo "::warning::Public API differences detected against $BASE_TAG. Confirm CHANGELOG.md and release versioning reflect the change."
-          fi
-
-          exit 0
+        run: .github/scripts/check-api-breaking-changes.sh
 
   package-tests:
     runs-on: macos-latest
@@ -102,7 +75,7 @@ jobs:
           xcode-version: latest-stable
 
       - name: Run Swift package tests
-        run: swift test
+        run: swift test --disable-xctest
 
   ios-playground:
     runs-on: macos-latest

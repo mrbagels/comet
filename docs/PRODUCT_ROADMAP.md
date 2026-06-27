@@ -422,6 +422,8 @@ Dependencies:
 
 Make API breakage explicit in CI and release workflow.
 
+Status: initial CI gate completed in the `0.1.x` patch line. The workflow now fails on breaking public API changes against the latest release tag.
+
 Technical shape:
 
 - Convert the current API-diff reporting job into a policy gate.
@@ -587,7 +589,7 @@ Why last:
 8. Playground failure gallery.
 9. DocC tutorials for core workflows.
 10. Typed API error decoding. Initial request-level and call-site decoding completed in the `0.1.x` patch line.
-11. API stability gate policy.
+11. API stability gate policy. Initial CI gate completed in the `0.1.x` patch line.
 
 ## Open Design Questions
 
