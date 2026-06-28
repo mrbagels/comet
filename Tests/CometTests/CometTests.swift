@@ -1259,8 +1259,8 @@ private func cacheControlHeaders(_ value: String) -> HTTPFields {
   #expect(second == "second")
   #expect(await transportState.count() == 2)
   #expect(await store.count == 0)
-  #expect(firstTrace.cacheEvents.map(\.reason).contains(.noExplicitFreshness))
-  #expect(secondTrace.cacheEvents.map(\.reason).contains(.noExplicitFreshness))
+  #expect(firstTrace.cacheEvents.map(\.reason).contains(.noValidator))
+  #expect(secondTrace.cacheEvents.map(\.reason).contains(.noValidator))
 }
 
 @Test func cacheMiddlewareUsesDefaultFreshnessLifetimeWhenConfigured() async throws {

@@ -22,6 +22,19 @@ public struct HTTPCachePolicy: Sendable, Hashable {
   public init(
     strategy: Strategy = .returnCacheElseLoad,
     allowsUnsafeMethods: Bool = false,
+    allowsStaleIfError: Bool = false
+  ) {
+    self.init(
+      strategy: strategy,
+      allowsUnsafeMethods: allowsUnsafeMethods,
+      allowsStaleIfError: allowsStaleIfError,
+      defaultFreshnessLifetime: nil
+    )
+  }
+
+  public init(
+    strategy: Strategy,
+    allowsUnsafeMethods: Bool = false,
     allowsStaleIfError: Bool = false,
     defaultFreshnessLifetime: Duration? = nil,
     isShared: Bool = false,
@@ -57,8 +70,24 @@ public struct HTTPCacheControl: Sendable, Hashable {
 
   public init(
     maxAgeSeconds: Int? = nil,
-    sharedMaxAgeSeconds: Int? = nil,
-    staleIfErrorSeconds: Int? = nil,
+    noCache: Bool = false,
+    noStore: Bool = false,
+    mustRevalidate: Bool = false
+  ) {
+    self.init(
+      maxAgeSeconds: maxAgeSeconds,
+      sharedMaxAgeSeconds: nil,
+      staleIfErrorSeconds: nil,
+      noCache: noCache,
+      noStore: noStore,
+      mustRevalidate: mustRevalidate
+    )
+  }
+
+  public init(
+    maxAgeSeconds: Int? = nil,
+    sharedMaxAgeSeconds: Int?,
+    staleIfErrorSeconds: Int?,
     noCache: Bool = false,
     noStore: Bool = false,
     mustRevalidate: Bool = false,
@@ -129,7 +158,24 @@ public struct HTTPCacheMetadata: Sendable, Hashable {
   public init(
     cacheControl: HTTPCacheControl = .init(),
     expires: Date? = nil,
-    ageSeconds: Int? = nil,
+    eTag: String? = nil,
+    lastModified: Date? = nil,
+    storedAt: Date = Date()
+  ) {
+    self.init(
+      cacheControl: cacheControl,
+      expires: expires,
+      ageSeconds: nil,
+      eTag: eTag,
+      lastModified: lastModified,
+      storedAt: storedAt
+    )
+  }
+
+  public init(
+    cacheControl: HTTPCacheControl = .init(),
+    expires: Date? = nil,
+    ageSeconds: Int?,
     eTag: String? = nil,
     lastModified: Date? = nil,
     storedAt: Date = Date()
@@ -163,6 +209,10 @@ public struct HTTPCacheMetadata: Sendable, Hashable {
 
   public var hasValidator: Bool {
     self.eTag != nil || self.lastModified != nil
+  }
+
+  public func isFresh(at date: Date = Date()) -> Bool {
+    self.isFresh(at: date, isShared: false, defaultFreshnessLifetime: nil)
   }
 
   public func isFresh(
@@ -265,8 +315,23 @@ public struct CachedHTTPResponse: Sendable {
     data: Data,
     statusCode: Int,
     headers: HTTPFields = .init(),
+    storedAt: Date = Date()
+  ) {
+    self.init(
+      data: data,
+      statusCode: statusCode,
+      headers: headers,
+      storedAt: storedAt,
+      requestVaryHeaderValues: [:]
+    )
+  }
+
+  public init(
+    data: Data,
+    statusCode: Int,
+    headers: HTTPFields = .init(),
     storedAt: Date = Date(),
-    requestVaryHeaderValues: [String: String] = [:]
+    requestVaryHeaderValues: [String: String]
   ) {
     self.data = data
     self.statusCode = statusCode
@@ -275,10 +340,20 @@ public struct CachedHTTPResponse: Sendable {
     self.requestVaryHeaderValues = requestVaryHeaderValues
   }
 
+  public init(response: RawResponse, storedAt: Date = Date()) {
+    self.init(
+      data: response.data,
+      statusCode: response.statusCode,
+      headers: response.headers,
+      storedAt: storedAt,
+      requestVaryHeaderValues: [:]
+    )
+  }
+
   public init(
     response: RawResponse,
     storedAt: Date = Date(),
-    requestHeaders: HTTPFields = .init()
+    requestHeaders: HTTPFields
   ) {
     self.init(
       data: response.data,
@@ -385,17 +460,12 @@ public struct RequestCacheTraceEvent: Sendable, Hashable {
     case statusNotCacheable
     case noStore
     case noValidator
-    case noExplicitFreshness
     case stale
     case fresh
     case notModified
     case replaced
     case cacheHit
     case staleIfError
-    case varyMismatch
-    case varyWildcard
-    case privateResponse
-    case mustRevalidate
   }
 
   public let kind: Kind
@@ -450,7 +520,7 @@ public struct CacheMiddleware: ResponseProvidingMiddleware {
     }
     if policy.isShared && metadata.cacheControl.isPrivate {
       await self.store.removeCachedResponse(for: key)
-      await context.recordCacheEvent(.init(kind: .miss, key: key, policy: policy, reason: .privateResponse))
+      await context.recordCacheEvent(.init(kind: .miss, key: key, policy: policy, reason: .noStore))
       return request
     }
     guard await self.cachedResponseMatchesVary(cached, request: request, context: context, policy: policy, key: key) else {
@@ -531,7 +601,7 @@ public struct CacheMiddleware: ResponseProvidingMiddleware {
       }
       if policy.isShared && metadata.cacheControl.isPrivate {
         await self.store.removeCachedResponse(for: key)
-        await context.recordCacheEvent(.init(kind: .miss, key: key, policy: policy, reason: .privateResponse))
+        await context.recordCacheEvent(.init(kind: .miss, key: key, policy: policy, reason: .noStore))
         guard policy.strategy != .cacheOnly else {
           throw .middleware("Cached response for \(key) is marked private for a shared cache.")
         }
@@ -612,7 +682,7 @@ public struct CacheMiddleware: ResponseProvidingMiddleware {
           return .proceed(.success(cached.rawResponse))
         }
         if metadata.cacheControl.mustRevalidate || (policy.isShared && metadata.cacheControl.proxyRevalidate) {
-          await context.recordCacheEvent(.init(kind: .skippedStore, key: key, policy: policy, reason: .mustRevalidate))
+          await context.recordCacheEvent(.init(kind: .skippedStore, key: key, policy: policy, reason: .stale))
         }
       }
       return .proceed(result)
@@ -635,17 +705,17 @@ public struct CacheMiddleware: ResponseProvidingMiddleware {
     }
     guard !(policy.isShared && metadata.cacheControl.isPrivate) else {
       await self.store.removeCachedResponse(for: key)
-      await context.recordCacheEvent(.init(kind: .skippedStore, key: key, policy: policy, reason: .privateResponse))
+      await context.recordCacheEvent(.init(kind: .skippedStore, key: key, policy: policy, reason: .noStore))
       return .proceed(result)
     }
     guard !response.headers.varyHeaderNames.contains("*") else {
       await self.store.removeCachedResponse(for: key)
-      await context.recordCacheEvent(.init(kind: .skippedStore, key: key, policy: policy, reason: .varyWildcard))
+      await context.recordCacheEvent(.init(kind: .skippedStore, key: key, policy: policy))
       return .proceed(result)
     }
     guard metadata.hasExplicitFreshness || metadata.hasValidator || policy.defaultFreshnessLifetime != nil else {
       await self.store.removeCachedResponse(for: key)
-      await context.recordCacheEvent(.init(kind: .skippedStore, key: key, policy: policy, reason: .noExplicitFreshness))
+      await context.recordCacheEvent(.init(kind: .skippedStore, key: key, policy: policy, reason: .noValidator))
       return .proceed(result)
     }
 
@@ -679,11 +749,11 @@ public struct CacheMiddleware: ResponseProvidingMiddleware {
   ) async -> Bool {
     guard policy.respectsVary else { return true }
     guard !cached.headers.varyHeaderNames.contains("*") else {
-      await context.recordCacheEvent(.init(kind: .miss, key: key, policy: policy, reason: .varyWildcard))
+      await context.recordCacheEvent(.init(kind: .miss, key: key, policy: policy))
       return false
     }
     guard cached.matchesVaryHeaders(for: request) else {
-      await context.recordCacheEvent(.init(kind: .miss, key: key, policy: policy, reason: .varyMismatch))
+      await context.recordCacheEvent(.init(kind: .miss, key: key, policy: policy))
       return false
     }
     return true
