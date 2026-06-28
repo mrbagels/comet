@@ -111,11 +111,6 @@ jobs:
           SIMULATOR_ID=$(.github/scripts/select-ios-simulator.sh)
           echo "id=$SIMULATOR_ID" >> "$GITHUB_OUTPUT"
 
-      - name: Boot selected simulator
-        run: |
-          xcrun simctl boot "${{ steps.simulator.outputs.id }}" || true
-          xcrun simctl bootstatus "${{ steps.simulator.outputs.id }}" -b
-
       - name: Run iOS smoke tests
         working-directory: Examples/CometPlayground
         env:
