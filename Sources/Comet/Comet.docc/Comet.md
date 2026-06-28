@@ -75,11 +75,13 @@ The shipped live transports today are ``URLSessionTransport`` and ``URLSessionWe
 - ``BearerTokenMiddleware``
 - ``RetryMiddleware``
 - ``RequestRetryPolicy``
+- ``TracePropagationMiddleware``
 - ``LoggingMiddleware``
 - ``CURLCommandStyle``
 - ``CURLCommandBodyFormatting``
 - ``CURLCommandOptions``
 - ``NetworkEvent``
+- ``TraceContext``
 - ``RequestTrace``
 - ``RequestTraceAttempt``
 - ``RequestTraceResult``

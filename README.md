@@ -118,6 +118,7 @@ let client = HTTPClient.live(
   configuration: ClientConfiguration(
     baseURL: URL(string: "https://api.example.com")!,
     middleware: [
+      TracePropagationMiddleware(),
       RetryMiddleware(maxAttempts: 3),
       LoggingMiddleware(logLevel: .verbose)
     ]
@@ -150,6 +151,32 @@ Activity events also expose diagnostic helpers for UI and logging code:
 for await event in client.activity {
   print(event.kind)
   print(event.diagnosticSummary)
+}
+```
+
+### Trace Propagation
+
+`TracePropagationMiddleware` writes the W3C `traceparent` header and completed `RequestTrace` values expose the propagated trace ID.
+
+```swift
+let context = TraceContext(
+  traceID: "4bf92f3577b34da6a3ce929d0e0e4736",
+  parentID: "00f067aa0ba902b7",
+  flags: "01"
+)!
+
+var options: RequestOptions {
+  .init(
+    metadata: RequestMetadata(
+      name: "GetUser",
+      operationID: "users.get",
+      traceContext: context
+    )
+  )
+}
+
+for await trace in client.traces {
+  print(trace.traceID as Any)
 }
 ```
 

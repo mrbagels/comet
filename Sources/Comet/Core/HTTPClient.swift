@@ -345,7 +345,8 @@ public struct HTTPClient: Sendable {
       id: requestID,
       metadata: request.metadata,
       method: request.method,
-      url: request.url
+      url: request.url,
+      traceContext: request.metadata.traceContext
     )
     let chain = MiddlewareChain(
       middleware: self.configuration.middleware + options.middleware,
@@ -474,6 +475,7 @@ public struct HTTPClient: Sendable {
 
         let duration = startedAt.duration(to: self.configuration.now())
         let statusCode = responseMetadata?.statusCode ?? 0
+        let traceContext = currentRequest.propagatedTraceContext
         self.broadcaster.emit(
           .requestCompleted(
             id: requestID,
@@ -501,13 +503,15 @@ public struct HTTPClient: Sendable {
               )
             ],
             duration: duration,
-            result: .success(statusCode: statusCode, responseBytes: responseBytes)
+            result: .success(statusCode: statusCode, responseBytes: responseBytes),
+            traceContext: traceContext
           )
         )
         continuation.finish()
       } catch {
         let networkError = NetworkError.from(error)
         let duration = startedAt.duration(to: self.configuration.now())
+        let traceContext = currentRequest.propagatedTraceContext
         self.broadcaster.emit(
           .requestFailed(
             id: requestID,
@@ -535,7 +539,8 @@ public struct HTTPClient: Sendable {
               )
             ],
             duration: duration,
-            result: .failure(networkError)
+            result: .failure(networkError),
+            traceContext: traceContext
           )
         )
         continuation.finish(throwing: networkError)
@@ -643,6 +648,7 @@ private actor RequestTraceRecorder {
   let metadata: RequestMetadata
   let method: HTTPMethod
   let url: URL
+  private var traceContext: TraceContext?
   private var attempts: [RequestTraceAttempt] = []
   private var pendingRetryDelays: [Int: Duration] = [:]
 
@@ -650,12 +656,14 @@ private actor RequestTraceRecorder {
     id: UUID,
     metadata: RequestMetadata,
     method: HTTPMethod,
-    url: URL
+    url: URL,
+    traceContext: TraceContext?
   ) {
     self.id = id
     self.metadata = metadata
     self.method = method
     self.url = url
+    self.traceContext = traceContext
   }
 
   func recordAttempt(
@@ -677,6 +685,10 @@ private actor RequestTraceRecorder {
       responseStatusCode = nil
       responseBytes = nil
       error = networkError
+    }
+
+    if self.traceContext == nil {
+      self.traceContext = request.propagatedTraceContext
     }
 
     self.attempts.append(
@@ -715,7 +727,8 @@ private actor RequestTraceRecorder {
       url: self.url,
       attempts: self.attempts,
       duration: duration,
-      result: result
+      result: result,
+      traceContext: self.traceContext
     )
   }
 }

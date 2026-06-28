@@ -28,6 +28,7 @@ enum DemoClientFactory {
       return ClientConfiguration(
         baseURL: URL(string: "https://comet.local")!,
         middleware: [
+          TracePropagationMiddleware(),
           RetryMiddleware(
             maxAttempts: 2,
             backoff: .constant(.milliseconds(1)),
@@ -42,6 +43,7 @@ enum DemoClientFactory {
       return ClientConfiguration(
         baseURL: URL(string: "https://jsonplaceholder.typicode.com")!,
         middleware: [
+          TracePropagationMiddleware(),
           RetryMiddleware(
             maxAttempts: 2,
             backoff: .constant(.milliseconds(250)),
@@ -77,6 +79,9 @@ enum DemoClientFactory {
           headers: {
             var headers = HTTPFields()
             headers[.contentType] = "application/json"
+            if let traceparent = request.headers[TraceContext.traceparentHeaderName] {
+              headers[HTTPField.Name("X-Comet-Traceparent")!] = traceparent
+            }
             return headers
           }()
         )

@@ -727,6 +727,188 @@ private func durationMilliseconds(_ duration: Duration) -> Int64 {
   #expect(trace.diagnosticSummary.contains("TraceProof"))
 }
 
+@Test func traceContextParsesRendersAndRejectsInvalidTraceparents() throws {
+  let traceparent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+  let context = try #require(TraceContext(traceparent: traceparent))
+
+  #expect(context.version == "00")
+  #expect(context.traceID == "4bf92f3577b34da6a3ce929d0e0e4736")
+  #expect(context.parentID == "00f067aa0ba902b7")
+  #expect(context.flags == "01")
+  #expect(context.traceparent == traceparent)
+  #expect(context.isSampled)
+
+  #expect(TraceContext(traceparent: "00-00000000000000000000000000000000-00f067aa0ba902b7-01") == nil)
+  #expect(TraceContext(traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-0000000000000000-01") == nil)
+  #expect(TraceContext(traceparent: "ff-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01") == nil)
+  #expect(TraceContext(traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-0z") == nil)
+}
+
+@Test func tracePropagationMiddlewareInjectsMetadataTraceContext() async throws {
+  let traceContext = try #require(
+    TraceContext(
+      traceID: "4bf92f3577b34da6a3ce929d0e0e4736",
+      parentID: "00f067aa0ba902b7",
+      flags: "01"
+    )
+  )
+  let client = HTTPClient.live(
+    configuration: ClientConfiguration(
+      baseURL: URL(string: "https://example.com")!,
+      middleware: [TracePropagationMiddleware()]
+    ),
+    transport: TestTransport { request in
+      #expect(request.headers[TraceContext.traceparentHeaderName] == traceContext.traceparent)
+      return RawResponse(data: Data("ok".utf8), statusCode: 200)
+    }
+  )
+  let request = TestRequest(
+    path: "trace",
+    method: .get,
+    responseSerializer: .string(),
+    options: RequestOptions(
+      metadata: RequestMetadata(
+        name: "TraceHeader",
+        operationID: "trace.header",
+        traceContext: traceContext
+      )
+    )
+  )
+
+  let response = try await client.send(request)
+
+  #expect(response == "ok")
+  #expect(request.options.metadata.operationName == "trace.header")
+  #expect(request.options.metadata.traceID == traceContext.traceID)
+}
+
+@Test func tracePropagationMiddlewareGeneratesTraceContextFromRequestID() async throws {
+  let requestID = UUID(uuidString: "01234567-89AB-CDEF-0123-456789ABCDEF")!
+  let expectedContext = TraceContext.generated(requestID: requestID)
+  let client = HTTPClient.live(
+    configuration: ClientConfiguration(
+      baseURL: URL(string: "https://example.com")!,
+      middleware: [TracePropagationMiddleware()],
+      makeRequestID: { requestID }
+    ),
+    transport: TestTransport { request in
+      #expect(request.headers[TraceContext.traceparentHeaderName] == expectedContext.traceparent)
+      return RawResponse(data: Data("ok".utf8), statusCode: 200)
+    }
+  )
+
+  let response = try await client.send(
+    TestRequest(
+      path: "generated-trace",
+      method: .get,
+      responseSerializer: .string()
+    )
+  )
+
+  #expect(response == "ok")
+  #expect(expectedContext.traceID == "0123456789abcdef0123456789abcdef")
+}
+
+@Test func tracePropagationMiddlewarePreservesExistingTraceparentByDefault() async throws {
+  let existingTraceparent = "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-00"
+  var headers = HTTPFields()
+  headers[TraceContext.traceparentHeaderName] = existingTraceparent
+
+  let client = HTTPClient.live(
+    configuration: ClientConfiguration(
+      baseURL: URL(string: "https://example.com")!,
+      middleware: [TracePropagationMiddleware()]
+    ),
+    transport: TestTransport { request in
+      #expect(request.headers[TraceContext.traceparentHeaderName] == existingTraceparent)
+      return RawResponse(data: Data("ok".utf8), statusCode: 200)
+    }
+  )
+
+  let response = try await client.send(
+    TestRequest(
+      path: "existing-trace",
+      method: .get,
+      responseSerializer: .string(),
+      headers: headers
+    )
+  )
+
+  #expect(response == "ok")
+}
+
+@Test func tracePropagationMiddlewareCanReplaceExistingTraceparent() async throws {
+  let replacementContext = try #require(
+    TraceContext(
+      traceID: "4bf92f3577b34da6a3ce929d0e0e4736",
+      parentID: "00f067aa0ba902b7",
+      flags: "01"
+    )
+  )
+  var headers = HTTPFields()
+  headers[TraceContext.traceparentHeaderName] = "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-00"
+
+  let client = HTTPClient.live(
+    configuration: ClientConfiguration(
+      baseURL: URL(string: "https://example.com")!,
+      middleware: [TracePropagationMiddleware(replacesExistingHeader: true)]
+    ),
+    transport: TestTransport { request in
+      #expect(request.headers[TraceContext.traceparentHeaderName] == replacementContext.traceparent)
+      return RawResponse(data: Data("ok".utf8), statusCode: 200)
+    }
+  )
+
+  let response = try await client.send(
+    TestRequest(
+      path: "replaced-trace",
+      method: .get,
+      responseSerializer: .string(),
+      headers: headers,
+      options: RequestOptions(
+        metadata: RequestMetadata(traceContext: replacementContext)
+      )
+    )
+  )
+
+  #expect(response == "ok")
+}
+
+@Test func requestTraceRecordsPropagatedTraceIDWithoutTracestate() async throws {
+  let requestID = UUID(uuidString: "11111111-2222-3333-4444-555555555555")!
+  let expectedContext = TraceContext.generated(requestID: requestID)
+  var headers = HTTPFields()
+  headers[HTTPField.Name("tracestate")!] = "vendor=super-secret"
+
+  let client = HTTPClient.live(
+    configuration: ClientConfiguration(
+      baseURL: URL(string: "https://example.com")!,
+      middleware: [TracePropagationMiddleware()],
+      makeRequestID: { requestID }
+    ),
+    transport: TestTransport { _ in
+      RawResponse(data: Data("ok".utf8), statusCode: 200)
+    }
+  )
+  var traces = client.traces.makeAsyncIterator()
+
+  let response = try await client.send(
+    TestRequest(
+      path: "recorded-trace",
+      method: .get,
+      responseSerializer: .string(),
+      headers: headers
+    )
+  )
+  let trace = try #require(await traces.next())
+
+  #expect(response == "ok")
+  #expect(trace.traceID == expectedContext.traceID)
+  #expect(trace.traceContext?.traceparent == expectedContext.traceparent)
+  #expect(trace.diagnosticSummary.contains(expectedContext.traceID))
+  #expect(!trace.diagnosticSummary.contains("super-secret"))
+}
+
 @Test func httpClientStreamsResponseLines() async throws {
   let client = HTTPClient.live(
     configuration: .default(baseURL: URL(string: "https://example.com")!),

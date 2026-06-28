@@ -62,6 +62,10 @@ Acceptance:
 Purpose: make Comet traces useful across process boundaries before cache and
 contract systems add more diagnostic surface.
 
+Status: implemented in `Unreleased` with W3C trace context parsing, propagation
+middleware, trace IDs on completed request traces, DocC examples, and a mock
+playground proof that echoes the outbound `traceparent` header.
+
 Deliverables:
 
 - Add a `TraceContext` value with W3C `traceparent` support.

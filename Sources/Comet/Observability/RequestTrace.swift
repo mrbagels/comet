@@ -9,6 +9,7 @@ public struct RequestTrace: Identifiable, Sendable {
   public let attempts: [RequestTraceAttempt]
   public let duration: Duration
   public let result: RequestTraceResult
+  public let traceContext: TraceContext?
 
   public init(
     id: UUID,
@@ -26,6 +27,27 @@ public struct RequestTrace: Identifiable, Sendable {
     self.attempts = attempts
     self.duration = duration
     self.result = result
+    self.traceContext = nil
+  }
+
+  public init(
+    id: UUID,
+    metadata: RequestMetadata,
+    method: HTTPMethod,
+    url: URL,
+    attempts: [RequestTraceAttempt],
+    duration: Duration,
+    result: RequestTraceResult,
+    traceContext: TraceContext?
+  ) {
+    self.id = id
+    self.metadata = metadata
+    self.method = method
+    self.url = url
+    self.attempts = attempts
+    self.duration = duration
+    self.result = result
+    self.traceContext = traceContext
   }
 
   /// Number of bytes in the first prepared request body.
@@ -51,14 +73,20 @@ public struct RequestTrace: Identifiable, Sendable {
     return error
   }
 
+  /// The distributed trace ID propagated with this request, when available.
+  public var traceID: String? {
+    self.traceContext?.traceID ?? self.metadata.traceID
+  }
+
   /// A concise trace summary for logs and debug UI.
   public var diagnosticSummary: String {
     let name = self.metadata.displayName.map { " \($0)" } ?? ""
+    let traceID = self.traceID.map { " traceID=\($0)" } ?? ""
     switch self.result {
     case .success(let statusCode, let responseBytes):
-      return "trace\(name) \(self.method.rawValue) \(self.url.absoluteString) -> HTTP \(statusCode), \(responseBytes) bytes, \(self.attempts.count) attempt(s)"
+      return "trace\(name)\(traceID) \(self.method.rawValue) \(self.url.absoluteString) -> HTTP \(statusCode), \(responseBytes) bytes, \(self.attempts.count) attempt(s)"
     case .failure(let error):
-      return "trace\(name) \(self.method.rawValue) \(self.url.absoluteString) -> \(error.debugSummary), \(self.attempts.count) attempt(s)"
+      return "trace\(name)\(traceID) \(self.method.rawValue) \(self.url.absoluteString) -> \(error.debugSummary), \(self.attempts.count) attempt(s)"
     }
   }
 }

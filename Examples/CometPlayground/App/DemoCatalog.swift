@@ -544,6 +544,7 @@ final class DemoCatalog {
         let output = """
             status: \(raw.statusCode)
             content-type: \(raw.headers[.contentType] ?? "n/a")
+            traceparent: \(raw.headers[HTTPField.Name("X-Comet-Traceparent")!] ?? "n/a")
             bytes: \(raw.data.count)
 
             \(String(decoding: raw.data, as: UTF8.self))
@@ -557,6 +558,10 @@ final class DemoCatalog {
             summary: "A raw response inspected before serializer decoding.",
             fields: [
               DemoInspectorField(label: "Status", value: "\(raw.statusCode)"),
+              DemoInspectorField(
+                label: "Traceparent",
+                value: raw.headers[HTTPField.Name("X-Comet-Traceparent")!] ?? "n/a"
+              ),
               DemoInspectorField(label: "Bytes", value: "\(raw.data.count)")
             ] + Self.headerFields(from: raw.headers),
             body: String(decoding: raw.data, as: UTF8.self)
@@ -841,6 +846,7 @@ final class DemoCatalog {
       let metadata = request.options.metadata
       let metadataFields: [DemoInspectorField?] = [
         metadata.displayName.map { DemoInspectorField(label: "Metadata", value: $0) },
+        metadata.traceID.map { DemoInspectorField(label: "Trace ID", value: $0) },
         metadata.tags.isEmpty
           ? nil
           : DemoInspectorField(label: "Tags", value: metadata.tags.joined(separator: ", "))

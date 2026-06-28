@@ -34,6 +34,7 @@ final class CometPlaygroundSmokeTests: XCTestCase {
     XCTAssertTrue(model.state(for: .timeout).output.contains("timeout"))
     XCTAssertTrue(model.state(for: .unauthorized).output.contains("unauthorized"))
     XCTAssertTrue(model.state(for: .rateLimited).output.contains("recovered after retry"))
+    XCTAssertTrue(model.state(for: .raw).output.contains("traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736"))
     XCTAssertTrue(model.state(for: .serverError).output.contains("500"))
     XCTAssertTrue(model.state(for: .malformedJSON).output.contains("Decoding error"))
     XCTAssertTrue(model.state(for: .cancelled).output.contains("cancelled"))
@@ -41,6 +42,12 @@ final class CometPlaygroundSmokeTests: XCTestCase {
     XCTAssertTrue(model.state(for: .webSocket).output.contains("\"negotiatedSubprotocol\" : \"comet.demo.v1\""))
     XCTAssertTrue(model.state(for: .webSocketClose).output.contains("WebSocket closed"))
     XCTAssertEqual(model.state(for: .raw).response?.fields.first { $0.label == "Status" }?.value, "200")
+    XCTAssertTrue(
+      model.state(for: .raw).response?.fields
+        .first { $0.label == "Traceparent" }?
+        .value
+        .hasPrefix("00-4bf92f3577b34da6a3ce929d0e0e4736") == true
+    )
     XCTAssertTrue(model.state(for: .json).response?.body.contains("Mock transport says hello") == true)
     XCTAssertTrue(model.state(for: .serverError).response?.rawValue.contains("Status: 500") == true)
     XCTAssertEqual(model.state(for: .webSocket).socket?.frames.count, 3)
@@ -91,6 +98,12 @@ final class CometPlaygroundSmokeTests: XCTestCase {
     XCTAssertTrue(unauthorized.url.contains("https://comet.local/failures/unauthorized"))
     XCTAssertTrue(unauthorized.curlCommand?.contains("curl") == true)
     XCTAssertTrue(unauthorized.fields.contains { $0.label == "Typed error" })
+
+    let raw = model.requestInspection(for: .raw)
+    XCTAssertEqual(
+      raw.fields.first { $0.label == "Trace ID" }?.value,
+      "4bf92f3577b34da6a3ce929d0e0e4736"
+    )
 
     let socketClose = model.requestInspection(for: .webSocketClose)
     XCTAssertEqual(socketClose.transport, "MockWebSocketTransport")

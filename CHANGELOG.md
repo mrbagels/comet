@@ -12,6 +12,9 @@ live transports remain future minor-version work.
 
 - `0.3.0` release train plan in Markdown and static HTML, with patch milestones from `0.2.x` through the final minor release.
 - Fresh external client smoke script for validating package adoption outside this repository.
+- `TraceContext` and `TracePropagationMiddleware` for W3C `traceparent` propagation.
+- Propagated trace IDs on `RequestMetadata` and completed `RequestTrace` values.
+- Playground raw-response proof that shows the outbound trace header in mock mode.
 
 ### Changed
 

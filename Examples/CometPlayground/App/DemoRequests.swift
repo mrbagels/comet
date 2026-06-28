@@ -1,6 +1,12 @@
 import Foundation
 import Comet
 
+private let rawDemoTraceContext = TraceContext(
+  traceID: "4bf92f3577b34da6a3ce929d0e0e4736",
+  parentID: "00f067aa0ba902b7",
+  flags: "01"
+)!
+
 struct TodoRequest: APIRequest {
   typealias Response = DemoTodo
 
@@ -47,7 +53,11 @@ struct RawTodoRequest: APIRequest {
   let responseSerializer: ResponseSerializer<DemoTodo> = .json(DemoTodo.self)
   let options = RequestOptions(
     apiVersion: nil,
-    metadata: RequestMetadata(name: "RawTodoDemo", tags: ["transport", "raw"])
+    metadata: RequestMetadata(
+      name: "RawTodoDemo",
+      tags: ["transport", "raw", "trace"],
+      traceContext: rawDemoTraceContext
+    )
   )
 }
 
