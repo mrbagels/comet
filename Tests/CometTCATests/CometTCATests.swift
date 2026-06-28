@@ -70,3 +70,26 @@ private struct TestFeature {
     $0.value = "hello"
   }
 }
+
+@Test func cometRequestStateTracksValueLoadingAndFailure() {
+  var state = CometRequestState<String>.idle
+
+  #expect(state.value == nil)
+  #expect(!state.isLoading)
+
+  state.start()
+  #expect(state.isLoading)
+  #expect(state.value == nil)
+
+  state.succeed("cached")
+  #expect(state.value == "cached")
+  #expect(!state.isLoading)
+
+  state.start()
+  #expect(state.isLoading)
+  #expect(state.value == "cached")
+
+  state.fail(.timeout)
+  #expect(state.value == "cached")
+  #expect(state.error?.isTimeoutError == true)
+}

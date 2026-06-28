@@ -42,6 +42,7 @@ Expected outputs:
 - `Empty Response`: output confirms `Received an EmptyResponse successfully.`
 - `Raw Response`: output shows `status: 200` and `content-type: application/json`
 - `Cache Lab`: output shows a first load, fresh hit, stale revalidation, offline stale fallback, and cleared cache
+- `Contract Server`: output shows a passing contract report with one matched expectation and zero violations
 - `Timeout`: output records a timeout-shaped `NetworkError`
 - `Typed 401`: output includes the mock `unauthorized` error code
 - `429 Retry`: output confirms recovery after a retry
@@ -72,6 +73,7 @@ Good checks:
 - `Empty Response`: should complete successfully against the live 204-style endpoint
 - `Raw Response`: should show a non-empty payload with real response metadata
 - `Cache Lab`: should run the deterministic local cache flow and clear its file store
+- `Contract Server`: should run the deterministic local contract scenario and export a clean report
 - `Timeout`: should report a timeout-shaped failure against a delayed endpoint
 - `Typed 401`: should preserve a live 401 status
 - `429 Retry`: should exercise retry behavior against a live 429 response
@@ -99,6 +101,10 @@ Each scenario in the UI shows the exact Comet API surface it is proving. The dem
 - `FileHTTPCacheStore`
 - `HTTPCachePolicy`
 - `RequestTrace.cacheEvents`
+- `MockServer`
+- `ContractExpectation`
+- `ContractTransport`
+- `ContractReport`
 - `NetworkEvent`
 - `RetryMiddleware`
 - `APIRequestWithErrorResponse`

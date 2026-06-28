@@ -113,13 +113,9 @@ The current MVP includes:
 
 Deferred for later:
 
-- caching and stale-while-revalidate
-- ETag handling
-- distributed trace propagation
-- mock server
-- reachability
+- stale-while-revalidate
 - batch requests
-- higher-level TCA domain helpers
+- higher-level TCA domain helpers beyond generic request state
 - a server-specific live transport
 
 ---
@@ -652,14 +648,14 @@ The project is generated from `project.yml` with XcodeGen.
 - repeated headers are preserved inside Comet but combined at `Foundation` boundaries
 - activity events cover request lifecycle, not decode lifecycle
 - WebSocket session activity is modeled through `WebSocketSessionEvent`, not `NetworkEvent`
-- server-side live transports remain V3-or-later work
+- server-side live transports are deferred for `0.3.0`; see [Server Transport Decision](technical/SERVER_TRANSPORT_DECISION.md)
 
 ---
 
 ## Next Likely Additions
 
-When Comet grows beyond this MVP, the highest-value next additions are likely:
+When Comet grows beyond this release line, the highest-value next additions are likely:
 
-- a server-side live transport
 - stale-while-revalidate cache policy semantics
-- targeted docs and examples for real app integration
+- richer generated-model support for OpenAPI schemas
+- an explicit server-side live transport after a dependency decision

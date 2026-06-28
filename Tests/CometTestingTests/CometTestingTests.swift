@@ -291,3 +291,205 @@ import CometTesting
 
   #expect(String(decoding: response.data, as: UTF8.self) == "two")
 }
+
+@Test func contractTransportMatchesExactExpectation() async throws {
+  var headers = HTTPFields()
+  headers[.accept] = "application/json"
+
+  let transport = ContractTransport(
+    expectations: [
+      ContractExpectation(
+        id: "get-item",
+        method: .get,
+        path: "/items/1",
+        query: [ContractQueryExpectation(name: "expand", value: .exact("owner"))],
+        headers: [ContractHeaderExpectation(name: "accept", value: .exact("application/json"))],
+        body: .absent,
+        metadata: ContractMetadataExpectation(
+          name: .exact("GetItem"),
+          operationID: .exact("getItem"),
+          tags: ["items"]
+        ),
+        outcome: .response(RawResponse(data: Data(#"{"id":1}"#.utf8), statusCode: 200))
+      )
+    ]
+  )
+
+  let response = try await transport.send(
+    PreparedRequest(
+      url: URL(string: "https://example.com/items/1?expand=owner")!,
+      method: .get,
+      headers: headers,
+      timeout: .seconds(1),
+      metadata: RequestMetadata(name: "GetItem", tags: ["items"], operationID: "getItem")
+    )
+  )
+
+  #expect(response.statusCode == 200)
+  #expect(String(decoding: response.data, as: UTF8.self) == #"{"id":1}"#)
+
+  try await transport.verifyComplete()
+  let report = await transport.report(generatedAt: Date(timeIntervalSince1970: 0))
+  #expect(report.passed)
+  #expect(report.matches.map(\.expectationID) == ["get-item"])
+}
+
+@Test func contractTransportSupportsFlexibleHeaderMatching() async throws {
+  let transport = ContractTransport(
+    expectations: [
+      ContractExpectation(
+        id: "auth-header",
+        method: .get,
+        path: "/private",
+        headers: [ContractHeaderExpectation(name: "authorization", value: .any)],
+        outcome: .response(RawResponse(data: Data("ok".utf8), statusCode: 200))
+      )
+    ]
+  )
+
+  var headers = HTTPFields()
+  headers[.authorization] = "Bearer token"
+
+  let response = try await transport.send(
+    PreparedRequest(
+      url: URL(string: "https://example.com/private")!,
+      method: .get,
+      headers: headers,
+      timeout: .seconds(1)
+    )
+  )
+
+  #expect(String(decoding: response.data, as: UTF8.self) == "ok")
+  try await transport.verifyComplete()
+}
+
+@Test func contractTransportReportsBodyMismatches() async throws {
+  let transport = ContractTransport(
+    expectations: [
+      ContractExpectation(
+        id: "create-item",
+        method: .post,
+        path: "/items",
+        body: .exact(Data(#"{"name":"expected"}"#.utf8)),
+        outcome: .response(RawResponse(data: Data("created".utf8), statusCode: 201))
+      )
+    ]
+  )
+
+  await #expect(throws: NetworkError.self) {
+    _ = try await transport.send(
+      PreparedRequest(
+        url: URL(string: "https://example.com/items")!,
+        method: .post,
+        body: Data(#"{"name":"actual"}"#.utf8),
+        timeout: .seconds(1)
+      )
+    )
+  }
+
+  let report = await transport.report(generatedAt: Date(timeIntervalSince1970: 0))
+  let violation = try #require(report.violations.first)
+
+  #expect(!report.passed)
+  #expect(violation.kind == .mismatch)
+  #expect(violation.expectationID == "create-item")
+  #expect(violation.differences.map(\.field) == ["body"])
+}
+
+@Test func contractTransportReportsUnexpectedRequestsAndUnusedExpectations() async throws {
+  let transport = ContractTransport(
+    expectations: [
+      ContractExpectation(
+        id: "expected",
+        method: .get,
+        path: "/expected",
+        outcome: .response(RawResponse(data: Data("ok".utf8), statusCode: 200))
+      )
+    ]
+  )
+
+  await #expect(throws: NetworkError.self) {
+    _ = try await transport.send(
+      PreparedRequest(
+        url: URL(string: "https://example.com/unexpected")!,
+        method: .get,
+        timeout: .seconds(1)
+      )
+    )
+  }
+
+  let report = await transport.report(generatedAt: Date(timeIntervalSince1970: 0))
+
+  #expect(report.violations.contains { $0.kind == .mismatch })
+  #expect(report.violations.contains { $0.kind == .unusedExpectation })
+}
+
+@Test func cassetteCanCreateContractExpectations() async throws {
+  let cassette = HTTPCassette(
+    exchanges: [
+      RecordedExchange(
+        request: RecordedRequest(
+          method: "GET",
+          url: "https://example.com/items/1",
+          headers: [RecordedHeader(name: "authorization", value: "<redacted>")],
+          timeoutMilliseconds: 1_000,
+          bodyWasRedacted: true
+        ),
+        duration: .milliseconds(10),
+        outcome: .success(
+          RecordedResponse(
+            statusCode: 200,
+            bodyBase64: Data("one".utf8).base64EncodedString()
+          )
+        )
+      )
+    ]
+  )
+
+  let transport = try ContractTransport(cassette: cassette)
+  var headers = HTTPFields()
+  headers[.authorization] = "Bearer runtime-token"
+
+  let response = try await transport.send(
+    PreparedRequest(
+      url: URL(string: "https://example.com/items/1")!,
+      method: .get,
+      headers: headers,
+      body: Data("different redacted body".utf8),
+      timeout: .seconds(1)
+    )
+  )
+
+  #expect(String(decoding: response.data, as: UTF8.self) == "one")
+  try await transport.verifyComplete()
+}
+
+@Test func mockServerWrapsContractsAndExportsReports() async throws {
+  let server = MockServer(
+    expectations: [
+      ContractExpectation(
+        id: "scenario-step",
+        method: .get,
+        path: "/scenario",
+        outcome: .response(RawResponse(data: Data("scenario".utf8), statusCode: 200))
+      )
+    ]
+  )
+
+  let response = try await server.send(
+    PreparedRequest(
+      url: URL(string: "https://example.com/scenario")!,
+      method: .get,
+      timeout: .seconds(1)
+    )
+  )
+
+  #expect(String(decoding: response.data, as: UTF8.self) == "scenario")
+  try await server.verifyComplete()
+
+  let report = await server.report(generatedAt: Date(timeIntervalSince1970: 0))
+  let encoded = try report.encoded()
+
+  #expect(report.passed)
+  #expect(String(decoding: encoded, as: UTF8.self).contains(#""expectationID" : "scenario-step""#))
+}

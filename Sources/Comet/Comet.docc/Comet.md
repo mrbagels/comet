@@ -43,6 +43,10 @@ The shipped live transports today are ``URLSessionTransport`` and ``URLSessionWe
 - ``MemoryHTTPCacheStore``
 - ``FileHTTPCacheStore``
 - ``FileHTTPCacheStoreConfiguration``
+- ``ReachabilityStatus``
+- ``ReachabilitySnapshot``
+- ``ReachabilityHintProvider``
+- ``StaticReachabilityHintProvider``
 - ``PreparedRequest``
 - ``ResponseSerializer``
 - ``ErrorResponseSerializer``

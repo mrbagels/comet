@@ -14,6 +14,9 @@ Use it for:
 - redacting sensitive cassette data with ``RecordingRedaction``
 - serializing recordings as JSON with ``HTTPCassette``
 - replaying fixtures deterministically with ``ReplayTransport``
+- validating strict request contracts with ``ContractTransport``
+- running higher-level mock scenarios with ``MockServer``
+- exporting contract reports with ``ContractReport``
 
 ## Topics
 
@@ -32,3 +35,14 @@ Use it for:
 - ``HTTPCassette``
 - ``ReplayTransport``
 - ``RecordedExchange``
+
+### Contracts
+
+- <doc:ContractTesting>
+- ``ContractExpectation``
+- ``ContractTransport``
+- ``ContractReport``
+- ``ContractViolation``
+- ``ContractMatch``
+- ``ContractDifference``
+- ``MockServer``

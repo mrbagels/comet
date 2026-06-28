@@ -24,6 +24,12 @@ live transports remain future minor-version work.
 - `FileHTTPCacheStore` and `FileHTTPCacheStoreConfiguration` for namespace-isolated persistent cache entries with size limits, oldest-entry pruning, and corrupted-entry cleanup.
 - Stale-if-error cache fallback through `HTTPCachePolicy(allowsStaleIfError:)`.
 - Playground cache lab scenario covering first load, fresh cache hit, stale revalidation, offline stale fallback, and clear cache.
+- `ContractExpectation`, `ContractTransport`, `ContractReport`, and `MockServer` for strict request contract testing and JSON report export.
+- Cassette-to-contract conversion for turning recorded fixtures into strict transport expectations.
+- `CometOpenAPIGenerator` and `comet-openapi-generate` for dependency-free JSON OpenAPI request generation.
+- `ReachabilitySnapshot`, `ReachabilityHintProvider`, and `StaticReachabilityHintProvider` for app-owned reachability hints.
+- `CometRequestState` for lightweight TCA request loading, value, and failure state.
+- Playground contract server scenario covering strict expectation matching and clean contract reports.
 
 ### Changed
 

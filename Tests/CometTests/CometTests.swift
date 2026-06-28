@@ -2068,3 +2068,22 @@ private func durationMilliseconds(_ duration: Duration) -> Int64 {
   #expect(second == 3)
   #expect(third == nil)
 }
+
+@Test func staticReachabilityHintProviderReturnsConfiguredSnapshot() async {
+  let checkedAt = Date(timeIntervalSince1970: 123)
+  let provider = StaticReachabilityHintProvider(
+    ReachabilitySnapshot(
+      status: .reachable,
+      isExpensive: true,
+      isConstrained: false,
+      checkedAt: checkedAt
+    )
+  )
+
+  let snapshot = await provider.currentSnapshot()
+
+  #expect(snapshot.status == .reachable)
+  #expect(snapshot.isExpensive == true)
+  #expect(snapshot.isConstrained == false)
+  #expect(snapshot.checkedAt == checkedAt)
+}

@@ -8,7 +8,7 @@ The V2 foundation is complete in the `0.2.0` release cut. It includes the public
 
 V3 and later should focus on larger systems that benefit from the V2 foundation: caching and revalidation, server-side live transports, distributed trace propagation, mock-server workflows, contract testing, and generated clients.
 
-The executable patch-release plan for the next minor version lives in:
+The executable release plan for the next minor version lives in:
 
 - [Comet 0.3.0 Release Plan](RELEASE_PLAN_0_3.md)
 - [Comet 0.3.0 Release Plan HTML](RELEASE_PLAN_0_3.html)
@@ -365,6 +365,8 @@ Dependencies:
 
 Generate Comet request types from API specs.
 
+Status: initial V3 generator MVP implemented in `Unreleased` with a dependency-free JSON OpenAPI core target, `comet-openapi-generate` executable, request generation for path/query/header parameters, JSON bodies, operation metadata, success serializers, typed error-response hooks, and snapshot tests.
+
 Technical shape:
 
 - Build a SwiftPM plugin or CLI.
@@ -435,7 +437,7 @@ Dependencies:
 
 Turn requests/cassettes into local contract testing workflows.
 
-Status: initial playground cassette replay verification completed for the `0.2.0` release cut.
+Status: V3 contract foundation implemented in `Unreleased` with strict request expectations, contract transports, JSON reports, cassette-to-contract conversion, a `MockServer` facade, focused package tests, and a playground contract-server scenario.
 
 Technical shape:
 
@@ -483,7 +485,7 @@ Dependencies:
 
 Evolve the example app into an interactive documentation and verification surface.
 
-Status: initial request inspector, structured activity detail, copy-cURL, failure gallery, response viewer, socket monitor, cassette viewer, and trace timeline flows completed for the `0.2.0` release cut.
+Status: initial request inspector, structured activity detail, copy-cURL, failure gallery, response viewer, socket monitor, cassette viewer, and trace timeline flows completed for the `0.2.0` release cut. V3 cache and contract demos are implemented in `Unreleased`.
 
 Technical shape:
 
@@ -592,7 +594,7 @@ Why fifth:
 
 Goal: support fast, resilient read workflows.
 
-Status: V3 candidate.
+Status: V3 cache foundation implemented in `Unreleased`; stale-while-revalidate remains future work.
 
 Includes:
 
@@ -621,7 +623,7 @@ Why seventh:
 
 Goal: support larger teams and backend-contract workflows.
 
-Status: V3 candidate.
+Status: V3 foundation implemented in `Unreleased` with contract testing, mock-server scenarios, and JSON OpenAPI request generation.
 
 Includes:
 
@@ -660,5 +662,5 @@ Why last:
 
 ## Remaining Open Design Questions
 
-- Should OpenAPI generation be a SwiftPM plugin, standalone CLI, or both?
+- Should OpenAPI generation add a SwiftPM command plugin after the standalone CLI proves useful?
 - Should the playground remain iOS-only, or should it eventually become a macOS or web documentation companion too?

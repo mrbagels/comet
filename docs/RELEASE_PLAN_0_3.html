@@ -290,7 +290,7 @@
       <div>
         <p class="eyebrow">0.3.0 release train</p>
         <h1>Comet V3 Milestone Plan</h1>
-        <p class="lede">A patch-by-patch path from `0.2.0` to `0.3.0`, focused on cache-aware reads, contract workflows, generated clients, trace propagation, and a clear server-side story.</p>
+        <p class="lede">A bundled path from `0.2.0` to `0.3.0`, focused on cache-aware reads, contract workflows, generated clients, trace propagation, and a clear server-side story.</p>
       </div>
     </div>
   </header>
@@ -305,8 +305,8 @@
     <section>
       <div class="summary-grid">
         <div class="metric">
-          <strong>9 patches</strong>
-          <span>Usable vertical slices before the final `0.3.0` stabilization cut.</span>
+          <strong>1 final gate</strong>
+          <span>Remaining V3 work is batched locally before the final `0.3.0` stabilization cut.</span>
         </div>
         <div class="metric">
           <strong>6 workstreams</strong>
@@ -314,7 +314,7 @@
         </div>
         <div class="metric">
           <strong>1 rule</strong>
-          <span>Every patch must be release-worthy before the next milestone starts.</span>
+          <span>Run one final commit, push, CI, and release flow after the bundle is complete.</span>
         </div>
       </div>
     </section>
@@ -335,7 +335,7 @@
     </section>
 
     <section>
-      <h2>Patch Train</h2>
+      <h2>Bundled Train</h2>
       <div class="phase-list">
         <article class="phase">
           <span class="tag">0.2.1</span>
@@ -370,25 +370,25 @@
         <article class="phase workflow">
           <span class="tag">0.2.6</span>
           <h3>Contract Testing Foundation</h3>
-          <p>Add contract expectations, matching, violation reports, strict transport validation, cassette conversion, and CI-friendly report export.</p>
+          <p>Implemented with strict expectations, contract transports, JSON reports, cassette conversion, and focused tests.</p>
         </article>
 
         <article class="phase workflow">
           <span class="tag">0.2.7</span>
           <h3>Mock Server Workflow</h3>
-          <p>Add a `MockServer` facade over contract scenarios, deterministic latency and failure cases, playground demos, and a real-listener decision.</p>
+          <p>Implemented with a transport-level `MockServer` facade over contract expectations and a deterministic playground contract-server demo.</p>
         </article>
 
         <article class="phase workflow">
           <span class="tag">0.2.8</span>
           <h3>OpenAPI Generator MVP</h3>
-          <p>Add a focused generator or command plugin for JSON OpenAPI documents, generated request types, fixture specs, and compile checks.</p>
+          <p>Implemented with a dependency-free JSON OpenAPI generator core, `comet-openapi-generate` executable, generated request types, and snapshot tests.</p>
         </article>
 
         <article class="phase">
           <span class="tag">0.2.9</span>
           <h3>Server Direction, Reachability, And TCA Ergonomics</h3>
-          <p>Close the remaining V3 items with a server transport decision, trace compatibility, reachability fit check, and small optional TCA helpers.</p>
+          <p>Implemented with a server transport decision record, reachability hint primitives, and a small `CometTCA` request-state helper.</p>
         </article>
 
         <article class="phase">
@@ -428,12 +428,12 @@
           <tr>
             <td>Code generation</td>
             <td>`0.2.8`</td>
-            <td>new generator target or plugin</td>
+            <td>`CometOpenAPIGenerator`, executable</td>
           </tr>
           <tr>
             <td>Server story</td>
             <td>`0.2.9`</td>
-            <td>new optional target, architecture docs</td>
+            <td>architecture docs, reachability, `CometTCA`</td>
           </tr>
           <tr>
             <td>Integration polish</td>
@@ -448,7 +448,7 @@
       <h2>Default Verification</h2>
       <div class="columns">
         <div class="panel">
-          <h3>Every Patch</h3>
+          <h3>Final Gate</h3>
           <pre><code>swift test --disable-xctest
 .github/scripts/check-api-breaking-changes.sh &lt;latest-tag&gt;</code></pre>
         </div>
@@ -462,13 +462,13 @@ xcodebuild test -project CometPlayground.xcodeproj -scheme CometPlaygroundApp -d
     </section>
 
     <section>
-      <h2>Decision Points</h2>
+      <h2>Decisions Made</h2>
       <div class="panel">
         <ul>
-          <li>Before finishing `0.2.5`: whether file cache storage needs encryption hooks or should stay as application-managed policy.</li>
-          <li>Before `0.2.7`: whether `MockServer` includes a real local HTTP listener.</li>
-          <li>Before `0.2.8`: whether generator dependencies are acceptable.</li>
-          <li>Before `0.2.9`: whether server support belongs in this package now.</li>
+          <li>File cache storage stays plain file-backed storage with user-owned protection policy.</li>
+          <li>`MockServer` remains transport-level for `0.3.0`; a real local HTTP listener is deferred.</li>
+          <li>OpenAPI generation is JSON-first and dependency-free for the MVP.</li>
+          <li>Server-side live transports are deferred for `0.3.0` and documented in the server decision record.</li>
         </ul>
       </div>
     </section>

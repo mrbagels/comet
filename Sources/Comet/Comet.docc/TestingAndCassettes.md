@@ -52,3 +52,23 @@ let client = HTTPClient.live(
 ```
 
 Recorded fixtures can contain sensitive payloads. Use ``RedactionPolicy`` or `RecordingRedaction` before writing cassettes, and review fixture JSON before committing it.
+
+## Contract Testing
+
+Use `ContractTransport` from `CometTesting` when replay should also validate the
+request shape.
+
+```swift
+let expectations = try cassette.contractExpectations()
+let transport = ContractTransport(expectations: expectations)
+let client = HTTPClient.live(
+  configuration: .default(baseURL: URL(string: "https://api.example.com")!),
+  transport: transport
+)
+
+_ = try await client.send(GetUser(userID: 42))
+try await transport.verifyComplete()
+```
+
+For demo apps and UI tests, `MockServer` wraps the same expectations and can
+export a JSON `ContractReport` for diagnostics.

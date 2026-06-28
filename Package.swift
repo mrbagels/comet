@@ -11,8 +11,10 @@ let package = Package(
   ],
   products: [
     .library(name: "Comet", targets: ["Comet"]),
+    .library(name: "CometOpenAPIGenerator", targets: ["CometOpenAPIGenerator"]),
     .library(name: "CometTCA", targets: ["CometTCA"]),
     .library(name: "CometTesting", targets: ["CometTesting"]),
+    .executable(name: "comet-openapi-generate", targets: ["CometOpenAPIGenerate"]),
   ],
   dependencies: [
     .package(url: "https://github.com/apple/swift-http-types", from: "1.3.0"),
@@ -41,6 +43,15 @@ let package = Package(
         .product(name: "HTTPTypes", package: "swift-http-types")
       ]
     ),
+    .target(
+      name: "CometOpenAPIGenerator"
+    ),
+    .executableTarget(
+      name: "CometOpenAPIGenerate",
+      dependencies: [
+        "CometOpenAPIGenerator"
+      ]
+    ),
     .testTarget(
       name: "CometTests",
       dependencies: [
@@ -59,6 +70,12 @@ let package = Package(
       name: "CometTestingTests",
       dependencies: [
         "CometTesting"
+      ]
+    ),
+    .testTarget(
+      name: "CometOpenAPIGeneratorTests",
+      dependencies: [
+        "CometOpenAPIGenerator"
       ]
     ),
   ]

@@ -430,6 +430,8 @@ extension DemoCatalog.DemoCategory {
       ThemeColor.plum
     case .cache:
       ThemeColor.mint
+    case .testing:
+      ThemeColor.plum
     case .failures:
       ThemeColor.sunset
     case .realtime:
@@ -451,6 +453,8 @@ extension DemoCatalog.Demo {
       ThemeColor.plum
     case .cacheLab:
       ThemeColor.mint
+    case .contractServer:
+      ThemeColor.plum
     case .timeout:
       ThemeColor.sunset
     case .unauthorized:

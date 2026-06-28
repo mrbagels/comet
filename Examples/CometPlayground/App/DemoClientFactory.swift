@@ -129,6 +129,17 @@ enum DemoClientFactory {
       case "/cache/lab":
         return await routeState.nextCacheLabResponse(request: request)
 
+      case "/contracts/profile":
+        return RawResponse(
+          data: Data("contract profile v1".utf8),
+          statusCode: 200,
+          headers: {
+            var headers = HTTPFields()
+            headers[.contentType] = "text/plain; charset=utf-8"
+            return headers
+          }()
+        )
+
       case "":
         return RawResponse(
           data: Data("Comet mock text response".utf8),

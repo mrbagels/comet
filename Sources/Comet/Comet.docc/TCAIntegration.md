@@ -42,7 +42,7 @@ struct UserFeature {
     Reduce { state, action in
       switch action {
       case .task:
-        return .request(GetUser(userID: 42), client: httpClient) {
+        return .request(GetUser(userID: 42), using: httpClient) {
           .userResponse($0)
         }
 
@@ -55,6 +55,22 @@ struct UserFeature {
       }
     }
   }
+}
+```
+
+## Track Request State
+
+Use `CometRequestState` when a feature wants a small generic loading
+state that keeps the previous value while a refresh is in flight.
+
+```swift
+state.user.start()
+
+switch result {
+case .success(let user):
+  state.user.succeed(user)
+case .failure(let error):
+  state.user.fail(error)
 }
 ```
 

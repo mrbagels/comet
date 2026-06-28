@@ -289,13 +289,17 @@ Completed scope:
 
 ## Remaining After V2
 
-The highest-value follow-ups now belong to V3 or later:
+The highest-value follow-ups moved into the V3 release plan:
 
-- add a fresh-client integration smoke check outside this repository
-- evaluate whether WebSocket activity should have a first-class event surface
-- add a small "server-side direction" note once the future transport choice is made
+- fresh-client integration smoke coverage
+- distributed trace propagation
+- cache core, HTTP revalidation, persistent cache storage, and cache playground coverage
+- contract testing and mock-server scenarios
+- JSON OpenAPI request generation
+- server-side direction documentation
+- reachability hints and lightweight TCA request state
 
-The executable `0.3.0` patch-release plan lives in [RELEASE_PLAN_0_3.md](RELEASE_PLAN_0_3.md).
+The executable `0.3.0` release plan lives in [RELEASE_PLAN_0_3.md](RELEASE_PLAN_0_3.md).
 
 ---
 
@@ -304,11 +308,10 @@ The executable `0.3.0` patch-release plan lives in [RELEASE_PLAN_0_3.md](RELEASE
 These remain intentionally out of the MVP:
 
 - server-side live transport implementation
-- distributed trace propagation
-- caching
-- ETag support
-- mock server
-- reachability
-- higher-level TCA domain helpers
+- stale-while-revalidate cache semantics
+- a real local HTTP listener for mock-server scenarios
+- YAML OpenAPI input
+- deep JSON Schema model generation
+- higher-level TCA domain helpers beyond generic request state
 
 They should only be added after the current API is used in real projects and proves stable.

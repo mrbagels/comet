@@ -16,7 +16,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/github/license/mrbagels/comet" alt="License"></a>
 </p>
 
-Comet turns API endpoints into Swift types. It ships with a `URLSession`-backed live client, middleware for production behavior, opt-in response caching, deterministic testing transports, cassette recording and replay, request activity and trace streams, response streaming, transfer progress hooks, and resilient WebSocket sessions.
+Comet turns API endpoints into Swift types. It ships with a `URLSession`-backed live client, middleware for production behavior, opt-in response caching, deterministic testing and contract transports, cassette recording and replay, OpenAPI request generation, request activity and trace streams, response streaming, transfer progress hooks, and resilient WebSocket sessions.
 
 The latest published release is `0.2.0`, the completed V2 foundation. The `next` branch is carrying the `0.2.x` patch train toward `0.3.0`, including cache, trace, contract-testing, generated-client, and server-direction work.
 
@@ -25,9 +25,10 @@ The latest published release is `0.2.0`, the completed V2 foundation. The `next`
 | Surface | What It Provides |
 | --- | --- |
 | `Comet` | Typed HTTP requests, WebSocket sessions, serializers, middleware, retry, cache, deduplication, activity events, traces, streaming, and progress primitives |
-| `CometTesting` | Mock transports, cassette recording, replay transports, and mock WebSocket sessions |
-| `CometTCA` | Lightweight Composable Architecture helpers for request effects |
-| `CometPlayground` | iPhone-first verification app for HTTP, replay, activity, and realtime flows |
+| `CometTesting` | Mock transports, strict contracts, mock-server scenarios, cassette recording, replay transports, and mock WebSocket sessions |
+| `CometOpenAPIGenerator` | JSON OpenAPI 3.x request generator core plus the `comet-openapi-generate` executable |
+| `CometTCA` | Lightweight Composable Architecture helpers for request effects and request state |
+| `CometPlayground` | iPhone-first verification app for HTTP, cache, contracts, replay, activity, and realtime flows |
 
 ## Toolchain And Platforms
 
@@ -49,6 +50,7 @@ Import the target you need:
 ```swift
 import Comet
 import CometTesting
+import CometOpenAPIGenerator
 ```
 
 ## Quick Start
@@ -406,12 +408,81 @@ let recorder = RecordingTransport(
 
 `RecordingRedaction` is an alias for Comet's shared `RedactionPolicy`, so the same policy shape can be used for cassettes, logging, and cURL output.
 
+### Contract Testing And Mock Servers
+
+Use `ContractTransport` when a test should fail on the first request shape drift:
+
+```swift
+let transport = ContractTransport(
+  expectations: [
+    ContractExpectation(
+      id: "get-user",
+      method: .get,
+      path: "/users/42",
+      headers: [
+        ContractHeaderExpectation(name: "accept", value: .exact("application/json"))
+      ],
+      outcome: .response(
+        RawResponse(data: Data(#"{"id":42}"#.utf8), statusCode: 200)
+      )
+    )
+  ]
+)
+
+let client = HTTPClient.live(
+  configuration: .default(baseURL: URL(string: "https://api.example.com")!),
+  transport: transport
+)
+
+_ = try await client.send(GetUser(userID: 42))
+try await transport.verifyComplete()
+```
+
+`MockServer` wraps the same contracts for demo and UI-test scenarios, and reports can be exported as JSON:
+
+```swift
+let report = await transport.report()
+try report.write(to: URL(fileURLWithPath: "contract-report.json"))
+```
+
+Recorded cassettes can become strict contracts:
+
+```swift
+let expectations = try cassette.contractExpectations()
+let mockServer = MockServer(expectations: expectations)
+```
+
+### OpenAPI Generation
+
+Generate Comet request types from JSON OpenAPI 3.x documents:
+
+```sh
+swift run comet-openapi-generate --input openapi.json --output GeneratedAPI.swift
+```
+
+The MVP supports path, query, and header parameters, JSON request bodies, success serializers, operation metadata, and typed error-response hooks. Unsupported features fail with diagnostics instead of silently generating partial behavior.
+
+### Reachability Hints
+
+Reachability is modeled as a hint, not a correctness boundary:
+
+```swift
+let provider = StaticReachabilityHintProvider(
+  ReachabilitySnapshot(status: .reachable, isExpensive: false)
+)
+
+let snapshot = await provider.currentSnapshot()
+```
+
+Use this to inform UI or retry choices, but keep transport errors as the source of truth.
+
 ## Example App
 
 `Examples/CometPlayground` is an iPhone-first verification app generated with XcodeGen. It provides:
 
 - a focused smoke test target: `CometPlaygroundTests`
 - deterministic mock verification with `CometTesting.MockTransport`
+- deterministic contract verification with `CometTesting.MockServer`
 - deterministic socket verification with `CometTesting.MockWebSocketTransport`
 - live transport checks through `URLSessionTransport` and `URLSessionWebSocketTransport`
 - proof, structured activity, failure-gallery, request-inspector, and detail flows showing which APIs are exercised and what output to verify
@@ -420,7 +491,7 @@ The full walkthrough lives in [Examples/CometPlayground/README.md](Examples/Come
 
 ## Documentation
 
-The DocC catalog includes workflow articles for authenticated JSON requests, retries and activity, request tracing, streaming and progress, typed API errors, testing and cassettes, WebSockets, and TCA integration.
+The DocC catalog includes workflow articles for authenticated JSON requests, retries and activity, request tracing, streaming and progress, typed API errors, testing, cassettes, contracts, WebSockets, OpenAPI generation, and TCA integration.
 
 ## Verification
 
@@ -473,13 +544,15 @@ SVG brand assets live in [Resources/Brand](Resources/Brand). The README uses the
 - `Sources/`: package source targets
 - `Tests/`: package test targets
 - `Examples/CometPlayground/`: XcodeGen-driven iOS demo app
+- `Sources/CometOpenAPIGenerator/`: JSON OpenAPI generator core
 - `Resources/Brand/`: SVG logo and icon files for docs, README, and app assets
 - `.github/scripts/fresh-client-smoke.sh`: external package integration smoke check
 - `.github/workflows/ci.yml`: package and iOS smoke test automation
 - `docs/ARCHITECTURE.md`: architecture notes
+- `docs/technical/SERVER_TRANSPORT_DECISION.md`: server transport support decision
 - `docs/IMPLEMENTATION_PLAN.md`: implementation plan and rollout notes
 - `docs/PRODUCT_ROADMAP.md`: product roadmap and feature planning
-- `docs/RELEASE_PLAN_0_3.md`: patch-release plan from `0.2.x` to `0.3.0`
+- `docs/RELEASE_PLAN_0_3.md`: release plan from `0.2.x` to `0.3.0`
 
 ## What To Open First
 
@@ -488,6 +561,8 @@ If you want to understand or modify the current core flows, start here:
 - [Sources/Comet/Core/HTTPClient.swift](Sources/Comet/Core/HTTPClient.swift)
 - [Sources/Comet/WebSockets/WebSocketTypes.swift](Sources/Comet/WebSockets/WebSocketTypes.swift)
 - [Sources/CometTesting/MockWebSocketTransport.swift](Sources/CometTesting/MockWebSocketTransport.swift)
+- [Sources/CometTesting/ContractTesting.swift](Sources/CometTesting/ContractTesting.swift)
+- [Sources/CometOpenAPIGenerator/OpenAPIGenerator.swift](Sources/CometOpenAPIGenerator/OpenAPIGenerator.swift)
 - [Sources/CometTesting/RecordingTransport.swift](Sources/CometTesting/RecordingTransport.swift)
 - [Examples/CometPlayground/App/DemoCatalog.swift](Examples/CometPlayground/App/DemoCatalog.swift)
 - [Examples/CometPlayground/App/HomeTab.swift](Examples/CometPlayground/App/HomeTab.swift)

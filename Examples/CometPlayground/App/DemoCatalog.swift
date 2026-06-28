@@ -14,6 +14,11 @@ private struct DemoCacheLabResult: Sendable {
   let fields: [DemoInspectorField]
 }
 
+private struct DemoContractServerResult: Sendable {
+  let output: String
+  let fields: [DemoInspectorField]
+}
+
 @MainActor
 @Observable
 final class DemoCatalog {
@@ -21,6 +26,7 @@ final class DemoCatalog {
     case requests
     case transport
     case cache
+    case testing
     case failures
     case realtime
 
@@ -31,6 +37,7 @@ final class DemoCatalog {
       case .requests: "Requests"
       case .transport: "Transport"
       case .cache: "Cache"
+      case .testing: "Testing"
       case .failures: "Failures"
       case .realtime: "Realtime"
       }
@@ -44,6 +51,8 @@ final class DemoCatalog {
         "Status validation, raw inspection, and payload-free flows."
       case .cache:
         "Fresh hits, revalidation, persistent storage, and offline stale fallback."
+      case .testing:
+        "Contracts, reports, cassettes, and deterministic mock-server scenarios."
       case .failures:
         "Timeouts, authorization failures, retries, decoding errors, cancellation, and socket closure."
       case .realtime:
@@ -56,6 +65,7 @@ final class DemoCatalog {
       case .requests: "point.3.connected.trianglepath.dotted"
       case .transport: "waveform.path.ecg.rectangle"
       case .cache: "externaldrive.badge.icloud"
+      case .testing: "checklist.checked"
       case .failures: "exclamationmark.triangle"
       case .realtime: "dot.radiowaves.left.and.right"
       }
@@ -72,6 +82,7 @@ final class DemoCatalog {
     case empty
     case raw
     case cacheLab
+    case contractServer
     case timeout
     case unauthorized
     case rateLimited
@@ -90,6 +101,7 @@ final class DemoCatalog {
       case .empty: "Empty Response"
       case .raw: "Raw Response"
       case .cacheLab: "Cache Lab"
+      case .contractServer: "Contract Server"
       case .timeout: "Timeout"
       case .unauthorized: "Typed 401"
       case .rateLimited: "429 Retry"
@@ -113,6 +125,8 @@ final class DemoCatalog {
         "Inspect bytes, headers, and status directly with `sendRaw`."
       case .cacheLab:
         "Exercise first load, fresh hit, stale revalidation, offline fallback, and clear cache."
+      case .contractServer:
+        "Validate a typed request against strict expectations and export a contract report."
       case .timeout:
         "Verify timeout errors flow through `NetworkError` and activity events."
       case .unauthorized:
@@ -140,6 +154,8 @@ final class DemoCatalog {
         .transport
       case .cacheLab:
         .cache
+      case .contractServer:
+        .testing
       case .timeout, .unauthorized, .rateLimited, .serverError, .malformedJSON, .cancelled:
         .failures
       case .webSocket:
@@ -156,6 +172,7 @@ final class DemoCatalog {
       case .empty: "checkmark.circle.badge.xmark"
       case .raw: "bolt.horizontal.circle"
       case .cacheLab: "externaldrive.connected.to.line.below"
+      case .contractServer: "checkmark.seal"
       case .timeout: "timer"
       case .unauthorized: "lock.trianglebadge.exclamationmark"
       case .rateLimited: "arrow.clockwise.circle"
@@ -179,6 +196,8 @@ final class DemoCatalog {
         ["HTTPClient.sendRaw", "RawResponse", "HTTPFields"]
       case .cacheLab:
         ["CacheMiddleware", "FileHTTPCacheStore", "HTTPCachePolicy", "RequestTrace.cacheEvents"]
+      case .contractServer:
+        ["MockServer", "ContractExpectation", "ContractTransport", "ContractReport"]
       case .timeout:
         ["HTTPClient.send", "NetworkError.timeout", "RequestOptions.timeout"]
       case .unauthorized:
@@ -256,6 +275,17 @@ final class DemoCatalog {
         [
           "The cache lab uses deterministic local mock transport even when the app is in Live mode.",
           "The file-backed store is cleared after the scenario completes."
+        ]
+      case (.contractServer, .mock):
+        [
+          "The request matches method, path, query, header, and metadata expectations.",
+          "The mock server returns the configured response and consumes the expectation.",
+          "The contract report has one match and no violations."
+        ]
+      case (.contractServer, .live):
+        [
+          "The contract server scenario stays deterministic even when the app is in Live mode.",
+          "The exported contract report can be inspected without a real backend."
         ]
       case (.timeout, .mock):
         [
@@ -352,6 +382,8 @@ final class DemoCatalog {
         "RawTodoDemo"
       case .cacheLab:
         "CacheLabDemo"
+      case .contractServer:
+        "ContractServerDemo"
       case .timeout:
         "TimeoutDemo"
       case .unauthorized:
@@ -373,7 +405,7 @@ final class DemoCatalog {
       switch self {
       case .timeout, .unauthorized, .serverError, .malformedJSON, .cancelled:
         true
-      case .json, .text, .empty, .raw, .cacheLab, .rateLimited, .webSocket, .webSocketClose:
+      case .json, .text, .empty, .raw, .cacheLab, .contractServer, .rateLimited, .webSocket, .webSocketClose:
         false
       }
     }
@@ -474,6 +506,16 @@ final class DemoCatalog {
         extraFields: [
           DemoInspectorField(label: "Cache policy", value: "returnCacheElseLoad"),
           DemoInspectorField(label: "Stale fallback", value: "Enabled")
+        ]
+      )
+    case .contractServer:
+      return self.httpInspection(
+        for: ContractServerDemoRequest(),
+        demo: demo,
+        transport: "MockServer + ContractTransport",
+        extraFields: [
+          DemoInspectorField(label: "Expectation", value: "method + path + query + header + metadata"),
+          DemoInspectorField(label: "Report", value: "JSON")
         ]
       )
     case .timeout:
@@ -619,6 +661,19 @@ final class DemoCatalog {
           response: Self.responseSnapshot(
             title: "Cache lab result",
             summary: "A deterministic cache flow through `FileHTTPCacheStore` and `CacheMiddleware`.",
+            fields: result.fields,
+            body: result.output
+          )
+        )
+      case .contractServer:
+        let result = try await self.contractServerOutput()
+        self.demoStates[demo] = DemoState(
+          output: result.output,
+          status: .passed,
+          detail: "Verified a strict mock-server contract and exported a clean report.",
+          response: Self.responseSnapshot(
+            title: "Contract report",
+            summary: "A deterministic `MockServer` scenario backed by `ContractTransport`.",
             fields: result.fields,
             body: result.output
           )
@@ -1124,6 +1179,8 @@ final class DemoCatalog {
       _ = try await client.sendRaw(RawTodoRequest())
     case .cacheLab:
       _ = try await client.send(CacheLabRequest())
+    case .contractServer:
+      _ = try await client.send(ContractServerDemoRequest())
     case .timeout:
       _ = try await client.send(TimeoutDemoRequest(mode: .mock))
     case .unauthorized:
@@ -1293,6 +1350,65 @@ final class DemoCatalog {
         DemoInspectorField(label: "Fresh events", value: freshEvents),
         DemoInspectorField(label: "Revalidate events", value: revalidatedEvents),
         DemoInspectorField(label: "Fallback events", value: fallbackEvents)
+      ]
+    )
+  }
+
+  private func contractServerOutput() async throws -> DemoContractServerResult {
+    let request = ContractServerDemoRequest()
+    let expectation = ContractExpectation(
+      id: "contract-profile-happy-path",
+      method: .get,
+      path: "/contracts/profile",
+      query: [ContractQueryExpectation(name: "scenario", value: .exact("happy-path"))],
+      headers: [ContractHeaderExpectation(name: "X-Contract-Scenario", value: .exact("happy-path"))],
+      metadata: ContractMetadataExpectation(
+        name: .exact("ContractServerDemo"),
+        operationID: .exact("getContractProfile"),
+        tags: ["contracts", "mock-server"]
+      ),
+      outcome: .response(
+        RawResponse(
+          data: Data("contract profile v1".utf8),
+          statusCode: 200,
+          headers: {
+            var headers = HTTPFields()
+            headers[.contentType] = "text/plain; charset=utf-8"
+            return headers
+          }()
+        )
+      )
+    )
+    let server = MockServer(expectations: [expectation])
+    let client = HTTPClient.live(
+      configuration: ClientConfiguration(
+        baseURL: URL(string: "https://comet.local")!,
+        middleware: [TracePropagationMiddleware()]
+      ),
+      transport: server
+    )
+
+    let response = try await client.send(request)
+    try await server.verifyComplete()
+    let report = await server.report(generatedAt: Date(timeIntervalSince1970: 0))
+    let reportJSON = String(decoding: try report.encoded(), as: UTF8.self)
+    let matchedIDs = report.matches.map(\.expectationID).joined(separator: ", ")
+    let output = """
+    response: \(response)
+    report passed: \(report.passed)
+    matches: \(matchedIDs)
+    violations: \(report.violations.count)
+    report bytes: \(reportJSON.utf8.count)
+    """
+
+    return DemoContractServerResult(
+      output: output,
+      fields: [
+        DemoInspectorField(label: "Transport", value: String(describing: MockServer.self)),
+        DemoInspectorField(label: "Expectation", value: matchedIDs),
+        DemoInspectorField(label: "Matches", value: "\(report.matches.count)"),
+        DemoInspectorField(label: "Violations", value: "\(report.violations.count)"),
+        DemoInspectorField(label: "Report", value: report.passed ? "Passed" : "Failed")
       ]
     )
   }
@@ -1473,6 +1589,12 @@ final class DemoCatalog {
         output: "Run the cache lab to inspect first load, fresh hit, revalidation, stale fallback, and cleanup.",
         status: .idle,
         detail: "Waiting for the first cache verification run."
+      )
+    case .contractServer:
+      DemoState(
+        output: "Run the contract server demo to validate a strict mock scenario and report.",
+        status: .idle,
+        detail: "Waiting for the first contract verification run."
       )
     case .timeout:
       DemoState(

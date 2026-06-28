@@ -35,6 +35,9 @@ final class CometPlaygroundSmokeTests: XCTestCase {
     XCTAssertTrue(model.state(for: .cacheLab).output.contains("stale events: stale(stale) -> revalidate -> update(notModified)"))
     XCTAssertTrue(model.state(for: .cacheLab).output.contains("fallback events: stale(stale) -> revalidate -> hit(staleIfError)"))
     XCTAssertTrue(model.state(for: .cacheLab).output.contains("cache entries after clear: 0"))
+    XCTAssertTrue(model.state(for: .contractServer).output.contains("report passed: true"))
+    XCTAssertTrue(model.state(for: .contractServer).output.contains("matches: contract-profile-happy-path"))
+    XCTAssertTrue(model.state(for: .contractServer).output.contains("violations: 0"))
     XCTAssertTrue(model.state(for: .timeout).output.contains("timeout"))
     XCTAssertTrue(model.state(for: .unauthorized).output.contains("unauthorized"))
     XCTAssertTrue(model.state(for: .rateLimited).output.contains("recovered after retry"))
@@ -57,6 +60,10 @@ final class CometPlaygroundSmokeTests: XCTestCase {
     XCTAssertEqual(
       model.state(for: .cacheLab).response?.fields.first { $0.label == "After clear" }?.value,
       "0 entries"
+    )
+    XCTAssertEqual(
+      model.state(for: .contractServer).response?.fields.first { $0.label == "Report" }?.value,
+      "Passed"
     )
     XCTAssertEqual(model.state(for: .webSocket).socket?.frames.count, 3)
     XCTAssertTrue(model.state(for: .webSocket).socket?.rawValue.contains("MockWebSocketTransport") == true)
@@ -94,6 +101,7 @@ final class CometPlaygroundSmokeTests: XCTestCase {
     XCTAssertNil(TodoRequest().options.apiVersion)
     XCTAssertNil(RawTodoRequest().options.apiVersion)
     XCTAssertNil(CacheLabRequest().options.apiVersion)
+    XCTAssertNil(ContractServerDemoRequest().options.apiVersion)
     XCTAssertNil(TimeoutDemoRequest(mode: .mock).options.apiVersion)
     XCTAssertNil(UnauthorizedDemoRequest(mode: .mock).options.apiVersion)
   }
@@ -117,6 +125,10 @@ final class CometPlaygroundSmokeTests: XCTestCase {
     let cacheLab = model.requestInspection(for: .cacheLab)
     XCTAssertEqual(cacheLab.transport, "MockTransport + FileHTTPCacheStore")
     XCTAssertTrue(cacheLab.fields.contains { $0.label == "Cache policy" })
+
+    let contractServer = model.requestInspection(for: .contractServer)
+    XCTAssertEqual(contractServer.transport, "MockServer + ContractTransport")
+    XCTAssertTrue(contractServer.fields.contains { $0.label == "Expectation" })
 
     let socketClose = model.requestInspection(for: .webSocketClose)
     XCTAssertEqual(socketClose.transport, "MockWebSocketTransport")

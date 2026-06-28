@@ -1,4 +1,5 @@
 import Foundation
+import HTTPTypes
 import Comet
 
 private let rawDemoTraceContext = TraceContext(
@@ -78,6 +79,30 @@ struct CacheLabRequest: APIRequest {
       )
     )
   }
+}
+
+struct ContractServerDemoRequest: APIRequest {
+  typealias Response = String
+
+  let path: Path = "contracts" / "profile"
+  let method: HTTPMethod = .get
+  let responseSerializer: ResponseSerializer<String> = .string()
+  let queryItems = [QueryItem("scenario", "happy-path")]
+
+  var headers: HTTPFields {
+    var headers = HTTPFields()
+    headers[HTTPField.Name("X-Contract-Scenario")!] = "happy-path"
+    return headers
+  }
+
+  let options = RequestOptions(
+    apiVersion: nil,
+    metadata: RequestMetadata(
+      name: "ContractServerDemo",
+      tags: ["contracts", "mock-server"],
+      operationID: "getContractProfile"
+    )
+  )
 }
 
 struct TimeoutDemoRequest: APIRequest {

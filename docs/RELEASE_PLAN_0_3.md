@@ -1,8 +1,8 @@
 # Comet 0.3.0 Release Plan
 
-This plan turns the post-`0.2.0` V3 roadmap into a patch-release train. Each
-patch should ship a usable vertical slice on `next`, clear CI, get tagged, and
-leave the repo in a better state for the next slice.
+This plan turns the post-`0.2.0` V3 roadmap into a bundled release train. Early
+work landed as patch-ready slices, but the remaining V3 items are now batched
+locally and should ship through one final commit, push, CI, and release flow.
 
 ## North Star
 
@@ -19,18 +19,18 @@ not only a typed request executor. The completed release should give users:
 
 ## Release Principles
 
-- Keep every patch release additive unless we explicitly decide a minor-version
+- Keep every release addition additive unless we explicitly decide a minor-version
   break is worth it for `0.3.0`.
 - Prefer small public protocols and concrete defaults over one large system type.
 - Preserve the current transport seam. New behavior should layer through
   `HTTPTransport`, middleware, `RequestOptions`, traces, or `CometTesting`.
 - Do not add production dependencies without a deliberate dependency decision.
-- Every patch gets package tests, API-diff gate, playground smoke coverage when
-  user-facing, changelog entries, and docs updates.
+- The final bundle gets package tests, API-diff gate, playground smoke coverage,
+  changelog entries, and docs updates.
 - If a milestone proves too large, split the implementation but do not skip the
   release-quality gate.
 
-## Patch Release Train
+## Bundled Release Train
 
 ### 0.2.1: Release Rails And V3 Planning
 
@@ -168,6 +168,9 @@ Acceptance:
 Purpose: turn the existing mock and cassette tools into a strict request/response
 contract workflow.
 
+Status: implemented in `Unreleased` with strict expectations, contract
+transports, JSON reports, cassette conversion, and focused tests.
+
 Deliverables:
 
 - Add `ContractExpectation`, `ContractMatch`, `ContractViolation`, and
@@ -191,6 +194,9 @@ Acceptance:
 Purpose: provide a higher-level workflow for app demos and UI tests that need a
 local backend shape without a real backend.
 
+Status: implemented in `Unreleased` with a transport-level `MockServer` facade
+over contract expectations and a deterministic playground contract-server demo.
+
 Deliverables:
 
 - Add a `MockServer` facade over contract expectations and cassette fixtures.
@@ -211,6 +217,11 @@ Acceptance:
 
 Purpose: prove generated Comet clients without trying to cover every OpenAPI
 feature in one pass.
+
+Status: implemented in `Unreleased` with a dependency-free JSON OpenAPI
+generator core, `comet-openapi-generate` executable, request generation for
+parameters, JSON bodies, metadata, success serializers, typed error hooks, and
+snapshot tests.
 
 Deliverables:
 
@@ -238,6 +249,10 @@ Acceptance:
 
 Purpose: close the remaining V3 roadmap items enough to either ship them in
 `0.3.0` or explicitly defer them with evidence.
+
+Status: implemented in `Unreleased` with a server transport decision record,
+transport-agnostic compatibility notes, reachability hint primitives, and a
+small `CometTCA` request-state helper.
 
 Deliverables:
 
@@ -294,19 +309,17 @@ Acceptance:
 | Server story | `0.2.9` | new optional target, architecture docs |
 | Integration polish | every patch | CI, README, DocC, playground |
 
-## Decision Points
+## Decisions Made
 
-The following decisions should be made before implementation reaches the named
-milestone:
-
-- Before `0.2.5`: whether file cache storage needs encryption hooks or should
-  stay plain file-backed storage with user-owned protection.
-- Before `0.2.7`: whether `MockServer` remains transport-level only or includes
-  a real local HTTP listener.
-- Before `0.2.8`: whether to accept generator dependencies for YAML, schema
-  traversal, and formatting.
-- Before `0.2.9`: whether server support belongs in this package now, and which
-  transport dependency is acceptable.
+- File cache storage stays plain file-backed storage with user-owned file
+  protection and app-level encryption decisions.
+- `MockServer` remains transport-level for `0.3.0`; a real local HTTP listener
+  is deferred.
+- OpenAPI generation is JSON-first and dependency-free for the MVP. YAML,
+  deeper JSON Schema traversal, and formatting integration can be revisited
+  after the CLI proves useful.
+- Server-side live transports are deferred for `0.3.0`; see
+  [Server Transport Decision](technical/SERVER_TRANSPORT_DECISION.md).
 
 ## Default Verification Per Patch
 
