@@ -389,7 +389,8 @@ SVG brand assets live in [Resources/Brand](Resources/Brand). The README uses the
 - `.github/workflows/ci.yml`: package and iOS smoke test automation
 - `docs/ARCHITECTURE.md`: architecture notes
 - `docs/IMPLEMENTATION_PLAN.md`: implementation plan and rollout notes
-- `docs/PRODUCT_ROADMAP.md`: v2 roadmap and feature planning
+- `docs/PRODUCT_ROADMAP.md`: product roadmap and feature planning
+- `docs/RELEASE_PLAN_0_3.md`: patch-release plan from `0.2.x` to `0.3.0`
 
 ## What To Open First
 

@@ -295,6 +295,8 @@ The highest-value follow-ups now belong to V3 or later:
 - evaluate whether WebSocket activity should have a first-class event surface
 - add a small "server-side direction" note once the future transport choice is made
 
+The executable `0.3.0` patch-release plan lives in [RELEASE_PLAN_0_3.md](RELEASE_PLAN_0_3.md).
+
 ---
 
 ## Deferred Roadmap

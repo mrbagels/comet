@@ -8,7 +8,9 @@ live transports remain future minor-version work.
 
 ## Unreleased
 
-No changes yet.
+### Added
+
+- `0.3.0` release train plan in Markdown and static HTML, with patch milestones from `0.2.x` through the final minor release.
 
 ## 0.2.0 - 2026-06-28
 

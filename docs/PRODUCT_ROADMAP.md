@@ -8,6 +8,11 @@ The V2 foundation is complete in the `0.2.0` release cut. It includes the public
 
 V3 and later should focus on larger systems that benefit from the V2 foundation: caching and revalidation, server-side live transports, distributed trace propagation, mock-server workflows, contract testing, and generated clients.
 
+The executable patch-release plan for the next minor version lives in:
+
+- [Comet 0.3.0 Release Plan](RELEASE_PLAN_0_3.md)
+- [Comet 0.3.0 Release Plan HTML](RELEASE_PLAN_0_3.html)
+
 ## Product Direction
 
 Comet should become a highly ergonomic Swift networking foundation with first-class debugging, testing, replay, realtime, and generated-client workflows. The package should stay small at the core, but the surrounding ecosystem should make production networking less repetitive, safer by default, and easier to understand.
