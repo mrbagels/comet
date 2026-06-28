@@ -87,14 +87,16 @@ struct ActivityTab: View {
           Button {
             Task { await model.runCurrentModeProof() }
           } label: {
-            Image(systemName: "play.circle")
+            Label("Run current proof suite", systemImage: "play.circle")
           }
+          .disabled(model.isRunning)
 
-          Button {
+          Button(role: .destructive) {
             model.clearSession()
           } label: {
-            Image(systemName: "trash")
+            Label("Clear session", systemImage: "trash")
           }
+          .disabled(model.isRunning)
         }
       }
     }
@@ -223,52 +225,5 @@ private struct ActivityDetailScreen: View {
     .background(PlaygroundBackdrop())
     .navigationTitle("Event Detail")
     .navigationBarTitleDisplayMode(.inline)
-  }
-}
-
-private extension DemoActivityEntry.Kind {
-  var title: String {
-    switch self {
-    case .started:
-      "Started"
-    case .completed:
-      "Completed"
-    case .failed:
-      "Failed"
-    case .retried:
-      "Retried"
-    case .socket:
-      "Socket"
-    }
-  }
-
-  var accent: Color {
-    switch self {
-    case .started:
-      ThemeColor.ocean
-    case .completed:
-      ThemeColor.mint
-    case .failed:
-      ThemeColor.ruby
-    case .retried:
-      ThemeColor.sunset
-    case .socket:
-      ThemeColor.ruby
-    }
-  }
-
-  var symbolName: String {
-    switch self {
-    case .started:
-      "arrow.up.forward.circle"
-    case .completed:
-      "checkmark.circle"
-    case .failed:
-      "exclamationmark.triangle"
-    case .retried:
-      "arrow.clockwise"
-    case .socket:
-      "dot.radiowaves.left.and.right"
-    }
   }
 }

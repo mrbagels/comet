@@ -46,6 +46,7 @@ struct DemoDetailScreen: View {
           Label(runButtonTitle, systemImage: runButtonSymbol)
         }
         .primaryActionButton(tint: demo.accent)
+        .disabled(model.isRunning)
       }
       .padding(.horizontal, 20)
       .padding(.top, 12)
@@ -214,7 +215,7 @@ struct DemoDetailScreen: View {
           SectionEyebrow(text: "Events")
 
           ForEach(timeline.events) { event in
-            VStack(alignment: .leading, spacing: 8) {
+            DetailRecordCard {
               Label(event.title, systemImage: event.kind.symbolName)
                 .font(.system(.subheadline, design: .rounded).weight(.semibold))
                 .foregroundStyle(event.kind.accent)
@@ -226,16 +227,6 @@ struct DemoDetailScreen: View {
 
               InspectorFieldList(fields: event.fields)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(12)
-            .background(
-              RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.white.opacity(0.56))
-            )
-            .overlay(
-              RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(ThemeColor.fallbackStroke, lineWidth: 1)
-            )
           }
         }
 
@@ -276,7 +267,7 @@ struct DemoDetailScreen: View {
             SectionEyebrow(text: "Frames")
 
             ForEach(socket.frames) { frame in
-              VStack(alignment: .leading, spacing: 8) {
+              DetailRecordCard {
                 Label(frame.title, systemImage: frame.direction.symbolName)
                   .font(.system(.subheadline, design: .rounded).weight(.semibold))
                   .foregroundStyle(frame.direction.accent)
@@ -287,16 +278,6 @@ struct DemoDetailScreen: View {
                   .textSelection(.enabled)
                   .fixedSize(horizontal: false, vertical: true)
               }
-              .frame(maxWidth: .infinity, alignment: .leading)
-              .padding(12)
-              .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                  .fill(Color.white.opacity(0.56))
-              )
-              .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                  .strokeBorder(ThemeColor.fallbackStroke, lineWidth: 1)
-              )
             }
           }
 
@@ -390,62 +371,6 @@ struct DemoDetailScreen: View {
       "arrow.clockwise.circle.fill"
     case .failed:
       "exclamationmark.arrow.circlepath"
-    }
-  }
-}
-
-private extension DemoSocketFrame.Direction {
-  var accent: Color {
-    switch self {
-    case .outbound:
-      ThemeColor.ocean
-    case .inbound:
-      ThemeColor.mint
-    case .close:
-      ThemeColor.ruby
-    }
-  }
-
-  var symbolName: String {
-    switch self {
-    case .outbound:
-      "arrow.up.forward.circle"
-    case .inbound:
-      "arrow.down.backward.circle"
-    case .close:
-      "xmark.circle"
-    }
-  }
-}
-
-private extension DemoActivityEntry.Kind {
-  var accent: Color {
-    switch self {
-    case .started:
-      ThemeColor.ocean
-    case .completed:
-      ThemeColor.mint
-    case .failed:
-      ThemeColor.ruby
-    case .retried:
-      ThemeColor.plum
-    case .socket:
-      ThemeColor.ruby
-    }
-  }
-
-  var symbolName: String {
-    switch self {
-    case .started:
-      "play.circle"
-    case .completed:
-      "checkmark.circle"
-    case .failed:
-      "exclamationmark.triangle"
-    case .retried:
-      "arrow.clockwise.circle"
-    case .socket:
-      "dot.radiowaves.left.and.right"
     }
   }
 }

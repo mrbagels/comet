@@ -453,6 +453,15 @@ final class DemoCatalog {
   var mode: ClientMode = .mock {
     didSet {
       guard oldValue != mode else { return }
+      guard !self.isRestoringMode else { return }
+      guard !self.isRunning else {
+        let attemptedMode = self.mode
+        self.isRestoringMode = true
+        self.mode = oldValue
+        self.isRestoringMode = false
+        self.runSummary = "A proof run is in progress. Wait for it to finish before switching to \(attemptedMode.title) mode."
+        return
+      }
       self.configureClient()
     }
   }
@@ -464,6 +473,8 @@ final class DemoCatalog {
   private var client: HTTPClient
   private var socketClient: WebSocketClient
   private let activityObserver = ActivityObserver()
+  private var activeRunCount = 0
+  @ObservationIgnored private var isRestoringMode = false
 
   init() {
     self.demoStates = Self.makeInitialStates()
@@ -482,6 +493,10 @@ final class DemoCatalog {
 
   var inFlightChecks: Int {
     self.demoStates.values.filter { $0.status == .running }.count
+  }
+
+  var isRunning: Bool {
+    self.activeRunCount > 0
   }
 
   func state(for demo: Demo) -> DemoState {
@@ -568,6 +583,12 @@ final class DemoCatalog {
   }
 
   func run(_ demo: Demo) async {
+    guard self.beginRun() else { return }
+    defer { self.finishRun() }
+    await self.perform(demo)
+  }
+
+  private func perform(_ demo: Demo) async {
     self.demoStates[demo]?.status = .running
     self.demoStates[demo]?.detail = "Request in flight..."
 
@@ -907,18 +928,26 @@ final class DemoCatalog {
   }
 
   func runCurrentModeProof() async {
+    guard self.beginRun() else { return }
+    defer { self.finishRun() }
+
     for demo in Demo.allCases {
-      await self.run(demo)
+      await self.perform(demo)
     }
   }
 
   func run(category: DemoCategory) async {
+    guard self.beginRun() else { return }
+    defer { self.finishRun() }
+
     for demo in category.demos {
-      await self.run(demo)
+      await self.perform(demo)
     }
   }
 
   func runMockProof() async {
+    guard !self.isRunning else { return }
+
     if self.mode != .mock {
       self.mode = .mock
     }
@@ -927,9 +956,27 @@ final class DemoCatalog {
   }
 
   func clearSession() {
+    guard !self.isRunning else {
+      self.runSummary = "A proof run is in progress. Wait for it to finish before clearing the session."
+      return
+    }
+
     self.demoStates = Self.makeInitialStates()
     self.activityLog.removeAll()
     self.runSummary = "Start in \(self.mode.title) mode and run the proof set to verify Comet end-to-end."
+  }
+
+  private func beginRun() -> Bool {
+    guard self.activeRunCount == 0 else {
+      self.runSummary = "A proof run is already in progress."
+      return false
+    }
+    self.activeRunCount = 1
+    return true
+  }
+
+  private func finishRun() {
+    self.activeRunCount = 0
   }
 
   private func configureClient() {

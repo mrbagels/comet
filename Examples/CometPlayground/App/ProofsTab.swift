@@ -44,8 +44,9 @@ struct ProofsTab: View {
           Button {
             Task { await model.runCurrentModeProof() }
           } label: {
-            Image(systemName: "play.circle")
+            Label("Run current proof suite", systemImage: "play.circle")
           }
+          .disabled(model.isRunning)
         }
       }
     }
@@ -60,7 +61,9 @@ private struct ProofsOverviewPanel: View {
   let model: DemoCatalog
 
   var body: some View {
-    GlassPanel(tint: model.mode.accent) {
+    @Bindable var model = model
+
+    return GlassPanel(tint: model.mode.accent) {
       HStack(alignment: .top, spacing: 16) {
         VStack(alignment: .leading, spacing: 8) {
           SectionEyebrow(text: "Focused Flow")
@@ -75,15 +78,13 @@ private struct ProofsOverviewPanel: View {
         ModeBadge(mode: model.mode)
       }
 
-      Picker("Client Mode", selection: Binding(
-        get: { model.mode },
-        set: { model.mode = $0 }
-      )) {
+      Picker("Client Mode", selection: $model.mode) {
         ForEach(DemoCatalog.ClientMode.allCases) { mode in
           Text(mode.title).tag(mode)
         }
       }
       .pickerStyle(.segmented)
+      .disabled(model.isRunning)
 
       Text("Switch the transport here when you want every proof detail page to run against a different HTTP and WebSocket client setup.")
         .font(.system(.subheadline))
@@ -206,11 +207,12 @@ private struct ProofCategoryScreen: View {
         Button {
           Task { await model.run(category: category) }
         } label: {
-          Label("Run \(category.title) Track", systemImage: "play.circle.fill")
-        }
-        .primaryActionButton(tint: category.accent)
+        Label("Run \(category.title) Track", systemImage: "play.circle.fill")
       }
-      .padding(.horizontal, 20)
+      .primaryActionButton(tint: category.accent)
+      .disabled(model.isRunning)
+    }
+    .padding(.horizontal, 20)
       .padding(.top, 12)
       .padding(.bottom, 8)
       .background(.clear)

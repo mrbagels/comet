@@ -70,7 +70,9 @@ struct HomeTab: View {
   }
 
   private var sessionPanel: some View {
-    GlassPanel(tint: model.mode.accent) {
+    @Bindable var model = model
+
+    return GlassPanel(tint: model.mode.accent) {
       HStack(alignment: .top, spacing: 16) {
         VStack(alignment: .leading, spacing: 8) {
           SectionEyebrow(text: "Session")
@@ -85,15 +87,13 @@ struct HomeTab: View {
         ModeBadge(mode: model.mode)
       }
 
-      Picker("Client Mode", selection: Binding(
-        get: { model.mode },
-        set: { model.mode = $0 }
-      )) {
+      Picker("Client Mode", selection: $model.mode) {
         ForEach(DemoCatalog.ClientMode.allCases) { mode in
           Text(mode.title).tag(mode)
         }
       }
       .pickerStyle(.segmented)
+      .disabled(model.isRunning)
 
       Label(model.mode.blurb, systemImage: model.mode == .mock ? "checkmark.shield" : "globe")
         .font(.system(.body))
@@ -107,6 +107,7 @@ struct HomeTab: View {
           Label("Run Mock Proof", systemImage: "checklist.checked")
         }
         .primaryActionButton(tint: ThemeColor.mint)
+        .disabled(model.isRunning)
 
         Button {
           Task { await model.runCurrentModeProof() }
@@ -114,6 +115,7 @@ struct HomeTab: View {
           Label("Run \(model.mode.title) Suite", systemImage: "bolt.horizontal.circle")
         }
         .secondaryActionButton()
+        .disabled(model.isRunning)
 
         Button {
           model.clearSession()
@@ -121,6 +123,7 @@ struct HomeTab: View {
           Label("Clear Session", systemImage: "arrow.counterclockwise")
         }
         .secondaryActionButton()
+        .disabled(model.isRunning)
       }
     }
   }

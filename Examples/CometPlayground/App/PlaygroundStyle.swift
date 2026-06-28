@@ -307,6 +307,30 @@ struct InspectorFieldList: View {
   }
 }
 
+struct DetailRecordCard<Content: View>: View {
+  @ViewBuilder let content: Content
+
+  init(@ViewBuilder content: () -> Content) {
+    self.content = content()
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      content
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .padding(12)
+    .background(
+      RoundedRectangle(cornerRadius: 16, style: .continuous)
+        .fill(Color.white.opacity(0.56))
+    )
+    .overlay(
+      RoundedRectangle(cornerRadius: 16, style: .continuous)
+        .strokeBorder(ThemeColor.fallbackStroke, lineWidth: 1)
+    )
+  }
+}
+
 extension View {
   @ViewBuilder
   func liquidPanel(tint: Color? = nil, cornerRadius: CGFloat = 28) -> some View {
@@ -362,6 +386,77 @@ extension View {
       self.buttonStyle(.glass)
     } else {
       self.buttonStyle(FallbackGlassButtonStyle())
+    }
+  }
+}
+
+extension DemoActivityEntry.Kind {
+  var title: String {
+    switch self {
+    case .started:
+      "Started"
+    case .completed:
+      "Completed"
+    case .failed:
+      "Failed"
+    case .retried:
+      "Retried"
+    case .socket:
+      "Socket"
+    }
+  }
+
+  var accent: Color {
+    switch self {
+    case .started:
+      ThemeColor.ocean
+    case .completed:
+      ThemeColor.mint
+    case .failed:
+      ThemeColor.ruby
+    case .retried:
+      ThemeColor.sunset
+    case .socket:
+      ThemeColor.ruby
+    }
+  }
+
+  var symbolName: String {
+    switch self {
+    case .started:
+      "arrow.up.forward.circle"
+    case .completed:
+      "checkmark.circle"
+    case .failed:
+      "exclamationmark.triangle"
+    case .retried:
+      "arrow.clockwise"
+    case .socket:
+      "dot.radiowaves.left.and.right"
+    }
+  }
+}
+
+extension DemoSocketFrame.Direction {
+  var accent: Color {
+    switch self {
+    case .outbound:
+      ThemeColor.ocean
+    case .inbound:
+      ThemeColor.mint
+    case .close:
+      ThemeColor.ruby
+    }
+  }
+
+  var symbolName: String {
+    switch self {
+    case .outbound:
+      "arrow.up.forward.circle"
+    case .inbound:
+      "arrow.down.backward.circle"
+    case .close:
+      "xmark.circle"
     }
   }
 }
