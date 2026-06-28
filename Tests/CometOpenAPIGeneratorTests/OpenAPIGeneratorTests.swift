@@ -235,6 +235,142 @@ import CometOpenAPIGenerator
   #expect(!output.contains("CreatePetRequest<Body"))
 }
 
+@Test func openAPIGeneratorCreatesComponentAliasesToReferences() throws {
+  let output = try OpenAPIGenerator().generate(
+    jsonString: """
+    {
+      "openapi": "3.1.0",
+      "components": {
+        "schemas": {
+          "Pet": {
+            "type": "object",
+            "required": ["id"],
+            "properties": {
+              "id": { "type": "integer" }
+            }
+          },
+          "pet-alias": {
+            "$ref": "#/components/schemas/Pet"
+          }
+        }
+      },
+      "paths": {
+        "/pets/{petId}": {
+          "get": {
+            "operationId": "getPetAlias",
+            "parameters": [
+              {
+                "name": "petId",
+                "in": "path",
+                "required": true,
+                "schema": { "type": "integer" }
+              }
+            ],
+            "responses": {
+              "200": {
+                "description": "OK",
+                "content": {
+                  "application/json": {
+                    "schema": { "$ref": "#/components/schemas/pet-alias" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    """
+  )
+
+  #expect(output.contains("public struct Pet: Codable, Sendable"))
+  #expect(output.contains("public typealias PetAlias = Pet"))
+  #expect(output.contains("public typealias Response = PetAlias"))
+  #expect(output.contains("public let responseSerializer: ResponseSerializer<PetAlias> = .json(PetAlias.self)"))
+}
+
+@Test func openAPIGeneratorCreatesNestedInlineObjectComponentModels() throws {
+  let output = try OpenAPIGenerator().generate(
+    jsonString: """
+    {
+      "openapi": "3.1.0",
+      "components": {
+        "schemas": {
+          "Pet": {
+            "type": "object",
+            "required": ["id", "owner"],
+            "properties": {
+              "id": { "type": "integer" },
+              "owner": {
+                "type": "object",
+                "required": ["id"],
+                "properties": {
+                  "id": { "type": "string" },
+                  "display-name": { "type": "string" },
+                  "preferences": {
+                    "type": "object",
+                    "properties": {
+                      "email-opt-in": { "type": "boolean" }
+                    }
+                  }
+                }
+              },
+              "visit-history": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["date"],
+                  "properties": {
+                    "date": { "type": "string", "format": "date" },
+                    "notes": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "paths": {
+        "/pets": {
+          "get": {
+            "operationId": "listPets",
+            "responses": {
+              "200": {
+                "description": "OK",
+                "content": {
+                  "application/json": {
+                    "schema": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Pet" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    """
+  )
+
+  #expect(output.contains("public struct Pet: Codable, Sendable"))
+  #expect(output.contains("public struct Owner: Codable, Sendable"))
+  #expect(output.contains("public struct Preferences: Codable, Sendable"))
+  #expect(output.contains("public struct VisitHistoryItem: Codable, Sendable"))
+  #expect(output.contains("public let owner: Owner"))
+  #expect(output.contains("public let visitHistory: [VisitHistoryItem]?"))
+  #expect(output.contains("public let displayName: String?"))
+  #expect(output.contains("public let preferences: Preferences?"))
+  #expect(output.contains("public let emailOptIn: Bool?"))
+  #expect(output.contains("public let date: Date"))
+  #expect(output.contains("public let notes: String?"))
+  #expect(output.contains(#"case displayName = "display-name""#))
+  #expect(output.contains(#"case emailOptIn = "email-opt-in""#))
+  #expect(output.contains(#"case visitHistory = "visit-history""#))
+  #expect(output.contains("public typealias Response = [Pet]"))
+}
+
 @Test func openAPIGeneratorInheritsAndOverridesPathItemParameters() throws {
   let output = try OpenAPIGenerator().generate(
     jsonString: """

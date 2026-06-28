@@ -473,18 +473,27 @@ private struct GeneratedSchemaModel {
     self.typeName = name.swiftTypeName()
     self.schema = schema
     self.components = components
-
-    if schema.ref != nil {
-      throw OpenAPIGeneratorError.unsupported("Component schemas cannot be aliases to $ref yet: \(name).")
-    }
   }
 
   func renderedLines() throws -> [String] {
+    if self.schema.ref != nil,
+       let aliasedType = try self.schema.swiftType(components: self.components, inlineObjectFallback: nil) {
+      return [
+        "\(self.accessModifier) typealias \(self.typeName) = \(aliasedType)"
+      ]
+    }
     if let enumValues = self.schema.enumValues, self.schema.type == "string" {
       return try self.renderedEnumLines(enumValues)
     }
     if self.schema.type == "object" || !self.schema.properties.isEmpty {
-      return try self.renderedObjectLines()
+      return try GeneratedObjectSchemaRenderer(
+        accessModifier: self.accessModifier,
+        originalName: self.originalName,
+        typeName: self.typeName,
+        schema: self.schema,
+        components: self.components
+      )
+      .renderedLines()
     }
     if self.schema.type == "array", let items = self.schema.items {
       let elementType = try items.swiftType(components: self.components, inlineObjectFallback: nil)
@@ -527,12 +536,23 @@ private struct GeneratedSchemaModel {
     return lines
   }
 
-  private func renderedObjectLines() throws -> [String] {
+}
+
+private struct GeneratedObjectSchemaRenderer {
+  let accessModifier: String
+  let originalName: String
+  let typeName: String
+  let schema: OpenAPISchema
+  let components: [String: OpenAPISchema]
+  var indentation = ""
+
+  func renderedLines() throws -> [String] {
     let properties = try self.schema.properties.keys.sorted().map { name in
       try GeneratedSchemaProperty(
         name: name,
         schema: self.schema.properties[name]!,
         isRequired: self.schema.required.contains(name),
+        accessModifier: self.accessModifier,
         components: self.components
       )
     }
@@ -545,44 +565,59 @@ private struct GeneratedSchemaModel {
         "\(self.originalName) has properties that generate duplicate Swift names: \(duplicatePropertyNames.joined(separator: ", "))."
       )
     }
+    let nestedModels = properties.flatMap(\.nestedModels)
+    let duplicateNestedTypeNames = Dictionary(grouping: nestedModels, by: \.typeName)
+      .filter { $0.value.count > 1 }
+      .map(\.key)
+      .sorted()
+    guard duplicateNestedTypeNames.isEmpty else {
+      throw OpenAPIGeneratorError.invalidDocument(
+        "\(self.originalName) has nested schemas that generate duplicate Swift type names: \(duplicateNestedTypeNames.joined(separator: ", "))."
+      )
+    }
 
     var lines: [String] = []
-    lines.append("\(self.accessModifier) struct \(self.typeName): Codable, Sendable {")
+    lines.append("\(self.indentation)\(self.accessModifier) struct \(self.typeName): Codable, Sendable {")
     if properties.isEmpty {
-      lines.append("  \(self.accessModifier) init() {}")
-      lines.append("}")
+      lines.append("\(self.indentation)  \(self.accessModifier) init() {}")
+      lines.append("\(self.indentation)}")
       return lines
     }
 
+    for nestedModel in nestedModels {
+      lines.append(contentsOf: try nestedModel.renderedLines(indentation: "\(self.indentation)  "))
+      lines.append("")
+    }
+
     for property in properties {
-      lines.append("  \(self.accessModifier) let \(property.swiftName): \(property.swiftType)")
+      lines.append("\(self.indentation)  \(self.accessModifier) let \(property.swiftName): \(property.swiftType)")
     }
 
     lines.append("")
-    lines.append("  \(self.accessModifier) init(")
+    lines.append("\(self.indentation)  \(self.accessModifier) init(")
     for index in properties.indices {
-      lines.append(properties[index].initArgument + (index == properties.indices.last ? "" : ","))
+      lines.append(properties[index].initArgument(indentation: self.indentation) + (index == properties.indices.last ? "" : ","))
     }
-    lines.append("  ) {")
+    lines.append("\(self.indentation)  ) {")
     for property in properties {
-      lines.append("    self.\(property.swiftName) = \(property.swiftName)")
+      lines.append("\(self.indentation)    self.\(property.swiftName) = \(property.swiftName)")
     }
-    lines.append("  }")
+    lines.append("\(self.indentation)  }")
 
     if properties.contains(where: { $0.swiftName.unescapedSwiftIdentifier != $0.originalName }) {
       lines.append("")
-      lines.append("  private enum CodingKeys: String, CodingKey {")
+      lines.append("\(self.indentation)  private enum CodingKeys: String, CodingKey {")
       for property in properties {
         if property.swiftName.unescapedSwiftIdentifier == property.originalName {
-          lines.append("    case \(property.swiftName)")
+          lines.append("\(self.indentation)    case \(property.swiftName)")
         } else {
-          lines.append("    case \(property.swiftName) = \(property.originalName.swiftLiteral)")
+          lines.append("\(self.indentation)    case \(property.swiftName) = \(property.originalName.swiftLiteral)")
         }
       }
-      lines.append("  }")
+      lines.append("\(self.indentation)  }")
     }
 
-    lines.append("}")
+    lines.append("\(self.indentation)}")
     return lines
   }
 }
@@ -592,24 +627,70 @@ private struct GeneratedSchemaProperty {
   let swiftName: String
   let swiftType: String
   let isRequired: Bool
+  let nestedModels: [GeneratedNestedSchemaModel]
 
   init(
     name: String,
     schema: OpenAPISchema,
     isRequired: Bool,
+    accessModifier: String,
     components: [String: OpenAPISchema]
   ) throws {
     self.originalName = name
     self.swiftName = name.swiftIdentifier()
     self.isRequired = isRequired && !schema.nullable
-    guard let type = try schema.swiftType(components: components, inlineObjectFallback: nil) else {
+    let baseType: String
+    if let type = try schema.swiftType(components: components, inlineObjectFallback: nil) {
+      baseType = type
+      self.nestedModels = []
+    } else if schema.isInlineObject {
+      let nestedModel = GeneratedNestedSchemaModel(
+        accessModifier: accessModifier,
+        originalName: name,
+        typeName: name.swiftTypeName(),
+        schema: schema,
+        components: components
+      )
+      baseType = nestedModel.typeName
+      self.nestedModels = [nestedModel]
+    } else if schema.type == "array", let items = schema.items, items.isInlineObject {
+      let nestedModel = GeneratedNestedSchemaModel(
+        accessModifier: accessModifier,
+        originalName: name,
+        typeName: "\(name.swiftTypeName())Item",
+        schema: items,
+        components: components
+      )
+      baseType = "[\(nestedModel.typeName)]"
+      self.nestedModels = [nestedModel]
+    } else {
       throw OpenAPIGeneratorError.unsupported("Nested inline object schemas are not generated yet: \(name).")
     }
-    self.swiftType = self.isRequired ? type : "\(type)?"
+    self.swiftType = self.isRequired ? baseType : "\(baseType)?"
   }
 
-  var initArgument: String {
-    "    \(self.swiftName): \(self.swiftType)\(self.isRequired ? "" : " = nil")"
+  func initArgument(indentation: String) -> String {
+    "\(indentation)    \(self.swiftName): \(self.swiftType)\(self.isRequired ? "" : " = nil")"
+  }
+}
+
+private struct GeneratedNestedSchemaModel {
+  let accessModifier: String
+  let originalName: String
+  let typeName: String
+  let schema: OpenAPISchema
+  let components: [String: OpenAPISchema]
+
+  func renderedLines(indentation: String) throws -> [String] {
+    try GeneratedObjectSchemaRenderer(
+      accessModifier: self.accessModifier,
+      originalName: self.originalName,
+      typeName: self.typeName,
+      schema: self.schema,
+      components: self.components,
+      indentation: indentation
+    )
+    .renderedLines()
   }
 }
 
@@ -891,11 +972,13 @@ private final class OpenAPISchema: Decodable {
       return "String"
     }
     if self.type == "array" {
-      let itemType = try self.items?.swiftType(components: components, inlineObjectFallback: inlineObjectFallback)
-        ?? "String"
+      guard let items else { return "[String]" }
+      guard let itemType = try items.swiftType(components: components, inlineObjectFallback: inlineObjectFallback) else {
+        return nil
+      }
       return "[\(itemType)]"
     }
-    if self.type == "object" || !self.properties.isEmpty {
+    if self.isInlineObject {
       return inlineObjectFallback
     }
 
@@ -924,13 +1007,19 @@ private final class OpenAPISchema: Decodable {
   }
 
   private static func componentName(forReference ref: String) throws -> String {
-    guard let name = ref.split(separator: "/").last.map(String.init), !name.isEmpty else {
+    guard let encodedName = ref.split(separator: "/").last.map(String.init), !encodedName.isEmpty else {
       throw OpenAPIGeneratorError.invalidDocument("Unsupported schema reference: \(ref).")
     }
     guard ref.hasPrefix("#/components/schemas/") else {
       throw OpenAPIGeneratorError.unsupported("Only local component schema references are generated: \(ref).")
     }
-    return name.swiftTypeName()
+    return encodedName
+      .replacingOccurrences(of: "~1", with: "/")
+      .replacingOccurrences(of: "~0", with: "~")
+  }
+
+  var isInlineObject: Bool {
+    self.ref == nil && (self.type == "object" || !self.properties.isEmpty)
   }
 }
 
