@@ -482,10 +482,18 @@ private struct GeneratedSchemaModel {
         "\(self.accessModifier) typealias \(self.typeName) = \(aliasedType)"
       ]
     }
+    if let dictionaryType = try self.schema.dictionarySwiftType(
+      components: self.components,
+      inlineObjectFallback: nil
+    ) {
+      return [
+        "\(self.accessModifier) typealias \(self.typeName) = \(dictionaryType)"
+      ]
+    }
     if let enumValues = self.schema.enumValues, self.schema.type == "string" {
       return try self.renderedEnumLines(enumValues)
     }
-    if self.schema.type == "object" || !self.schema.properties.isEmpty {
+    if self.schema.isObjectLike {
       return try GeneratedObjectSchemaRenderer(
         accessModifier: self.accessModifier,
         originalName: self.originalName,
@@ -547,11 +555,11 @@ private struct GeneratedObjectSchemaRenderer {
   var indentation = ""
 
   func renderedLines() throws -> [String] {
-    let properties = try self.schema.properties.keys.sorted().map { name in
+    let properties = try self.schema.objectPropertyEntries(components: self.components).map { entry in
       try GeneratedSchemaProperty(
-        name: name,
-        schema: self.schema.properties[name]!,
-        isRequired: self.schema.required.contains(name),
+        name: entry.name,
+        schema: entry.schema,
+        isRequired: entry.isRequired,
         accessModifier: self.accessModifier,
         components: self.components
       )
@@ -889,6 +897,27 @@ private struct OpenAPIMediaType: Decodable {
   let schema: OpenAPISchema?
 }
 
+private enum OpenAPIAdditionalProperties: Decodable {
+  case allowed
+  case disallowed
+  case schema(OpenAPISchema)
+
+  init(from decoder: any Decoder) throws {
+    let container = try decoder.singleValueContainer()
+    if let allowed = try? container.decode(Bool.self) {
+      self = allowed ? .allowed : .disallowed
+    } else {
+      self = .schema(try container.decode(OpenAPISchema.self))
+    }
+  }
+}
+
+private struct OpenAPIObjectPropertyEntry {
+  let name: String
+  let schema: OpenAPISchema
+  let isRequired: Bool
+}
+
 private final class OpenAPISchema: Decodable {
   let ref: String?
   let type: String?
@@ -898,6 +927,8 @@ private final class OpenAPISchema: Decodable {
   let items: OpenAPISchema?
   let properties: [String: OpenAPISchema]
   let required: Set<String>
+  let additionalProperties: OpenAPIAdditionalProperties?
+  let allOf: [OpenAPISchema]
 
   init(
     ref: String? = nil,
@@ -907,7 +938,9 @@ private final class OpenAPISchema: Decodable {
     enumValues: [String]? = nil,
     items: OpenAPISchema? = nil,
     properties: [String: OpenAPISchema] = [:],
-    required: Set<String> = []
+    required: Set<String> = [],
+    additionalProperties: OpenAPIAdditionalProperties? = nil,
+    allOf: [OpenAPISchema] = []
   ) {
     self.ref = ref
     self.type = type
@@ -917,6 +950,8 @@ private final class OpenAPISchema: Decodable {
     self.items = items
     self.properties = properties
     self.required = required
+    self.additionalProperties = additionalProperties
+    self.allOf = allOf
   }
 
   private enum CodingKeys: String, CodingKey {
@@ -928,6 +963,8 @@ private final class OpenAPISchema: Decodable {
     case items
     case properties
     case required
+    case additionalProperties
+    case allOf
   }
 
   convenience init(from decoder: any Decoder) throws {
@@ -953,7 +990,12 @@ private final class OpenAPISchema: Decodable {
       enumValues: try container.decodeIfPresent([String].self, forKey: .enumValues),
       items: try container.decodeIfPresent(OpenAPISchema.self, forKey: .items),
       properties: try container.decodeIfPresent([String: OpenAPISchema].self, forKey: .properties) ?? [:],
-      required: Set(try container.decodeIfPresent([String].self, forKey: .required) ?? [])
+      required: Set(try container.decodeIfPresent([String].self, forKey: .required) ?? []),
+      additionalProperties: try container.decodeIfPresent(
+        OpenAPIAdditionalProperties.self,
+        forKey: .additionalProperties
+      ),
+      allOf: try container.decodeIfPresent([OpenAPISchema].self, forKey: .allOf) ?? []
     )
   }
 
@@ -977,6 +1019,12 @@ private final class OpenAPISchema: Decodable {
         return nil
       }
       return "[\(itemType)]"
+    }
+    if let dictionaryType = try self.dictionarySwiftType(
+      components: components,
+      inlineObjectFallback: inlineObjectFallback
+    ) {
+      return dictionaryType
     }
     if self.isInlineObject {
       return inlineObjectFallback
@@ -1018,8 +1066,93 @@ private final class OpenAPISchema: Decodable {
       .replacingOccurrences(of: "~0", with: "~")
   }
 
+  func dictionarySwiftType(
+    components: [String: OpenAPISchema],
+    inlineObjectFallback: String?
+  ) throws -> String? {
+    guard let additionalProperties else { return nil }
+    let hasNamedShape = !self.properties.isEmpty || !self.allOf.isEmpty
+    switch additionalProperties {
+    case .disallowed:
+      return nil
+    case .allowed:
+      guard hasNamedShape else {
+        throw OpenAPIGeneratorError.unsupported(
+          "Free-form additionalProperties schemas are not generated yet."
+        )
+      }
+      return nil
+    case let .schema(valueSchema):
+      guard !hasNamedShape else {
+        throw OpenAPIGeneratorError.unsupported(
+          "Object schemas that combine named properties and additionalProperties are not generated yet."
+        )
+      }
+      guard let valueType = try valueSchema.swiftType(
+        components: components,
+        inlineObjectFallback: inlineObjectFallback
+      ) else {
+        throw OpenAPIGeneratorError.unsupported(
+          "Dictionary schemas with inline object values are not generated yet."
+        )
+      }
+      return "[String: \(valueType)]"
+    }
+  }
+
+  func objectPropertyEntries(components: [String: OpenAPISchema]) throws -> [OpenAPIObjectPropertyEntry] {
+    if case .schema = self.additionalProperties, !self.properties.isEmpty || !self.allOf.isEmpty {
+      throw OpenAPIGeneratorError.unsupported(
+        "Object schemas that combine named properties and additionalProperties are not generated yet."
+      )
+    }
+    if case .allowed = self.additionalProperties, self.properties.isEmpty && self.allOf.isEmpty {
+      throw OpenAPIGeneratorError.unsupported("Free-form additionalProperties schemas are not generated yet.")
+    }
+
+    var entries: [OpenAPIObjectPropertyEntry] = []
+    for schema in self.allOf {
+      let resolvedSchema = try schema.resolved(components: components)
+      guard resolvedSchema.isObjectLike else {
+        throw OpenAPIGeneratorError.unsupported("allOf entries must resolve to object schemas.")
+      }
+      if try resolvedSchema.dictionarySwiftType(components: components, inlineObjectFallback: nil) != nil {
+        throw OpenAPIGeneratorError.unsupported(
+          "Dictionary schemas inside allOf object composition are not generated yet."
+        )
+      }
+      entries.append(contentsOf: try resolvedSchema.objectPropertyEntries(components: components))
+    }
+    entries.append(
+      contentsOf: self.properties.keys.sorted().map { name in
+        OpenAPIObjectPropertyEntry(
+          name: name,
+          schema: self.properties[name]!,
+          isRequired: self.required.contains(name)
+        )
+      }
+    )
+    return entries
+  }
+
+  func resolved(components: [String: OpenAPISchema]) throws -> OpenAPISchema {
+    guard let ref else { return self }
+    let componentName = try Self.componentName(forReference: ref)
+    guard let schema = components[componentName] else {
+      throw OpenAPIGeneratorError.invalidDocument("Schema reference was not found: \(ref).")
+    }
+    return schema
+  }
+
+  var isObjectLike: Bool {
+    self.type == "object"
+      || !self.properties.isEmpty
+      || !self.allOf.isEmpty
+      || self.additionalProperties != nil
+  }
+
   var isInlineObject: Bool {
-    self.ref == nil && (self.type == "object" || !self.properties.isEmpty)
+    self.ref == nil && self.isObjectLike
   }
 }
 

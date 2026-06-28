@@ -371,6 +371,154 @@ import CometOpenAPIGenerator
   #expect(output.contains("public typealias Response = [Pet]"))
 }
 
+@Test func openAPIGeneratorCreatesDictionarySchemaModels() throws {
+  let output = try OpenAPIGenerator().generate(
+    jsonString: """
+    {
+      "openapi": "3.1.0",
+      "components": {
+        "schemas": {
+          "MetadataMap": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          },
+          "ScoreMap": {
+            "type": "object",
+            "additionalProperties": { "type": "integer" }
+          },
+          "Owner": {
+            "type": "object",
+            "required": ["id"],
+            "properties": {
+              "id": { "type": "string" }
+            }
+          },
+          "Pet": {
+            "type": "object",
+            "properties": {
+              "labels": {
+                "type": "object",
+                "additionalProperties": { "type": "string" }
+              },
+              "ownersByRole": {
+                "type": "object",
+                "additionalProperties": { "$ref": "#/components/schemas/Owner" }
+              },
+              "scores": { "$ref": "#/components/schemas/ScoreMap" }
+            }
+          }
+        }
+      },
+      "paths": {
+        "/pets/{petId}": {
+          "get": {
+            "operationId": "getPet",
+            "parameters": [
+              {
+                "name": "petId",
+                "in": "path",
+                "required": true,
+                "schema": { "type": "integer" }
+              }
+            ],
+            "responses": {
+              "200": {
+                "description": "OK",
+                "content": {
+                  "application/json": {
+                    "schema": { "$ref": "#/components/schemas/Pet" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    """
+  )
+
+  #expect(output.contains("public typealias MetadataMap = [String: String]"))
+  #expect(output.contains("public typealias ScoreMap = [String: Int]"))
+  #expect(output.contains("public struct Owner: Codable, Sendable"))
+  #expect(output.contains("public let labels: [String: String]?"))
+  #expect(output.contains("public let ownersByRole: [String: Owner]?"))
+  #expect(output.contains("public let scores: ScoreMap?"))
+  #expect(output.contains("public typealias Response = Pet"))
+}
+
+@Test func openAPIGeneratorCreatesAllOfComponentModels() throws {
+  let output = try OpenAPIGenerator().generate(
+    jsonString: """
+    {
+      "openapi": "3.1.0",
+      "components": {
+        "schemas": {
+          "User": {
+            "type": "object",
+            "required": ["id"],
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" }
+            }
+          },
+          "Audited": {
+            "type": "object",
+            "properties": {
+              "createdAt": { "type": "string", "format": "date-time" }
+            }
+          },
+          "AdminUser": {
+            "allOf": [
+              { "$ref": "#/components/schemas/User" },
+              { "$ref": "#/components/schemas/Audited" },
+              {
+                "type": "object",
+                "required": ["role"],
+                "properties": {
+                  "role": { "type": "string" },
+                  "permissions": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "paths": {
+        "/admin/me": {
+          "get": {
+            "operationId": "getAdminUser",
+            "responses": {
+              "200": {
+                "description": "OK",
+                "content": {
+                  "application/json": {
+                    "schema": { "$ref": "#/components/schemas/AdminUser" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    """
+  )
+
+  #expect(output.contains("public struct AdminUser: Codable, Sendable"))
+  #expect(output.contains("public let id: String"))
+  #expect(output.contains("public let name: String?"))
+  #expect(output.contains("public let createdAt: Date?"))
+  #expect(output.contains("public let permissions: [String]?"))
+  #expect(output.contains("public let role: String"))
+  #expect(output.contains("role: String"))
+  #expect(output.contains("permissions: [String]? = nil"))
+  #expect(output.contains("public typealias Response = AdminUser"))
+}
+
 @Test func openAPIGeneratorInheritsAndOverridesPathItemParameters() throws {
   let output = try OpenAPIGenerator().generate(
     jsonString: """
@@ -501,6 +649,81 @@ import CometOpenAPIGenerator
               "operationId": "listPets",
               "responses": {
                 "204": { "description": "No Content" }
+              }
+            }
+          }
+        }
+      }
+      """
+    )
+  }
+}
+
+@Test func openAPIGeneratorRejectsUnsupportedAdditionalPropertiesShapes() throws {
+  #expect(throws: OpenAPIGeneratorError.self) {
+    _ = try OpenAPIGenerator().generate(
+      jsonString: """
+      {
+        "openapi": "3.1.0",
+        "components": {
+          "schemas": {
+            "FreeForm": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
+        },
+        "paths": {
+          "/free-form": {
+            "get": {
+              "operationId": "getFreeForm",
+              "responses": {
+                "200": {
+                  "description": "OK",
+                  "content": {
+                    "application/json": {
+                      "schema": { "$ref": "#/components/schemas/FreeForm" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      """
+    )
+  }
+
+  #expect(throws: OpenAPIGeneratorError.self) {
+    _ = try OpenAPIGenerator().generate(
+      jsonString: """
+      {
+        "openapi": "3.1.0",
+        "components": {
+          "schemas": {
+            "Mixed": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" }
+              },
+              "additionalProperties": { "type": "string" }
+            }
+          }
+        },
+        "paths": {
+          "/mixed": {
+            "get": {
+              "operationId": "getMixed",
+              "responses": {
+                "200": {
+                  "description": "OK",
+                  "content": {
+                    "application/json": {
+                      "schema": { "$ref": "#/components/schemas/Mixed" }
+                    }
+                  }
+                }
               }
             }
           }
