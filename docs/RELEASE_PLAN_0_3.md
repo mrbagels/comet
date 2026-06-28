@@ -87,6 +87,11 @@ Acceptance:
 Purpose: establish the smallest cache system that can serve real app reads
 without taking on full persistence or revalidation yet.
 
+Status: implemented in `Unreleased` with opt-in cache policy controls, cache
+keys, cached response values, a memory cache store, cache middleware, cache
+trace events, README and DocC coverage, and tests for safe-method caching and
+unsafe-method bypass.
+
 Deliverables:
 
 - Add `HTTPCachePolicy`, `HTTPCacheKey`, `CachedHTTPResponse`, and

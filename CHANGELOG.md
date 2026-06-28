@@ -15,6 +15,9 @@ live transports remain future minor-version work.
 - `TraceContext` and `TracePropagationMiddleware` for W3C `traceparent` propagation.
 - Propagated trace IDs on `RequestMetadata` and completed `RequestTrace` values.
 - Playground raw-response proof that shows the outbound trace header in mock mode.
+- `HTTPCachePolicy`, `HTTPCacheKey`, `CachedHTTPResponse`, `HTTPCacheStore`, and `MemoryHTTPCacheStore`.
+- `CacheMiddleware` for opt-in safe-method response caching.
+- Cache hit, miss, bypass, store, and skipped-store events on completed `RequestTrace` values.
 
 ### Changed
 

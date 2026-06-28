@@ -18,6 +18,7 @@ The shipped live transports today are ``URLSessionTransport`` and ``URLSessionWe
 ### Workflow Tutorials
 
 - <doc:AuthenticatedJSON>
+- <doc:CacheAwareRequests>
 - <doc:RetriesAndActivity>
 - <doc:RequestTracing>
 - <doc:StreamingAndProgress>
@@ -33,6 +34,11 @@ The shipped live transports today are ``URLSessionTransport`` and ``URLSessionWe
 - ``ClientConfiguration``
 - ``RequestOptions``
 - ``RequestMetadata``
+- ``HTTPCachePolicy``
+- ``HTTPCacheKey``
+- ``CachedHTTPResponse``
+- ``HTTPCacheStore``
+- ``MemoryHTTPCacheStore``
 - ``PreparedRequest``
 - ``ResponseSerializer``
 - ``ErrorResponseSerializer``
@@ -76,6 +82,7 @@ The shipped live transports today are ``URLSessionTransport`` and ``URLSessionWe
 - ``RetryMiddleware``
 - ``RequestRetryPolicy``
 - ``TracePropagationMiddleware``
+- ``CacheMiddleware``
 - ``LoggingMiddleware``
 - ``CURLCommandStyle``
 - ``CURLCommandBodyFormatting``
@@ -83,6 +90,7 @@ The shipped live transports today are ``URLSessionTransport`` and ``URLSessionWe
 - ``NetworkEvent``
 - ``TraceContext``
 - ``RequestTrace``
+- ``RequestCacheTraceEvent``
 - ``RequestTraceAttempt``
 - ``RequestTraceResult``
 - ``NetworkActivityBufferingPolicy``

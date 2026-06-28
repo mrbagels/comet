@@ -37,7 +37,15 @@ struct MiddlewareChain: Sendable {
       let initialResult: Result<RawResponse, NetworkError>
       let attemptStartedAt = self.now()
       do {
-        let response = try await perform(currentRequest)
+        let response: RawResponse
+        if let middlewareResponse = try await self.responseFromMiddleware(
+          currentRequest,
+          context: currentContext
+        ) {
+          response = middlewareResponse
+        } else {
+          response = try await perform(currentRequest)
+        }
         initialResult = .success(response)
       } catch {
         initialResult = .failure(.from(error))
@@ -96,5 +104,20 @@ struct MiddlewareChain: Sendable {
         throw error
       }
     }
+  }
+
+  private func responseFromMiddleware(
+    _ request: PreparedRequest,
+    context: MiddlewareContext
+  ) async throws(NetworkError) -> RawResponse? {
+    for middleware in self.middleware {
+      guard let responseProvider = middleware as? any ResponseProvidingMiddleware else {
+        continue
+      }
+      if let response = try await responseProvider.respond(to: request, context: context) {
+        return response
+      }
+    }
+    return nil
   }
 }

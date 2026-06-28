@@ -10,6 +10,7 @@ public struct RequestTrace: Identifiable, Sendable {
   public let duration: Duration
   public let result: RequestTraceResult
   public let traceContext: TraceContext?
+  public let cacheEvents: [RequestCacheTraceEvent]
 
   public init(
     id: UUID,
@@ -28,6 +29,7 @@ public struct RequestTrace: Identifiable, Sendable {
     self.duration = duration
     self.result = result
     self.traceContext = nil
+    self.cacheEvents = []
   }
 
   public init(
@@ -40,6 +42,30 @@ public struct RequestTrace: Identifiable, Sendable {
     result: RequestTraceResult,
     traceContext: TraceContext?
   ) {
+    self.init(
+      id: id,
+      metadata: metadata,
+      method: method,
+      url: url,
+      attempts: attempts,
+      duration: duration,
+      result: result,
+      traceContext: traceContext,
+      cacheEvents: []
+    )
+  }
+
+  public init(
+    id: UUID,
+    metadata: RequestMetadata,
+    method: HTTPMethod,
+    url: URL,
+    attempts: [RequestTraceAttempt],
+    duration: Duration,
+    result: RequestTraceResult,
+    traceContext: TraceContext?,
+    cacheEvents: [RequestCacheTraceEvent]
+  ) {
     self.id = id
     self.metadata = metadata
     self.method = method
@@ -48,6 +74,7 @@ public struct RequestTrace: Identifiable, Sendable {
     self.duration = duration
     self.result = result
     self.traceContext = traceContext
+    self.cacheEvents = cacheEvents
   }
 
   /// Number of bytes in the first prepared request body.

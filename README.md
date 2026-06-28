@@ -16,7 +16,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/github/license/mrbagels/comet" alt="License"></a>
 </p>
 
-Comet turns API endpoints into Swift types. It ships with a `URLSession`-backed live client, middleware for production behavior, deterministic testing transports, cassette recording and replay, request activity and trace streams, response streaming, transfer progress hooks, and resilient WebSocket sessions.
+Comet turns API endpoints into Swift types. It ships with a `URLSession`-backed live client, middleware for production behavior, opt-in response caching, deterministic testing transports, cassette recording and replay, request activity and trace streams, response streaming, transfer progress hooks, and resilient WebSocket sessions.
 
 The latest published release is `0.2.0`, the completed V2 foundation. Larger systems such as caching, server-side live transports, generated clients, and mock-server workflows remain future minor-version work.
 
@@ -24,7 +24,7 @@ The latest published release is `0.2.0`, the completed V2 foundation. Larger sys
 
 | Surface | What It Provides |
 | --- | --- |
-| `Comet` | Typed HTTP requests, WebSocket sessions, serializers, middleware, retry, deduplication, activity events, traces, streaming, and progress primitives |
+| `Comet` | Typed HTTP requests, WebSocket sessions, serializers, middleware, retry, cache, deduplication, activity events, traces, streaming, and progress primitives |
 | `CometTesting` | Mock transports, cassette recording, replay transports, and mock WebSocket sessions |
 | `CometTCA` | Lightweight Composable Architecture helpers for request effects |
 | `CometPlayground` | iPhone-first verification app for HTTP, replay, activity, and realtime flows |
@@ -177,6 +177,34 @@ var options: RequestOptions {
 
 for await trace in client.traces {
   print(trace.traceID as Any)
+}
+```
+
+### Opt-In Response Cache
+
+```swift
+let cache = MemoryHTTPCacheStore()
+
+let client = HTTPClient.live(
+  configuration: ClientConfiguration(
+    baseURL: URL(string: "https://api.example.com")!,
+    middleware: [
+      CacheMiddleware(store: cache)
+    ]
+  ),
+  transport: URLSessionTransport()
+)
+
+var options: RequestOptions {
+  RequestOptions(cachePolicy: .returnCacheElseLoad)
+}
+```
+
+Cache decisions are included in completed traces:
+
+```swift
+for await trace in client.traces {
+  print(trace.cacheEvents.map(\.kind))
 }
 ```
 

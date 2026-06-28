@@ -97,6 +97,30 @@ private struct SequenceTransport: HTTPTransport, Sendable {
   }
 }
 
+private actor CacheCountingTransportState {
+  private var callCount = 0
+
+  func next() -> RawResponse {
+    self.callCount += 1
+    return RawResponse(
+      data: Data("network-\(self.callCount)".utf8),
+      statusCode: 200
+    )
+  }
+
+  func count() -> Int {
+    self.callCount
+  }
+}
+
+private struct CacheCountingTransport: HTTPTransport, Sendable {
+  let state: CacheCountingTransportState
+
+  func send(_ request: PreparedRequest) async throws(NetworkError) -> RawResponse {
+    await self.state.next()
+  }
+}
+
 private actor AuthTestStore {
   private var tokenValue: String?
   private var refreshToken: String
@@ -907,6 +931,101 @@ private func durationMilliseconds(_ duration: Duration) -> Int64 {
   #expect(trace.traceContext?.traceparent == expectedContext.traceparent)
   #expect(trace.diagnosticSummary.contains(expectedContext.traceID))
   #expect(!trace.diagnosticSummary.contains("super-secret"))
+}
+
+@Test func cacheMiddlewareReturnsCachedSafeMethodResponses() async throws {
+  let store = MemoryHTTPCacheStore()
+  let transportState = CacheCountingTransportState()
+  let client = HTTPClient.live(
+    configuration: ClientConfiguration(
+      baseURL: URL(string: "https://example.com")!,
+      middleware: [CacheMiddleware(store: store)]
+    ),
+    transport: CacheCountingTransport(state: transportState)
+  )
+  var traces = client.traces.makeAsyncIterator()
+  let request = TestRequest(
+    path: "cache",
+    method: .get,
+    responseSerializer: .string(),
+    options: RequestOptions(cachePolicy: .returnCacheElseLoad)
+  )
+
+  let first = try await client.send(request)
+  let firstTrace = try #require(await traces.next())
+  let second = try await client.send(request)
+  let secondTrace = try #require(await traces.next())
+
+  #expect(first == "network-1")
+  #expect(second == "network-1")
+  #expect(await transportState.count() == 1)
+  #expect(await store.count == 1)
+  #expect(firstTrace.cacheEvents.map(\.kind) == [.miss, .store])
+  #expect(secondTrace.cacheEvents.map(\.kind) == [.hit, .skippedStore])
+}
+
+@Test func cacheMiddlewareBypassesUnsafeMethodsByDefault() async throws {
+  let store = MemoryHTTPCacheStore()
+  let transportState = CacheCountingTransportState()
+  let client = HTTPClient.live(
+    configuration: ClientConfiguration(
+      baseURL: URL(string: "https://example.com")!,
+      middleware: [CacheMiddleware(store: store)]
+    ),
+    transport: CacheCountingTransport(state: transportState)
+  )
+  var traces = client.traces.makeAsyncIterator()
+  let request = TestRequest(
+    path: "cache",
+    method: .post,
+    responseSerializer: .string(),
+    options: RequestOptions(cachePolicy: .returnCacheElseLoad)
+  )
+
+  let first = try await client.send(request)
+  let firstTrace = try #require(await traces.next())
+  let second = try await client.send(request)
+  let secondTrace = try #require(await traces.next())
+
+  #expect(first == "network-1")
+  #expect(second == "network-2")
+  #expect(await transportState.count() == 2)
+  #expect(await store.count == 0)
+  #expect(firstTrace.cacheEvents.map(\.reason) == [.unsafeMethod, .unsafeMethod])
+  #expect(secondTrace.cacheEvents.map(\.reason) == [.unsafeMethod, .unsafeMethod])
+}
+
+@Test func cacheMiddlewareReloadIgnoringCacheStoresReplacementResponse() async throws {
+  let store = MemoryHTTPCacheStore()
+  let transportState = CacheCountingTransportState()
+  let client = HTTPClient.live(
+    configuration: ClientConfiguration(
+      baseURL: URL(string: "https://example.com")!,
+      middleware: [CacheMiddleware(store: store)]
+    ),
+    transport: CacheCountingTransport(state: transportState)
+  )
+  let cachedRequest = TestRequest(
+    path: "cache",
+    method: .get,
+    responseSerializer: .string(),
+    options: RequestOptions(cachePolicy: .returnCacheElseLoad)
+  )
+  let reloadRequest = TestRequest(
+    path: "cache",
+    method: .get,
+    responseSerializer: .string(),
+    options: RequestOptions(cachePolicy: .reloadIgnoringCache)
+  )
+
+  let first = try await client.send(cachedRequest)
+  let second = try await client.send(reloadRequest)
+  let third = try await client.send(cachedRequest)
+
+  #expect(first == "network-1")
+  #expect(second == "network-2")
+  #expect(third == "network-2")
+  #expect(await transportState.count() == 2)
 }
 
 @Test func httpClientStreamsResponseLines() async throws {

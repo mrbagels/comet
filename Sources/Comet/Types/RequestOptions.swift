@@ -22,6 +22,8 @@ public struct RequestOptions: Sendable {
   public var retryPolicy: RequestRetryPolicy?
   /// Adds per-request middleware on top of the client's shared middleware.
   public var middleware: [any Middleware]
+  /// Controls how ``CacheMiddleware`` reads and writes cached responses for this request.
+  public var cachePolicy: HTTPCachePolicy
 
   /// Creates a request-specific override bundle with all options disabled by default.
   public init(
@@ -46,5 +48,33 @@ public struct RequestOptions: Sendable {
     self.redactionPolicy = redactionPolicy
     self.retryPolicy = retryPolicy
     self.middleware = middleware
+    self.cachePolicy = .disabled
+  }
+
+  /// Creates request-specific overrides including cache behavior.
+  public init(
+    apiVersion: String? = nil,
+    absoluteURL: URL? = nil,
+    timeout: Duration? = nil,
+    idempotencyKey: String? = nil,
+    deduplicationKey: String? = nil,
+    metadata: RequestMetadata = .none,
+    statusValidation: StatusValidation = .successCodes,
+    redactionPolicy: RedactionPolicy? = nil,
+    retryPolicy: RequestRetryPolicy? = nil,
+    middleware: [any Middleware] = [],
+    cachePolicy: HTTPCachePolicy
+  ) {
+    self.apiVersion = apiVersion
+    self.absoluteURL = absoluteURL
+    self.timeout = timeout
+    self.idempotencyKey = idempotencyKey
+    self.deduplicationKey = deduplicationKey
+    self.metadata = metadata
+    self.statusValidation = statusValidation
+    self.redactionPolicy = redactionPolicy
+    self.retryPolicy = retryPolicy
+    self.middleware = middleware
+    self.cachePolicy = cachePolicy
   }
 }

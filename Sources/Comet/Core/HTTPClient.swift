@@ -335,18 +335,22 @@ public struct HTTPClient: Sendable {
     progress: (@Sendable (TransferProgress) async -> Void)? = nil
   ) async throws(NetworkError) -> RawResponse {
     let requestID = self.configuration.makeRequestID()
-    let context = MiddlewareContext(
-      requestID: requestID,
-      attempt: 0,
-      startTime: self.configuration.now(),
-      randomDouble: self.configuration.randomDouble
-    )
     let traceRecorder = RequestTraceRecorder(
       id: requestID,
       metadata: request.metadata,
       method: request.method,
       url: request.url,
       traceContext: request.metadata.traceContext
+    )
+    let context = MiddlewareContext(
+      requestID: requestID,
+      attempt: 0,
+      startTime: self.configuration.now(),
+      cachePolicy: options.cachePolicy,
+      randomDouble: self.configuration.randomDouble,
+      recordCacheEvent: { event in
+        await traceRecorder.recordCacheEvent(event)
+      }
     )
     let chain = MiddlewareChain(
       middleware: self.configuration.middleware + options.middleware,
@@ -435,6 +439,7 @@ public struct HTTPClient: Sendable {
         requestID: requestID,
         attempt: 0,
         startTime: self.configuration.now(),
+        cachePolicy: request.options.cachePolicy,
         randomDouble: self.configuration.randomDouble
       )
       var currentRequest = prepared
@@ -649,6 +654,7 @@ private actor RequestTraceRecorder {
   let method: HTTPMethod
   let url: URL
   private var traceContext: TraceContext?
+  private var cacheEvents: [RequestCacheTraceEvent] = []
   private var attempts: [RequestTraceAttempt] = []
   private var pendingRetryDelays: [Int: Duration] = [:]
 
@@ -716,6 +722,10 @@ private actor RequestTraceRecorder {
     self.attempts[index].retryDelay = delay
   }
 
+  func recordCacheEvent(_ event: RequestCacheTraceEvent) {
+    self.cacheEvents.append(event)
+  }
+
   func makeTrace(
     duration: Duration,
     result: RequestTraceResult
@@ -728,7 +738,8 @@ private actor RequestTraceRecorder {
       attempts: self.attempts,
       duration: duration,
       result: result,
-      traceContext: self.traceContext
+      traceContext: self.traceContext,
+      cacheEvents: self.cacheEvents
     )
   }
 }

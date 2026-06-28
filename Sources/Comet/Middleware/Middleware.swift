@@ -14,6 +14,14 @@ public protocol Middleware: Sendable {
   ) async throws(NetworkError) -> MiddlewareResult
 }
 
+/// A middleware capability that can satisfy a request before transport execution.
+public protocol ResponseProvidingMiddleware: Middleware {
+  func respond(
+    to request: PreparedRequest,
+    context: MiddlewareContext
+  ) async throws(NetworkError) -> RawResponse?
+}
+
 public extension Middleware {
   /// Returns the request unchanged before transport execution.
   func prepare(
@@ -45,7 +53,9 @@ public struct MiddlewareContext: Sendable {
   public let requestID: UUID
   public let attempt: Int
   public let startTime: ContinuousClock.Instant
+  public let cachePolicy: HTTPCachePolicy
   public let randomDouble: @Sendable (ClosedRange<Double>) -> Double
+  public let recordCacheEvent: @Sendable (RequestCacheTraceEvent) async -> Void
 
   public init(
     requestID: UUID,
@@ -56,7 +66,25 @@ public struct MiddlewareContext: Sendable {
     self.requestID = requestID
     self.attempt = attempt
     self.startTime = startTime
+    self.cachePolicy = .disabled
     self.randomDouble = randomDouble
+    self.recordCacheEvent = { _ in }
+  }
+
+  public init(
+    requestID: UUID,
+    attempt: Int,
+    startTime: ContinuousClock.Instant,
+    cachePolicy: HTTPCachePolicy,
+    randomDouble: @escaping @Sendable (ClosedRange<Double>) -> Double = { Double.random(in: $0) },
+    recordCacheEvent: @escaping @Sendable (RequestCacheTraceEvent) async -> Void = { _ in }
+  ) {
+    self.requestID = requestID
+    self.attempt = attempt
+    self.startTime = startTime
+    self.cachePolicy = cachePolicy
+    self.randomDouble = randomDouble
+    self.recordCacheEvent = recordCacheEvent
   }
 
   func nextAttempt() -> Self {
@@ -64,7 +92,9 @@ public struct MiddlewareContext: Sendable {
       requestID: self.requestID,
       attempt: self.attempt + 1,
       startTime: self.startTime,
-      randomDouble: self.randomDouble
+      cachePolicy: self.cachePolicy,
+      randomDouble: self.randomDouble,
+      recordCacheEvent: self.recordCacheEvent
     )
   }
 }
