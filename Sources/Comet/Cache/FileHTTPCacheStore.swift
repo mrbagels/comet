@@ -200,6 +200,7 @@ private struct FileCachedHTTPResponse: Codable {
   var headers: [FileCachedHeader]
   var bodyBase64: String
   var storedAt: Date
+  var requestVaryHeaderValues: [String: String]
 
   init(key: HTTPCacheKey, response: CachedHTTPResponse) {
     self.method = key.method.rawValue
@@ -208,6 +209,31 @@ private struct FileCachedHTTPResponse: Codable {
     self.headers = response.headers.fileCachedHeaders
     self.bodyBase64 = response.data.base64EncodedString()
     self.storedAt = response.storedAt
+    self.requestVaryHeaderValues = response.requestVaryHeaderValues
+  }
+
+  private enum CodingKeys: String, CodingKey {
+    case method
+    case url
+    case statusCode
+    case headers
+    case bodyBase64
+    case storedAt
+    case requestVaryHeaderValues
+  }
+
+  init(from decoder: any Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    self.method = try container.decode(String.self, forKey: .method)
+    self.url = try container.decode(String.self, forKey: .url)
+    self.statusCode = try container.decode(Int.self, forKey: .statusCode)
+    self.headers = try container.decode([FileCachedHeader].self, forKey: .headers)
+    self.bodyBase64 = try container.decode(String.self, forKey: .bodyBase64)
+    self.storedAt = try container.decode(Date.self, forKey: .storedAt)
+    self.requestVaryHeaderValues = try container.decodeIfPresent(
+      [String: String].self,
+      forKey: .requestVaryHeaderValues
+    ) ?? [:]
   }
 
   func matches(_ key: HTTPCacheKey) -> Bool {
@@ -222,7 +248,8 @@ private struct FileCachedHTTPResponse: Codable {
       data: data,
       statusCode: self.statusCode,
       headers: try HTTPFields(fileCachedHeaders: self.headers),
-      storedAt: self.storedAt
+      storedAt: self.storedAt,
+      requestVaryHeaderValues: self.requestVaryHeaderValues
     )
   }
 

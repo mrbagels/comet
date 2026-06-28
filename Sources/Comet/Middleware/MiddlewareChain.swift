@@ -28,81 +28,92 @@ struct MiddlewareChain: Sendable {
   ) async throws(NetworkError) -> RawResponse {
     var currentRequest = request
     var currentContext = context
+    var didFinish = false
 
-    while true {
-      for middleware in self.middleware {
-        currentRequest = try await middleware.prepare(currentRequest, context: currentContext)
-      }
-
-      let initialResult: Result<RawResponse, NetworkError>
-      let attemptStartedAt = self.now()
-      do {
-        let response: RawResponse
-        if let middlewareResponse = try await self.responseFromMiddleware(
-          currentRequest,
-          context: currentContext
-        ) {
-          response = middlewareResponse
-        } else {
-          response = try await perform(currentRequest)
+    do {
+      while true {
+        for middleware in self.middleware {
+          currentRequest = try await middleware.prepare(currentRequest, context: currentContext)
         }
-        initialResult = .success(response)
-      } catch {
-        initialResult = .failure(.from(error))
-      }
-      let attemptDuration = attemptStartedAt.duration(to: self.now())
-      await self.onAttempt(
-        currentContext.requestID,
-        currentContext.attempt + 1,
-        currentRequest,
-        initialResult,
-        attemptDuration
-      )
 
-      var currentResult = initialResult
-      var retry: (PreparedRequest, Duration)?
-
-      for middleware in self.middleware {
-        let result = try await middleware.process(
-          result: currentResult,
-          request: currentRequest,
-          context: currentContext
+        let initialResult: Result<RawResponse, NetworkError>
+        let attemptStartedAt = self.now()
+        do {
+          let response: RawResponse
+          if let middlewareResponse = try await self.responseFromMiddleware(
+            currentRequest,
+            context: currentContext
+          ) {
+            response = middlewareResponse
+          } else {
+            response = try await perform(currentRequest)
+          }
+          initialResult = .success(response)
+        } catch {
+          initialResult = .failure(.from(error))
+        }
+        let attemptDuration = attemptStartedAt.duration(to: self.now())
+        await self.onAttempt(
+          currentContext.requestID,
+          currentContext.attempt + 1,
+          currentRequest,
+          initialResult,
+          attemptDuration
         )
 
-        switch result {
-        case .proceed(let nextResult):
-          currentResult = nextResult
-        case .retry(let retryRequest, let delay):
-          retry = (retryRequest, delay)
-        case .fail(let error):
-          currentResult = .failure(error)
-        }
+        var currentResult = initialResult
+        var retry: (PreparedRequest, Duration)?
 
-        if retry != nil {
-          break
-        }
-      }
+        for middleware in self.middleware {
+          let result = try await middleware.process(
+            result: currentResult,
+            request: currentRequest,
+            context: currentContext
+          )
 
-      if let (retryRequest, delay) = retry {
-        if delay > .zero {
-          do {
-            try await self.sleep(delay)
-          } catch {
-            throw NetworkError.from(error)
+          switch result {
+          case .proceed(let nextResult):
+            currentResult = nextResult
+          case .retry(let retryRequest, let delay):
+            retry = (retryRequest, delay)
+          case .fail(let error):
+            currentResult = .failure(error)
+          }
+
+          if retry != nil {
+            break
           }
         }
-        await self.onRetry(currentContext.requestID, currentContext.attempt + 1, delay)
-        currentRequest = retryRequest
-        currentContext = currentContext.nextAttempt()
-        continue
-      }
 
-      switch currentResult {
-      case .success(let response):
-        return response
-      case .failure(let error):
-        throw error
+        if let (retryRequest, delay) = retry {
+          if delay > .zero {
+            do {
+              try await self.sleep(delay)
+            } catch {
+              throw NetworkError.from(error)
+            }
+          }
+          await self.onRetry(currentContext.requestID, currentContext.attempt + 1, delay)
+          currentRequest = retryRequest
+          currentContext = currentContext.nextAttempt()
+          continue
+        }
+
+        didFinish = true
+        await self.finish(result: currentResult, request: currentRequest, context: currentContext)
+        switch currentResult {
+        case .success(let response):
+          return response
+        case .failure(let error):
+          throw error
+        }
       }
+    } catch {
+      let networkError = NetworkError.from(error)
+      if !didFinish {
+        await self.finish(result: .failure(networkError), request: currentRequest, context: currentContext)
+      }
+      throw networkError
     }
   }
 
@@ -119,5 +130,15 @@ struct MiddlewareChain: Sendable {
       }
     }
     return nil
+  }
+
+  private func finish(
+    result: Result<RawResponse, NetworkError>,
+    request: PreparedRequest,
+    context: MiddlewareContext
+  ) async {
+    for middleware in self.middleware.reversed() {
+      await middleware.finish(result: result, request: request, context: context)
+    }
   }
 }

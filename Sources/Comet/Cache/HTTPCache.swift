@@ -15,15 +15,24 @@ public struct HTTPCachePolicy: Sendable, Hashable {
   public var strategy: Strategy
   public var allowsUnsafeMethods: Bool
   public var allowsStaleIfError: Bool
+  public var defaultFreshnessLifetime: Duration?
+  public var isShared: Bool
+  public var respectsVary: Bool
 
   public init(
     strategy: Strategy = .returnCacheElseLoad,
     allowsUnsafeMethods: Bool = false,
-    allowsStaleIfError: Bool = false
+    allowsStaleIfError: Bool = false,
+    defaultFreshnessLifetime: Duration? = nil,
+    isShared: Bool = false,
+    respectsVary: Bool = true
   ) {
     self.strategy = strategy
     self.allowsUnsafeMethods = allowsUnsafeMethods
     self.allowsStaleIfError = allowsStaleIfError
+    self.defaultFreshnessLifetime = defaultFreshnessLifetime
+    self.isShared = isShared
+    self.respectsVary = respectsVary
   }
 
   public static let disabled = Self(strategy: .disabled)
@@ -37,20 +46,35 @@ public struct HTTPCachePolicy: Sendable, Hashable {
 /// Parsed response cache directives from `Cache-Control`.
 public struct HTTPCacheControl: Sendable, Hashable {
   public var maxAgeSeconds: Int?
+  public var sharedMaxAgeSeconds: Int?
+  public var staleIfErrorSeconds: Int?
   public var noCache: Bool
   public var noStore: Bool
   public var mustRevalidate: Bool
+  public var proxyRevalidate: Bool
+  public var isPrivate: Bool
+  public var isPublic: Bool
 
   public init(
     maxAgeSeconds: Int? = nil,
+    sharedMaxAgeSeconds: Int? = nil,
+    staleIfErrorSeconds: Int? = nil,
     noCache: Bool = false,
     noStore: Bool = false,
-    mustRevalidate: Bool = false
+    mustRevalidate: Bool = false,
+    proxyRevalidate: Bool = false,
+    isPrivate: Bool = false,
+    isPublic: Bool = false
   ) {
     self.maxAgeSeconds = maxAgeSeconds
+    self.sharedMaxAgeSeconds = sharedMaxAgeSeconds
+    self.staleIfErrorSeconds = staleIfErrorSeconds
     self.noCache = noCache
     self.noStore = noStore
     self.mustRevalidate = mustRevalidate
+    self.proxyRevalidate = proxyRevalidate
+    self.isPrivate = isPrivate
+    self.isPublic = isPublic
   }
 
   public init(headerValue: String?) {
@@ -70,12 +94,22 @@ public struct HTTPCacheControl: Sendable, Hashable {
       switch name {
       case "max-age":
         self.maxAgeSeconds = value.flatMap(Int.init).flatMap { $0 >= 0 ? $0 : nil }
+      case "s-maxage":
+        self.sharedMaxAgeSeconds = value.flatMap(Int.init).flatMap { $0 >= 0 ? $0 : nil }
+      case "stale-if-error":
+        self.staleIfErrorSeconds = value.flatMap(Int.init).flatMap { $0 >= 0 ? $0 : nil }
       case "no-cache":
         self.noCache = true
       case "no-store":
         self.noStore = true
       case "must-revalidate":
         self.mustRevalidate = true
+      case "proxy-revalidate":
+        self.proxyRevalidate = true
+      case "private":
+        self.isPrivate = true
+      case "public":
+        self.isPublic = true
       default:
         break
       }
@@ -87,6 +121,7 @@ public struct HTTPCacheControl: Sendable, Hashable {
 public struct HTTPCacheMetadata: Sendable, Hashable {
   public var cacheControl: HTTPCacheControl
   public var expires: Date?
+  public var ageSeconds: Int?
   public var eTag: String?
   public var lastModified: Date?
   public var storedAt: Date
@@ -94,12 +129,14 @@ public struct HTTPCacheMetadata: Sendable, Hashable {
   public init(
     cacheControl: HTTPCacheControl = .init(),
     expires: Date? = nil,
+    ageSeconds: Int? = nil,
     eTag: String? = nil,
     lastModified: Date? = nil,
     storedAt: Date = Date()
   ) {
     self.cacheControl = cacheControl
     self.expires = expires
+    self.ageSeconds = ageSeconds
     self.eTag = eTag
     self.lastModified = lastModified
     self.storedAt = storedAt
@@ -109,6 +146,7 @@ public struct HTTPCacheMetadata: Sendable, Hashable {
     self.init(
       cacheControl: HTTPCacheControl(headerValue: headers[CacheHeaderNames.cacheControl]),
       expires: headers[CacheHeaderNames.expires].flatMap(HTTPDate.parse),
+      ageSeconds: headers[CacheHeaderNames.age].flatMap(Int.init).flatMap { $0 >= 0 ? $0 : nil },
       eTag: headers[CacheHeaderNames.eTag],
       lastModified: headers[CacheHeaderNames.lastModified].flatMap(HTTPDate.parse),
       storedAt: storedAt
@@ -117,6 +155,7 @@ public struct HTTPCacheMetadata: Sendable, Hashable {
 
   public var hasExplicitFreshness: Bool {
     self.cacheControl.maxAgeSeconds != nil
+      || self.cacheControl.sharedMaxAgeSeconds != nil
       || self.cacheControl.noCache
       || self.cacheControl.noStore
       || self.expires != nil
@@ -126,19 +165,61 @@ public struct HTTPCacheMetadata: Sendable, Hashable {
     self.eTag != nil || self.lastModified != nil
   }
 
-  public func isFresh(at date: Date = Date()) -> Bool {
+  public func isFresh(
+    at date: Date = Date(),
+    isShared: Bool = false,
+    defaultFreshnessLifetime: Duration? = nil
+  ) -> Bool {
+    guard !self.cacheControl.noStore else { return false }
+    guard !self.cacheControl.noCache else { return false }
+    guard let lifetime = self.freshnessLifetime(
+      isShared: isShared,
+      defaultFreshnessLifetime: defaultFreshnessLifetime
+    ) else { return false }
+    return self.currentAge(at: date) <= lifetime
+  }
+
+  public func canServeStaleIfError(
+    at date: Date = Date(),
+    isShared: Bool = false,
+    defaultFreshnessLifetime: Duration? = nil
+  ) -> Bool {
     guard !self.cacheControl.noStore else { return false }
     guard !self.cacheControl.noCache else { return false }
 
-    if let maxAgeSeconds = self.cacheControl.maxAgeSeconds {
-      return date.timeIntervalSince(self.storedAt) <= Double(maxAgeSeconds)
+    let lifetime = self.freshnessLifetime(
+      isShared: isShared,
+      defaultFreshnessLifetime: defaultFreshnessLifetime
+    ) ?? 0
+    if let staleIfErrorSeconds = self.cacheControl.staleIfErrorSeconds {
+      return self.currentAge(at: date) <= lifetime + Double(staleIfErrorSeconds)
     }
 
-    if let expires {
-      return date < expires
+    if self.cacheControl.mustRevalidate || (isShared && self.cacheControl.proxyRevalidate) {
+      return false
     }
 
     return true
+  }
+
+  private func freshnessLifetime(
+    isShared: Bool,
+    defaultFreshnessLifetime: Duration?
+  ) -> TimeInterval? {
+    if isShared, let sharedMaxAgeSeconds = self.cacheControl.sharedMaxAgeSeconds {
+      return Double(sharedMaxAgeSeconds)
+    }
+    if let maxAgeSeconds = self.cacheControl.maxAgeSeconds {
+      return Double(maxAgeSeconds)
+    }
+    if let expires {
+      return max(0, expires.timeIntervalSince(self.storedAt))
+    }
+    return defaultFreshnessLifetime?.cacheTimeInterval
+  }
+
+  private func currentAge(at date: Date) -> TimeInterval {
+    max(0, date.timeIntervalSince(self.storedAt) + Double(self.ageSeconds ?? 0))
   }
 
   public func conditionalHeaders() -> HTTPFields {
@@ -178,25 +259,33 @@ public struct CachedHTTPResponse: Sendable {
   public var statusCode: Int
   public var headers: HTTPFields
   public var storedAt: Date
+  public var requestVaryHeaderValues: [String: String]
 
   public init(
     data: Data,
     statusCode: Int,
     headers: HTTPFields = .init(),
-    storedAt: Date = Date()
+    storedAt: Date = Date(),
+    requestVaryHeaderValues: [String: String] = [:]
   ) {
     self.data = data
     self.statusCode = statusCode
     self.headers = headers
     self.storedAt = storedAt
+    self.requestVaryHeaderValues = requestVaryHeaderValues
   }
 
-  public init(response: RawResponse, storedAt: Date = Date()) {
+  public init(
+    response: RawResponse,
+    storedAt: Date = Date(),
+    requestHeaders: HTTPFields = .init()
+  ) {
     self.init(
       data: response.data,
       statusCode: response.statusCode,
       headers: response.headers,
-      storedAt: storedAt
+      storedAt: storedAt,
+      requestVaryHeaderValues: response.headers.varyRequestHeaderValues(from: requestHeaders)
     )
   }
 
@@ -218,8 +307,22 @@ public struct CachedHTTPResponse: Sendable {
       data: self.data,
       statusCode: self.statusCode,
       headers: headers,
-      storedAt: storedAt
+      storedAt: storedAt,
+      requestVaryHeaderValues: self.requestVaryHeaderValues
     )
+  }
+
+  public func matchesVaryHeaders(for request: PreparedRequest) -> Bool {
+    let names = self.headers.varyHeaderNames
+    guard !names.contains("*") else { return false }
+    for name in names {
+      guard let headerName = HTTPField.Name(name) else { return false }
+      let key = name.lowercased()
+      guard self.requestVaryHeaderValues[key] == (request.headers[headerName] ?? "") else {
+        return false
+      }
+    }
+    return true
   }
 }
 
@@ -282,12 +385,17 @@ public struct RequestCacheTraceEvent: Sendable, Hashable {
     case statusNotCacheable
     case noStore
     case noValidator
+    case noExplicitFreshness
     case stale
     case fresh
     case notModified
     case replaced
     case cacheHit
     case staleIfError
+    case varyMismatch
+    case varyWildcard
+    case privateResponse
+    case mustRevalidate
   }
 
   public let kind: Kind
@@ -340,8 +448,20 @@ public struct CacheMiddleware: ResponseProvidingMiddleware {
       await context.recordCacheEvent(.init(kind: .miss, key: key, policy: policy, reason: .noStore))
       return request
     }
+    if policy.isShared && metadata.cacheControl.isPrivate {
+      await self.store.removeCachedResponse(for: key)
+      await context.recordCacheEvent(.init(kind: .miss, key: key, policy: policy, reason: .privateResponse))
+      return request
+    }
+    guard await self.cachedResponseMatchesVary(cached, request: request, context: context, policy: policy, key: key) else {
+      return request
+    }
 
-    let isFresh = metadata.isFresh(at: self.now())
+    let isFresh = metadata.isFresh(
+      at: self.now(),
+      isShared: policy.isShared,
+      defaultFreshnessLifetime: policy.defaultFreshnessLifetime
+    )
     guard policy.strategy == .revalidate || !isFresh else {
       return request
     }
@@ -409,11 +529,34 @@ public struct CacheMiddleware: ResponseProvidingMiddleware {
         }
         return nil
       }
+      if policy.isShared && metadata.cacheControl.isPrivate {
+        await self.store.removeCachedResponse(for: key)
+        await context.recordCacheEvent(.init(kind: .miss, key: key, policy: policy, reason: .privateResponse))
+        guard policy.strategy != .cacheOnly else {
+          throw .middleware("Cached response for \(key) is marked private for a shared cache.")
+        }
+        return nil
+      }
+      guard await self.cachedResponseMatchesVary(cached, request: request, context: context, policy: policy, key: key) else {
+        guard policy.strategy != .cacheOnly else {
+          throw .middleware("Cached response for \(key) does not match the request Vary headers.")
+        }
+        return nil
+      }
       if metadata.cacheControl.noCache && policy.strategy == .cacheOnly {
         await context.recordCacheEvent(.init(kind: .miss, key: key, policy: policy, reason: .stale))
         throw .middleware("Cached response for \(key) requires revalidation.")
       }
-      if policy.strategy != .cacheOnly && !metadata.isFresh(at: self.now()) {
+      let isFresh = metadata.isFresh(
+        at: self.now(),
+        isShared: policy.isShared,
+        defaultFreshnessLifetime: policy.defaultFreshnessLifetime
+      )
+      if policy.strategy == .cacheOnly && !isFresh {
+        await context.recordCacheEvent(.init(kind: .miss, key: key, policy: policy, reason: .stale))
+        throw .middleware("Cached response for \(key) is stale.")
+      }
+      if policy.strategy != .cacheOnly && !isFresh {
         await self.state.markCached(requestID: context.requestID, cached: cached)
         await context.recordCacheEvent(.init(kind: .stale, key: key, policy: policy, reason: .stale))
         return nil
@@ -459,8 +602,18 @@ public struct CacheMiddleware: ResponseProvidingMiddleware {
     }
     guard case .success(let response) = result else {
       if policy.allowsStaleIfError, let cached = requestState?.cachedResponse {
-        await context.recordCacheEvent(.init(kind: .hit, key: key, policy: policy, reason: .staleIfError))
-        return .proceed(.success(cached.rawResponse))
+        let metadata = cached.cacheMetadata
+        if metadata.canServeStaleIfError(
+          at: self.now(),
+          isShared: policy.isShared,
+          defaultFreshnessLifetime: policy.defaultFreshnessLifetime
+        ) {
+          await context.recordCacheEvent(.init(kind: .hit, key: key, policy: policy, reason: .staleIfError))
+          return .proceed(.success(cached.rawResponse))
+        }
+        if metadata.cacheControl.mustRevalidate || (policy.isShared && metadata.cacheControl.proxyRevalidate) {
+          await context.recordCacheEvent(.init(kind: .skippedStore, key: key, policy: policy, reason: .mustRevalidate))
+        }
       }
       return .proceed(result)
     }
@@ -480,11 +633,60 @@ public struct CacheMiddleware: ResponseProvidingMiddleware {
       await context.recordCacheEvent(.init(kind: .skippedStore, key: key, policy: policy, reason: .noStore))
       return .proceed(result)
     }
+    guard !(policy.isShared && metadata.cacheControl.isPrivate) else {
+      await self.store.removeCachedResponse(for: key)
+      await context.recordCacheEvent(.init(kind: .skippedStore, key: key, policy: policy, reason: .privateResponse))
+      return .proceed(result)
+    }
+    guard !response.headers.varyHeaderNames.contains("*") else {
+      await self.store.removeCachedResponse(for: key)
+      await context.recordCacheEvent(.init(kind: .skippedStore, key: key, policy: policy, reason: .varyWildcard))
+      return .proceed(result)
+    }
+    guard metadata.hasExplicitFreshness || metadata.hasValidator || policy.defaultFreshnessLifetime != nil else {
+      await self.store.removeCachedResponse(for: key)
+      await context.recordCacheEvent(.init(kind: .skippedStore, key: key, policy: policy, reason: .noExplicitFreshness))
+      return .proceed(result)
+    }
 
-    await self.store.store(CachedHTTPResponse(response: response, storedAt: metadata.storedAt), for: key)
+    await self.store.store(
+      CachedHTTPResponse(
+        response: response,
+        storedAt: metadata.storedAt,
+        requestHeaders: request.headers
+      ),
+      for: key
+    )
     let reason: RequestCacheTraceEvent.Reason? = requestState?.cachedResponse == nil ? nil : .replaced
     await context.recordCacheEvent(.init(kind: .store, key: key, policy: policy, reason: reason))
     return .proceed(result)
+  }
+
+  public func finish(
+    result: Result<RawResponse, NetworkError>,
+    request: PreparedRequest,
+    context: MiddlewareContext
+  ) async {
+    await self.state.discard(requestID: context.requestID)
+  }
+
+  private func cachedResponseMatchesVary(
+    _ cached: CachedHTTPResponse,
+    request: PreparedRequest,
+    context: MiddlewareContext,
+    policy: HTTPCachePolicy,
+    key: HTTPCacheKey
+  ) async -> Bool {
+    guard policy.respectsVary else { return true }
+    guard !cached.headers.varyHeaderNames.contains("*") else {
+      await context.recordCacheEvent(.init(kind: .miss, key: key, policy: policy, reason: .varyWildcard))
+      return false
+    }
+    guard cached.matchesVaryHeaders(for: request) else {
+      await context.recordCacheEvent(.init(kind: .miss, key: key, policy: policy, reason: .varyMismatch))
+      return false
+    }
+    return true
   }
 }
 
@@ -515,6 +717,10 @@ private actor CacheMiddlewareState {
   func consume(requestID: UUID) -> CacheRequestState? {
     self.states.removeValue(forKey: requestID)
   }
+
+  func discard(requestID: UUID) {
+    self.states.removeValue(forKey: requestID)
+  }
 }
 
 private extension HTTPCachePolicy.Strategy {
@@ -535,12 +741,40 @@ private extension HTTPMethod {
 }
 
 private enum CacheHeaderNames {
+  static let age = HTTPField.Name("Age")!
   static let cacheControl = HTTPField.Name("Cache-Control")!
   static let expires = HTTPField.Name("Expires")!
   static let eTag = HTTPField.Name("ETag")!
   static let lastModified = HTTPField.Name("Last-Modified")!
   static let ifNoneMatch = HTTPField.Name("If-None-Match")!
   static let ifModifiedSince = HTTPField.Name("If-Modified-Since")!
+  static let vary = HTTPField.Name("Vary")!
+}
+
+private extension Duration {
+  var cacheTimeInterval: TimeInterval {
+    let components = self.components
+    return TimeInterval(components.seconds) + TimeInterval(components.attoseconds) / 1_000_000_000_000_000_000
+  }
+}
+
+private extension HTTPFields {
+  var varyHeaderNames: [String] {
+    guard let value = self[CacheHeaderNames.vary] else { return [] }
+    return value
+      .split(separator: ",")
+      .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+      .filter { !$0.isEmpty }
+  }
+
+  func varyRequestHeaderValues(from requestHeaders: HTTPFields) -> [String: String] {
+    var values: [String: String] = [:]
+    for name in self.varyHeaderNames where name != "*" {
+      guard let headerName = HTTPField.Name(name) else { continue }
+      values[name.lowercased()] = requestHeaders[headerName] ?? ""
+    }
+    return values
+  }
 }
 
 private enum HTTPDate {

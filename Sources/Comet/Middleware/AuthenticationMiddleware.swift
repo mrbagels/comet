@@ -132,15 +132,12 @@ public struct AuthenticationMiddleware: Middleware {
     context: MiddlewareContext
   ) async throws(NetworkError) -> MiddlewareResult {
     guard case .success(let response) = result else {
-      await self.replayTracker.finish(for: context.requestID)
       return .proceed(result)
     }
     guard self.challengeStatusCodes.contains(response.statusCode) else {
-      await self.replayTracker.finish(for: context.requestID)
       return .proceed(result)
     }
     guard (request.retryPolicy ?? self.replayPolicy).allowsRetry(for: request) else {
-      await self.replayTracker.finish(for: context.requestID)
       return .proceed(result)
     }
     guard await self.replayTracker.markReplayNeeded(for: context.requestID) else {
@@ -149,14 +146,20 @@ public struct AuthenticationMiddleware: Middleware {
 
     do {
       guard let credential = try await self.coordinator.refreshCredential() else {
-        await self.replayTracker.finish(for: context.requestID)
         return .proceed(result)
       }
       return .retry(credential.apply(to: request), after: .zero)
     } catch {
-      await self.replayTracker.finish(for: context.requestID)
       throw .from(error)
     }
+  }
+
+  public func finish(
+    result: Result<RawResponse, NetworkError>,
+    request: PreparedRequest,
+    context: MiddlewareContext
+  ) async {
+    await self.replayTracker.finish(for: context.requestID)
   }
 }
 

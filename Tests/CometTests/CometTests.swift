@@ -134,9 +134,12 @@ private actor CacheCountingTransportState {
 
   func next() -> RawResponse {
     self.callCount += 1
+    var headers = HTTPFields()
+    headers[HTTPField.Name("Cache-Control")!] = "max-age=60"
     return RawResponse(
       data: Data("network-\(self.callCount)".utf8),
-      statusCode: 200
+      statusCode: 200,
+      headers: headers
     )
   }
 
@@ -270,6 +273,51 @@ private struct StaticStreamingTransport: HTTPStreamingTransport, HTTPProgressTra
   }
 }
 
+private actor CountingStreamingTransportState {
+  private var streamCount = 0
+
+  func recordStream() {
+    self.streamCount += 1
+  }
+
+  func count() -> Int {
+    self.streamCount
+  }
+}
+
+private struct CountingStreamingTransport: HTTPStreamingTransport, Sendable {
+  let state: CountingStreamingTransportState
+  let response: RawResponse
+
+  func send(_ request: PreparedRequest) async throws(NetworkError) -> RawResponse {
+    self.response
+  }
+
+  func stream(
+    _ request: PreparedRequest,
+    chunkSize: Int
+  ) -> AsyncThrowingStream<HTTPStreamEvent, Error> {
+    AsyncThrowingStream { continuation in
+      Task {
+        await self.state.recordStream()
+        continuation.yield(
+          .response(
+            HTTPStreamResponse(
+              statusCode: self.response.statusCode,
+              headers: self.response.headers
+            )
+          )
+        )
+        if !self.response.data.isEmpty {
+          continuation.yield(.bytes(self.response.data))
+        }
+        continuation.yield(.complete)
+        continuation.finish()
+      }
+    }
+  }
+}
+
 private actor ProgressRecorder {
   private var values: [TransferProgress] = []
 
@@ -311,10 +359,45 @@ private actor SleepRecorder {
   }
 }
 
+private actor FinishRecorder {
+  private var values: [String] = []
+
+  func record(_ result: Result<RawResponse, NetworkError>) {
+    switch result {
+    case .success(let response):
+      self.values.append("success:\(response.statusCode)")
+    case .failure(let error):
+      self.values.append("failure:\(error.debugSummary)")
+    }
+  }
+
+  func snapshot() -> [String] {
+    self.values
+  }
+}
+
+private struct FinishRecordingMiddleware: Middleware {
+  let recorder: FinishRecorder
+
+  func finish(
+    result: Result<RawResponse, NetworkError>,
+    request: PreparedRequest,
+    context: MiddlewareContext
+  ) async {
+    await self.recorder.record(result)
+  }
+}
+
 private func durationMilliseconds(_ duration: Duration) -> Int64 {
   let components = duration.components
   return components.seconds * 1_000
     + Int64(Double(components.attoseconds) / 1_000_000_000_000_000)
+}
+
+private func cacheControlHeaders(_ value: String) -> HTTPFields {
+  var headers = HTTPFields()
+  headers[HTTPField.Name("Cache-Control")!] = value
+  return headers
 }
 
 @Test func pathBuildsEncodedSegments() {
@@ -797,6 +880,36 @@ private func durationMilliseconds(_ duration: Duration) -> Int64 {
   #expect(trace.diagnosticSummary.contains("TraceProof"))
 }
 
+@Test func middlewareFinishRunsOnceAfterTerminalRetryResult() async throws {
+  let recorder = FinishRecorder()
+  let transportState = SequenceTransportState(results: [
+    .failure(.timeout),
+    .success(RawResponse(data: Data("ok".utf8), statusCode: 200))
+  ])
+  let client = HTTPClient.live(
+    configuration: ClientConfiguration(
+      baseURL: URL(string: "https://example.com")!,
+      middleware: [
+        RetryMiddleware(maxAttempts: 2),
+        FinishRecordingMiddleware(recorder: recorder)
+      ],
+      sleep: { _ in }
+    ),
+    transport: SequenceTransport(state: transportState)
+  )
+
+  let response = try await client.send(
+    TestRequest(
+      path: "finish",
+      method: .get,
+      responseSerializer: .string()
+    )
+  )
+
+  #expect(response == "ok")
+  #expect(await recorder.snapshot() == ["success:200"])
+}
+
 @Test func traceContextParsesRendersAndRejectsInvalidTraceparents() throws {
   let traceparent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
   let context = try #require(TraceContext(traceparent: traceparent))
@@ -1094,6 +1207,97 @@ private func durationMilliseconds(_ duration: Duration) -> Int64 {
   #expect(metadata.conditionalHeaders()[HTTPField.Name("If-Modified-Since")!] == "Wed, 21 Oct 2015 07:20:00 GMT")
 }
 
+@Test func cacheMetadataHonorsAgeSharedMaxAgeAndDefaultFreshness() throws {
+  var headers = HTTPFields()
+  headers[HTTPField.Name("Cache-Control")!] = "max-age=60, s-maxage=10, stale-if-error=30, proxy-revalidate"
+  headers[HTTPField.Name("Age")!] = "5"
+  let storedAt = Date(timeIntervalSince1970: 100)
+  let metadata = HTTPCacheMetadata(headers: headers, storedAt: storedAt)
+
+  #expect(metadata.cacheControl.sharedMaxAgeSeconds == 10)
+  #expect(metadata.cacheControl.staleIfErrorSeconds == 30)
+  #expect(metadata.cacheControl.proxyRevalidate)
+  #expect(metadata.isFresh(at: storedAt.addingTimeInterval(50), isShared: false))
+  #expect(!metadata.isFresh(at: storedAt.addingTimeInterval(6), isShared: true))
+  #expect(metadata.canServeStaleIfError(at: storedAt.addingTimeInterval(20), isShared: true))
+  #expect(!metadata.canServeStaleIfError(at: storedAt.addingTimeInterval(40), isShared: true))
+
+  let implicit = HTTPCacheMetadata(storedAt: storedAt)
+  #expect(!implicit.isFresh(at: storedAt.addingTimeInterval(1)))
+  #expect(implicit.isFresh(at: storedAt.addingTimeInterval(1), defaultFreshnessLifetime: .seconds(30)))
+}
+
+@Test func cacheMiddlewareSkipsResponsesWithoutFreshnessOrValidators() async throws {
+  let transportState = ScriptedTransportState(
+    responses: [
+      RawResponse(data: Data("first".utf8), statusCode: 200),
+      RawResponse(data: Data("second".utf8), statusCode: 200)
+    ]
+  )
+  let store = MemoryHTTPCacheStore()
+  let client = HTTPClient.live(
+    configuration: ClientConfiguration(
+      baseURL: URL(string: "https://example.com")!,
+      middleware: [CacheMiddleware(store: store)]
+    ),
+    transport: ScriptedTransport(state: transportState)
+  )
+  var traces = client.traces.makeAsyncIterator()
+  let request = TestRequest(
+    path: "implicit",
+    method: .get,
+    responseSerializer: .string(),
+    options: RequestOptions(cachePolicy: .returnCacheElseLoad)
+  )
+
+  let first = try await client.send(request)
+  let firstTrace = try #require(await traces.next())
+  let second = try await client.send(request)
+  let secondTrace = try #require(await traces.next())
+
+  #expect(first == "first")
+  #expect(second == "second")
+  #expect(await transportState.count() == 2)
+  #expect(await store.count == 0)
+  #expect(firstTrace.cacheEvents.map(\.reason).contains(.noExplicitFreshness))
+  #expect(secondTrace.cacheEvents.map(\.reason).contains(.noExplicitFreshness))
+}
+
+@Test func cacheMiddlewareUsesDefaultFreshnessLifetimeWhenConfigured() async throws {
+  let transportState = ScriptedTransportState(
+    responses: [
+      RawResponse(data: Data("default-cache".utf8), statusCode: 200)
+    ]
+  )
+  let store = MemoryHTTPCacheStore()
+  let client = HTTPClient.live(
+    configuration: ClientConfiguration(
+      baseURL: URL(string: "https://example.com")!,
+      middleware: [CacheMiddleware(store: store, now: { Date(timeIntervalSince1970: 10) })]
+    ),
+    transport: ScriptedTransport(state: transportState)
+  )
+  let request = TestRequest(
+    path: "default-freshness",
+    method: .get,
+    responseSerializer: .string(),
+    options: RequestOptions(
+      cachePolicy: HTTPCachePolicy(
+        strategy: .returnCacheElseLoad,
+        defaultFreshnessLifetime: .seconds(60)
+      )
+    )
+  )
+
+  let first = try await client.send(request)
+  let second = try await client.send(request)
+
+  #expect(first == "default-cache")
+  #expect(second == "default-cache")
+  #expect(await transportState.count() == 1)
+  #expect(await store.count == 1)
+}
+
 @Test func cacheMiddlewareRevalidatesStaleResponsesWithETagAndMerges304() async throws {
   let key = HTTPCacheKey(method: .get, url: URL(string: "https://example.com/cache")!)
   var cachedHeaders = HTTPFields()
@@ -1283,7 +1487,7 @@ private func durationMilliseconds(_ duration: Duration) -> Int64 {
 
   let transportState = ScriptedTransportState(
     responses: [
-      RawResponse(data: Data("network".utf8), statusCode: 200)
+      RawResponse(data: Data("network".utf8), statusCode: 200, headers: cacheControlHeaders("max-age=60"))
     ]
   )
   let client = HTTPClient.live(
@@ -1324,7 +1528,7 @@ private func durationMilliseconds(_ duration: Duration) -> Int64 {
   let key = HTTPCacheKey(method: .get, url: URL(string: "https://example.com/cache")!)
   let store = MemoryHTTPCacheStore(
     responses: [
-      key: CachedHTTPResponse(data: Data("cached".utf8), statusCode: 200)
+      key: CachedHTTPResponse(data: Data("cached".utf8), statusCode: 200, headers: cacheControlHeaders("max-age=60"))
     ]
   )
   let transportState = CacheCountingTransportState()
@@ -1555,6 +1759,167 @@ private func durationMilliseconds(_ duration: Duration) -> Int64 {
   #expect(trace.cacheEvents.last?.reason == .staleIfError)
 }
 
+@Test func cacheMiddlewareRespectsVaryHeaderValues() async throws {
+  let key = HTTPCacheKey(method: .get, url: URL(string: "https://example.com/greeting")!)
+  var englishHeaders = cacheControlHeaders("max-age=60")
+  englishHeaders[HTTPField.Name("Vary")!] = "Accept-Language"
+  var frenchHeaders = cacheControlHeaders("max-age=60")
+  frenchHeaders[HTTPField.Name("Vary")!] = "Accept-Language"
+  let transportState = ScriptedTransportState(
+    responses: [
+      RawResponse(data: Data("hello".utf8), statusCode: 200, headers: englishHeaders),
+      RawResponse(data: Data("bonjour".utf8), statusCode: 200, headers: frenchHeaders)
+    ]
+  )
+  let store = MemoryHTTPCacheStore()
+  let client = HTTPClient.live(
+    configuration: ClientConfiguration(
+      baseURL: URL(string: "https://example.com")!,
+      middleware: [CacheMiddleware(store: store)]
+    ),
+    transport: ScriptedTransport(state: transportState)
+  )
+  var englishRequestHeaders = HTTPFields()
+  englishRequestHeaders[HTTPField.Name("Accept-Language")!] = "en"
+  var frenchRequestHeaders = HTTPFields()
+  frenchRequestHeaders[HTTPField.Name("Accept-Language")!] = "fr"
+  let englishRequest = TestRequest(
+    path: "greeting",
+    method: .get,
+    responseSerializer: .string(),
+    headers: englishRequestHeaders,
+    options: RequestOptions(cachePolicy: .returnCacheElseLoad)
+  )
+  let frenchRequest = TestRequest(
+    path: "greeting",
+    method: .get,
+    responseSerializer: .string(),
+    headers: frenchRequestHeaders,
+    options: RequestOptions(cachePolicy: .returnCacheElseLoad)
+  )
+
+  let firstEnglish = try await client.send(englishRequest)
+  let secondEnglish = try await client.send(englishRequest)
+  let french = try await client.send(frenchRequest)
+  let stored = try #require(await store.cachedResponse(for: key))
+
+  #expect(firstEnglish == "hello")
+  #expect(secondEnglish == "hello")
+  #expect(french == "bonjour")
+  #expect(await transportState.count() == 2)
+  #expect(stored.requestVaryHeaderValues["accept-language"] == "fr")
+}
+
+@Test func cacheMiddlewareRejectsVaryWildcardResponses() async throws {
+  var headers = cacheControlHeaders("max-age=60")
+  headers[HTTPField.Name("Vary")!] = "*"
+  let transportState = ScriptedTransportState(
+    responses: [
+      RawResponse(data: Data("first".utf8), statusCode: 200, headers: headers),
+      RawResponse(data: Data("second".utf8), statusCode: 200, headers: headers)
+    ]
+  )
+  let store = MemoryHTTPCacheStore()
+  let client = HTTPClient.live(
+    configuration: ClientConfiguration(
+      baseURL: URL(string: "https://example.com")!,
+      middleware: [CacheMiddleware(store: store)]
+    ),
+    transport: ScriptedTransport(state: transportState)
+  )
+  let request = TestRequest(
+    path: "vary-star",
+    method: .get,
+    responseSerializer: .string(),
+    options: RequestOptions(cachePolicy: .returnCacheElseLoad)
+  )
+
+  let first = try await client.send(request)
+  let second = try await client.send(request)
+
+  #expect(first == "first")
+  #expect(second == "second")
+  #expect(await transportState.count() == 2)
+  #expect(await store.count == 0)
+}
+
+@Test func cacheMiddlewareDoesNotServeMustRevalidateStaleResponseOnErrorWithoutDirective() async throws {
+  let key = HTTPCacheKey(method: .get, url: URL(string: "https://example.com/cache")!)
+  let store = MemoryHTTPCacheStore(
+    responses: [
+      key: CachedHTTPResponse(
+        data: Data("cached".utf8),
+        statusCode: 200,
+        headers: cacheControlHeaders("max-age=0, must-revalidate"),
+        storedAt: Date(timeIntervalSince1970: 0)
+      )
+    ]
+  )
+  let transportState = SequenceTransportState(results: [.failure(.timeout)])
+  let client = HTTPClient.live(
+    configuration: ClientConfiguration(
+      baseURL: URL(string: "https://example.com")!,
+      middleware: [CacheMiddleware(store: store, now: { Date(timeIntervalSince1970: 10) })]
+    ),
+    transport: SequenceTransport(state: transportState)
+  )
+  let request = TestRequest(
+    path: "cache",
+    method: .get,
+    responseSerializer: .string(),
+    options: RequestOptions(
+      cachePolicy: HTTPCachePolicy(
+        strategy: .returnCacheElseLoad,
+        allowsStaleIfError: true
+      )
+    )
+  )
+
+  await #expect(throws: NetworkError.self) {
+    _ = try await client.send(request)
+  }
+
+  #expect(await transportState.count() == 1)
+}
+
+@Test func cacheMiddlewareServesStaleWithinStaleIfErrorDirectiveWindow() async throws {
+  let key = HTTPCacheKey(method: .get, url: URL(string: "https://example.com/cache")!)
+  let store = MemoryHTTPCacheStore(
+    responses: [
+      key: CachedHTTPResponse(
+        data: Data("cached".utf8),
+        statusCode: 200,
+        headers: cacheControlHeaders("max-age=0, must-revalidate, stale-if-error=30"),
+        storedAt: Date(timeIntervalSince1970: 0)
+      )
+    ]
+  )
+  let transportState = SequenceTransportState(results: [.failure(.timeout)])
+  let client = HTTPClient.live(
+    configuration: ClientConfiguration(
+      baseURL: URL(string: "https://example.com")!,
+      middleware: [CacheMiddleware(store: store, now: { Date(timeIntervalSince1970: 10) })]
+    ),
+    transport: SequenceTransport(state: transportState)
+  )
+  let request = TestRequest(
+    path: "cache",
+    method: .get,
+    responseSerializer: .string(),
+    options: RequestOptions(
+      cachePolicy: HTTPCachePolicy(
+        strategy: .returnCacheElseLoad,
+        allowsStaleIfError: true
+      )
+    )
+  )
+
+  let response = try await client.send(request)
+
+  #expect(response == "cached")
+  #expect(await transportState.count() == 1)
+}
+
 @Test func fileHTTPCacheStorePersistsResponsesAcrossInstances() async throws {
   let directory = FileManager.default.temporaryDirectory
     .appendingPathComponent("CometFileCacheTests-\(UUID().uuidString)", isDirectory: true)
@@ -1716,6 +2081,56 @@ private func durationMilliseconds(_ duration: Duration) -> Int64 {
   }
 
   #expect(lines == ["one", "two", "three"])
+}
+
+@Test func httpClientStreamsCachedMiddlewareResponsesWithoutLiveStream() async throws {
+  let key = HTTPCacheKey(method: .get, url: URL(string: "https://example.com/stream-cache")!)
+  let store = MemoryHTTPCacheStore(
+    responses: [
+      key: CachedHTTPResponse(
+        data: Data("cached-stream".utf8),
+        statusCode: 200,
+        headers: cacheControlHeaders("max-age=60")
+      )
+    ]
+  )
+  let transportState = CountingStreamingTransportState()
+  let client = HTTPClient.live(
+    configuration: ClientConfiguration(
+      baseURL: URL(string: "https://example.com")!,
+      middleware: [CacheMiddleware(store: store)]
+    ),
+    transport: CountingStreamingTransport(
+      state: transportState,
+      response: RawResponse(data: Data("network-stream".utf8), statusCode: 200)
+    )
+  )
+  var traces = client.traces.makeAsyncIterator()
+  let request = TestRequest(
+    path: "stream-cache",
+    method: .get,
+    responseSerializer: .string(),
+    options: RequestOptions(cachePolicy: .returnCacheElseLoad)
+  )
+  var body = Data()
+  var statusCode: Int?
+
+  for try await event in client.stream(request, chunkSize: 2) {
+    switch event {
+    case .response(let response):
+      statusCode = response.statusCode
+    case .bytes(let data):
+      body.append(data)
+    case .complete:
+      break
+    }
+  }
+  let trace = try #require(await traces.next())
+
+  #expect(statusCode == 200)
+  #expect(String(data: body, encoding: .utf8) == "cached-stream")
+  #expect(await transportState.count() == 0)
+  #expect(trace.cacheEvents.map(\.kind) == [.hit])
 }
 
 @Test func httpClientParsesServerSentEvents() async throws {

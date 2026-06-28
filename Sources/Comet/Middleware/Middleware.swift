@@ -12,6 +12,12 @@ public protocol Middleware: Sendable {
     request: PreparedRequest,
     context: MiddlewareContext
   ) async throws(NetworkError) -> MiddlewareResult
+
+  func finish(
+    result: Result<RawResponse, NetworkError>,
+    request: PreparedRequest,
+    context: MiddlewareContext
+  ) async
 }
 
 /// A middleware capability that can satisfy a request before transport execution.
@@ -39,6 +45,13 @@ public extension Middleware {
   ) async throws(NetworkError) -> MiddlewareResult {
     .proceed(result)
   }
+
+  /// Observes terminal request completion after retries and middleware processing have settled.
+  func finish(
+    result: Result<RawResponse, NetworkError>,
+    request: PreparedRequest,
+    context: MiddlewareContext
+  ) async {}
 }
 
 /// Describes how middleware wants request execution to continue.

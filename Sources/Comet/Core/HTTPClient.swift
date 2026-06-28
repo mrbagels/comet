@@ -432,27 +432,34 @@ public struct HTTPClient: Sendable {
     chunkSize: Int,
     continuation: AsyncThrowingStream<HTTPStreamEvent, Error>.Continuation
   ) async {
+    let middleware = self.configuration.middleware + request.options.middleware
     do {
       let prepared = try self.prepare(request)
       let requestID = self.configuration.makeRequestID()
+      let traceRecorder = RequestTraceRecorder(
+        id: requestID,
+        metadata: prepared.metadata,
+        method: prepared.method,
+        url: prepared.url,
+        traceContext: prepared.metadata.traceContext
+      )
       let context = MiddlewareContext(
         requestID: requestID,
         attempt: 0,
         startTime: self.configuration.now(),
         cachePolicy: request.options.cachePolicy,
-        randomDouble: self.configuration.randomDouble
+        randomDouble: self.configuration.randomDouble,
+        recordCacheEvent: { event in
+          await traceRecorder.recordCacheEvent(event)
+        }
       )
       var currentRequest = prepared
-      for middleware in self.configuration.middleware + request.options.middleware {
-        currentRequest = try await middleware.prepare(currentRequest, context: context)
-      }
-
       self.broadcaster.emit(
         .requestStarted(
           id: requestID,
-          method: currentRequest.method,
-          url: currentRequest.url,
-          metadata: currentRequest.metadata
+          method: prepared.method,
+          url: prepared.url,
+          metadata: prepared.metadata
         )
       )
 
@@ -462,6 +469,49 @@ public struct HTTPClient: Sendable {
       var didComplete = false
 
       do {
+        for middleware in middleware {
+          currentRequest = try await middleware.prepare(currentRequest, context: context)
+        }
+
+        if let middlewareResponse = try await self.responseFromMiddleware(
+          middleware: middleware,
+          request: currentRequest,
+          context: context
+        ) {
+          let attemptDuration = startedAt.duration(to: self.configuration.now())
+          await traceRecorder.recordAttempt(
+            number: 1,
+            request: currentRequest,
+            result: .success(middlewareResponse),
+            duration: attemptDuration
+          )
+          await self.finish(
+            middleware: middleware,
+            result: .success(middlewareResponse),
+            request: currentRequest,
+            context: context
+          )
+          self.yieldBufferedResponse(middlewareResponse, to: continuation)
+
+          let duration = startedAt.duration(to: self.configuration.now())
+          self.broadcaster.emit(
+            .requestCompleted(
+              id: requestID,
+              statusCode: middlewareResponse.statusCode,
+              duration: duration,
+              metadata: currentRequest.metadata
+            )
+          )
+          self.traceBroadcaster.emit(
+            await traceRecorder.makeTrace(
+              duration: duration,
+              result: .success(statusCode: middlewareResponse.statusCode, responseBytes: middlewareResponse.data.count)
+            )
+          )
+          continuation.finish()
+          return
+        }
+
         for try await event in transport.stream(currentRequest, chunkSize: max(1, chunkSize)) {
           switch event {
           case .response(let response):
@@ -480,7 +530,23 @@ public struct HTTPClient: Sendable {
 
         let duration = startedAt.duration(to: self.configuration.now())
         let statusCode = responseMetadata?.statusCode ?? 0
-        let traceContext = currentRequest.propagatedTraceContext
+        let summaryResponse = RawResponse(
+          data: Data(),
+          statusCode: statusCode,
+          headers: responseMetadata?.headers ?? HTTPFields()
+        )
+        await traceRecorder.recordAttempt(
+          number: 1,
+          request: currentRequest,
+          result: .success(summaryResponse),
+          duration: duration
+        )
+        await self.finish(
+          middleware: middleware,
+          result: .success(summaryResponse),
+          request: currentRequest,
+          context: context
+        )
         self.broadcaster.emit(
           .requestCompleted(
             id: requestID,
@@ -490,33 +556,27 @@ public struct HTTPClient: Sendable {
           )
         )
         self.traceBroadcaster.emit(
-          RequestTrace(
-            id: requestID,
-            metadata: currentRequest.metadata,
-            method: currentRequest.method,
-            url: currentRequest.url,
-            attempts: [
-              RequestTraceAttempt(
-                number: 1,
-                method: currentRequest.method,
-                url: currentRequest.url,
-                requestBytes: currentRequest.body?.count ?? 0,
-                responseStatusCode: responseMetadata?.statusCode,
-                responseBytes: responseBytes,
-                error: nil,
-                duration: duration
-              )
-            ],
+          await traceRecorder.makeTrace(
             duration: duration,
             result: .success(statusCode: statusCode, responseBytes: responseBytes),
-            traceContext: traceContext
           )
         )
         continuation.finish()
       } catch {
         let networkError = NetworkError.from(error)
         let duration = startedAt.duration(to: self.configuration.now())
-        let traceContext = currentRequest.propagatedTraceContext
+        await traceRecorder.recordAttempt(
+          number: 1,
+          request: currentRequest,
+          result: .failure(networkError),
+          duration: duration
+        )
+        await self.finish(
+          middleware: middleware,
+          result: .failure(networkError),
+          request: currentRequest,
+          context: context
+        )
         self.broadcaster.emit(
           .requestFailed(
             id: requestID,
@@ -526,26 +586,9 @@ public struct HTTPClient: Sendable {
           )
         )
         self.traceBroadcaster.emit(
-          RequestTrace(
-            id: requestID,
-            metadata: currentRequest.metadata,
-            method: currentRequest.method,
-            url: currentRequest.url,
-            attempts: [
-              RequestTraceAttempt(
-                number: 1,
-                method: currentRequest.method,
-                url: currentRequest.url,
-                requestBytes: currentRequest.body?.count ?? 0,
-                responseStatusCode: responseMetadata?.statusCode,
-                responseBytes: responseBytes,
-                error: networkError,
-                duration: duration
-              )
-            ],
+          await traceRecorder.makeTrace(
             duration: duration,
             result: .failure(networkError),
-            traceContext: traceContext
           )
         )
         continuation.finish(throwing: networkError)
@@ -553,6 +596,51 @@ public struct HTTPClient: Sendable {
     } catch {
       continuation.finish(throwing: NetworkError.from(error))
     }
+  }
+
+  private func responseFromMiddleware(
+    middleware: [any Middleware],
+    request: PreparedRequest,
+    context: MiddlewareContext
+  ) async throws(NetworkError) -> RawResponse? {
+    for middleware in middleware {
+      guard let responseProvider = middleware as? any ResponseProvidingMiddleware else {
+        continue
+      }
+      if let response = try await responseProvider.respond(to: request, context: context) {
+        return response
+      }
+    }
+    return nil
+  }
+
+  private func finish(
+    middleware: [any Middleware],
+    result: Result<RawResponse, NetworkError>,
+    request: PreparedRequest,
+    context: MiddlewareContext
+  ) async {
+    for middleware in middleware.reversed() {
+      await middleware.finish(result: result, request: request, context: context)
+    }
+  }
+
+  private func yieldBufferedResponse(
+    _ response: RawResponse,
+    to continuation: AsyncThrowingStream<HTTPStreamEvent, Error>.Continuation
+  ) {
+    continuation.yield(
+      .response(
+        HTTPStreamResponse(
+          statusCode: response.statusCode,
+          headers: response.headers
+        )
+      )
+    )
+    if !response.data.isEmpty {
+      continuation.yield(.bytes(response.data))
+    }
+    continuation.yield(.complete)
   }
 
   private static func nextLine(
