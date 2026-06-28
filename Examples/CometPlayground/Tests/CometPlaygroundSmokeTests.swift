@@ -35,6 +35,9 @@ final class CometPlaygroundSmokeTests: XCTestCase {
     XCTAssertTrue(model.state(for: .webSocket).output.contains("\"negotiatedSubprotocol\" : \"comet.demo.v1\""))
     XCTAssertTrue(model.state(for: .webSocketClose).output.contains("WebSocket closed"))
     XCTAssertGreaterThanOrEqual(model.activityLog.count, DemoCatalog.Demo.allCases.count)
+    XCTAssertTrue(model.activityLog.contains { $0.kind == .failed })
+    XCTAssertTrue(model.activityLog.contains { $0.kind == .retried })
+    XCTAssertTrue(model.activityLog.contains { $0.kind == .socket })
   }
 
   func testTypedRequestsDoNotInjectAPIVersion() {
@@ -42,5 +45,21 @@ final class CometPlaygroundSmokeTests: XCTestCase {
     XCTAssertNil(RawTodoRequest().options.apiVersion)
     XCTAssertNil(TimeoutDemoRequest(mode: .mock).options.apiVersion)
     XCTAssertNil(UnauthorizedDemoRequest(mode: .mock).options.apiVersion)
+  }
+
+  @MainActor
+  func testRequestInspectorUsesPreparedRequests() {
+    let model = DemoCatalog()
+
+    let unauthorized = model.requestInspection(for: .unauthorized)
+    XCTAssertEqual(unauthorized.method, "GET")
+    XCTAssertTrue(unauthorized.url.contains("https://comet.local/failures/unauthorized"))
+    XCTAssertTrue(unauthorized.curlCommand?.contains("curl") == true)
+    XCTAssertTrue(unauthorized.fields.contains { $0.label == "Typed error" })
+
+    let socketClose = model.requestInspection(for: .webSocketClose)
+    XCTAssertEqual(socketClose.transport, "MockWebSocketTransport")
+    XCTAssertEqual(socketClose.method, "GET")
+    XCTAssertFalse(socketClose.hasCurlCommand)
   }
 }

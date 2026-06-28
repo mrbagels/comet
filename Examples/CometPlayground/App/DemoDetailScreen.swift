@@ -12,11 +12,16 @@ struct DemoDetailScreen: View {
     model.state(for: demo)
   }
 
+  private var requestInspection: DemoRequestInspection {
+    model.requestInspection(for: demo)
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 20) {
         header
         summaryPanel
+        requestInspectorPanel
         verificationPanel
         packageSurfacePanel
         outputPanel
@@ -72,7 +77,7 @@ struct DemoDetailScreen: View {
 
       if let latest = model.activityLog.first {
         Divider()
-        Text(latest)
+        Text(latest.rawValue)
           .font(.system(.footnote, design: .monospaced))
           .foregroundStyle(.secondary)
           .fixedSize(horizontal: false, vertical: true)
@@ -95,6 +100,35 @@ struct DemoDetailScreen: View {
               .foregroundStyle(ThemeColor.ink)
               .fixedSize(horizontal: false, vertical: true)
           }
+        }
+      }
+    }
+  }
+
+  private var requestInspectorPanel: some View {
+    let inspection = requestInspection
+    return GlassPanel(tint: demo.accent) {
+      SectionEyebrow(text: "Request Inspector")
+
+      InspectorFieldList(
+        fields: [
+          DemoInspectorField(label: "Type", value: inspection.requestType),
+          DemoInspectorField(label: "Transport", value: inspection.transport),
+          DemoInspectorField(label: "Method", value: inspection.method),
+          DemoInspectorField(label: "URL", value: inspection.url),
+          DemoInspectorField(label: "Timeout", value: inspection.timeout)
+        ] + inspection.fields
+      )
+
+      VStack(alignment: .leading, spacing: 10) {
+        SectionEyebrow(text: "Body")
+        OutputConsole(value: inspection.bodyPreview)
+      }
+
+      if let curlCommand = inspection.curlCommand {
+        VStack(alignment: .leading, spacing: 10) {
+          SectionEyebrow(text: "cURL")
+          OutputConsole(value: curlCommand)
         }
       }
     }

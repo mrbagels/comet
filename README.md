@@ -182,9 +182,10 @@ do {
 
 ### cURL Output
 
-Prepared requests can produce shell-safe cURL output. Multiline is the default for logs, while compact output is useful for copying into single-line fields. JSON request bodies can also be pretty-printed when multiline readability matters.
+Prepared requests can produce shell-safe cURL output. Use `HTTPClient.prepare(_:)` when you want to inspect the exact transport-ready request before sending it. Multiline is the default for logs, while compact output is useful for copying into single-line fields. JSON request bodies can also be pretty-printed when multiline readability matters.
 
 ```swift
+let preparedRequest = try client.prepare(CreateTodoRequest())
 let curl = preparedRequest.curlCommand(style: .compact)
 
 let readableCurl = preparedRequest.curlCommand(
@@ -276,7 +277,7 @@ let recorder = RecordingTransport(
 - deterministic mock verification with `CometTesting.MockTransport`
 - deterministic socket verification with `CometTesting.MockWebSocketTransport`
 - live transport checks through `URLSessionTransport` and `URLSessionWebSocketTransport`
-- proof, activity, failure-gallery, and detail flows showing which APIs are exercised and what output to verify
+- proof, structured activity, failure-gallery, request-inspector, and detail flows showing which APIs are exercised and what output to verify
 
 The full walkthrough lives in [Examples/CometPlayground/README.md](Examples/CometPlayground/README.md).
 

@@ -25,8 +25,8 @@ The app is organized as a modern iPhone-native demo:
 
 - `Home`: quick launch, mode switching, and session summary
 - `Proofs`: category-driven HTTP and realtime scenarios with detail pages
-- `Activity`: filtered request history plus socket session markers
-- `Demo detail`: focused output, verification, and rerun controls
+- `Activity`: filtered structured request history plus socket session markers and detail fields
+- `Demo detail`: focused output, request inspector, verification, and rerun controls
 
 ## Recommended Verification Flow
 
@@ -49,7 +49,7 @@ Expected outputs:
 - `WebSocket Echo`: output shows `MockWebSocketTransport` and the negotiated `comet.demo.v1` subprotocol
 - `Socket Close`: output shows a WebSocket close error
 
-The activity feed should populate with started and completed events for each HTTP request, plus socket session markers for the realtime demo.
+The activity feed should populate with structured started, completed, failed, retried, and socket events. Open any activity detail to inspect request IDs, metadata, status, retry delay, error summaries, and copyable raw text.
 
 ### 2. Run A Live Spot Check
 
@@ -74,6 +74,7 @@ Good checks:
 
 Each scenario in the UI shows the exact Comet API surface it is proving. The demo app currently exercises:
 
+- `HTTPClient.prepare`
 - `HTTPClient.send`
 - `HTTPClient.sendRaw`
 - `APIRequest`
@@ -91,6 +92,7 @@ Each scenario in the UI shows the exact Comet API surface it is proving. The dem
 - `WebSocketRequest`
 - `URLSessionWebSocketTransport`
 - `MockWebSocketTransport`
+- `PreparedRequest.curlCommand`
 
 ## Useful Files
 

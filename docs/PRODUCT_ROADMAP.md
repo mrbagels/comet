@@ -228,6 +228,8 @@ Dependencies:
 
 Make activity events more useful without requiring external correlation.
 
+Status: initial diagnostic properties and playground structured activity details completed in the `0.1.x` patch line.
+
 Technical shape:
 
 - Add request metadata, method, URL, status, attempt, retry delay, and possibly response byte counts.
@@ -450,6 +452,8 @@ Dependencies:
 
 Evolve the example app into an interactive documentation and verification surface.
 
+Status: initial request inspector, structured activity detail, copy-cURL, and failure gallery flows completed in the `0.1.x` patch line.
+
 Technical shape:
 
 - Add request inspector, response viewer, trace timeline, cassette viewer, failure gallery, socket monitor, and copy-cURL actions.
@@ -588,12 +592,13 @@ Why last:
 3. Request metadata in options and activity events. Completed in the `0.1.x` patch line.
 4. Status validation presets. Completed in the `0.1.x` patch line.
 5. Retry safety defaults. Completed in the `0.1.x` patch line.
-6. Richer activity event payloads. Initial diagnostic properties completed in the `0.1.x` patch line.
+6. Richer activity event payloads. Initial diagnostic properties and playground structured details completed in the `0.1.x` patch line.
 7. Query item builder ergonomics. Initial optional, boolean, collection, joined, and date helpers completed in the `0.1.x` patch line.
 8. Playground failure gallery. Initial failure and recovery scenarios completed in the `0.1.x` patch line.
 9. DocC tutorials for core workflows. Initial workflow articles completed in the `0.1.x` patch line.
 10. Typed API error decoding. Initial request-level and call-site decoding completed in the `0.1.x` patch line.
 11. API stability gate policy. Initial CI gate completed in the `0.1.x` patch line.
+12. Playground request inspector. Initial prepared-request inspector and copy-cURL flow completed in the `0.1.x` patch line.
 
 ## Open Design Questions
 

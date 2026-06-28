@@ -46,6 +46,11 @@ public struct HTTPClient: Sendable {
     self.broadcaster.stream()
   }
 
+  /// Resolves a typed request into the transport-ready request that will be sent.
+  public func prepare<R: APIRequest>(_ request: R) throws(NetworkError) -> PreparedRequest {
+    try RequestBuilder.build(request, configuration: self.configuration)
+  }
+
   /// Sends a typed request, validates the HTTP status, and decodes the response.
   public func send<R: APIRequest>(_ request: R) async throws(NetworkError) -> R.Response {
     let response = try await self.sendRaw(request)
@@ -110,7 +115,7 @@ public struct HTTPClient: Sendable {
 
   /// Sends a typed request and returns the raw HTTP response before status validation and decoding.
   public func sendRaw<R: APIRequest>(_ request: R) async throws(NetworkError) -> RawResponse {
-    let prepared = try RequestBuilder.build(request, configuration: self.configuration)
+    let prepared = try self.prepare(request)
     return try await self.sendPrepared(prepared, options: request.options)
   }
 

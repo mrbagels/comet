@@ -15,6 +15,7 @@ completed v2 foundation.
 - A CI API stability gate that fails on public API breaks against the latest release tag.
 - DocC workflow tutorials for authenticated JSON, retries and activity, typed errors, testing and cassettes, WebSockets, and TCA integration.
 - Playground failure-gallery scenarios for timeout, 401 typed errors, 429 retry, 500 errors, malformed JSON, cancellation, and WebSocket close diagnostics.
+- `HTTPClient.prepare(_:)` plus playground request inspectors and structured activity detail screens.
 
 ## 0.1.4 - 2026-06-27
 

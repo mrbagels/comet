@@ -196,6 +196,31 @@ private func durationMilliseconds(_ duration: Duration) -> Int64 {
   #expect(prepared.url.absoluteString == "https://cdn.example.com/files/test?hello=world")
 }
 
+@Test func httpClientCanPrepareRequestsForInspection() throws {
+  let client = HTTPClient.live(
+    configuration: .default(baseURL: URL(string: "https://api.example.com")!),
+    transport: TestTransport { _ in RawResponse(data: Data(), statusCode: 200) }
+  )
+  let request = TestRequest(
+    path: "inspect",
+    method: .post,
+    responseSerializer: .data,
+    headers: HeaderFields {
+      HTTPField(name: .contentType, value: "application/json")
+    },
+    body: .json(["name": "Comet"]),
+    options: RequestOptions(timeout: .seconds(7))
+  )
+
+  let prepared = try client.prepare(request)
+
+  #expect(prepared.url.absoluteString == "https://api.example.com/inspect")
+  #expect(prepared.method == .post)
+  #expect(prepared.timeout == .seconds(7))
+  #expect(prepared.headers[.contentType] == "application/json")
+  #expect(prepared.curlCommand().contains("https://api.example.com/inspect"))
+}
+
 @Test func requestOptionsDefaultToNoAPIVersionPrefix() {
   #expect(RequestOptions().apiVersion == nil)
 }

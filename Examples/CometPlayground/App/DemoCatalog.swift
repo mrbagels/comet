@@ -1,4 +1,5 @@
 import Foundation
+import HTTPTypes
 import Observation
 import Comet
 import CometTesting
@@ -348,7 +349,7 @@ final class DemoCatalog {
   }
 
   private(set) var demoStates: [Demo: DemoState]
-  var activityLog: [String] = []
+  var activityLog: [DemoActivityEntry] = []
   var runSummary = "Start in Mock mode and run the proof set to verify Comet end-to-end."
 
   private var client: HTTPClient
@@ -376,6 +377,57 @@ final class DemoCatalog {
 
   func state(for demo: Demo) -> DemoState {
     self.demoStates[demo, default: Self.placeholderState(for: demo)]
+  }
+
+  func requestInspection(for demo: Demo) -> DemoRequestInspection {
+    switch demo {
+    case .json:
+      return self.httpInspection(for: TodoRequest(), demo: demo)
+    case .text:
+      return self.httpInspection(for: TextDemoRequest(), demo: demo)
+    case .empty:
+      return self.httpInspection(for: EmptyDemoRequest(), demo: demo)
+    case .raw:
+      return self.httpInspection(for: RawTodoRequest(), demo: demo)
+    case .timeout:
+      return self.httpInspection(for: TimeoutDemoRequest(mode: self.mode), demo: demo)
+    case .unauthorized:
+      return self.httpInspection(
+        for: UnauthorizedDemoRequest(mode: self.mode),
+        demo: demo,
+        extraFields: [
+          DemoInspectorField(label: "Typed error", value: String(describing: DemoAPIError.self))
+        ]
+      )
+    case .rateLimited:
+      return self.httpInspection(for: RateLimitDemoRequest(mode: self.mode), demo: demo)
+    case .serverError:
+      return self.httpInspection(for: ServerErrorDemoRequest(mode: self.mode), demo: demo)
+    case .malformedJSON:
+      return self.httpInspection(for: MalformedJSONDemoRequest(mode: self.mode), demo: demo)
+    case .cancelled:
+      let inspectionClient = self.mode == .mock
+        ? self.client
+        : HTTPClient.failing(with: .cancelled)
+      return self.httpInspection(
+        for: CancelledDemoRequest(),
+        demo: demo,
+        client: inspectionClient,
+        transport: self.mode == .mock ? self.mode.httpTransportName : "FailingTransport"
+      )
+    case .webSocket:
+      return self.webSocketInspection(
+        for: DemoClientFactory.makeWebSocketRequest(mode: self.mode),
+        demo: demo,
+        transport: self.mode.webSocketTransportName
+      )
+    case .webSocketClose:
+      return self.webSocketInspection(
+        for: Self.socketCloseRequest(),
+        demo: demo,
+        transport: "MockWebSocketTransport"
+      )
+    }
   }
 
   func run(_ demo: Demo) async {
@@ -546,6 +598,97 @@ final class DemoCatalog {
     self.subscribeToActivity()
   }
 
+  private func httpInspection<R: APIRequest>(
+    for request: R,
+    demo: Demo,
+    client: HTTPClient? = nil,
+    transport: String? = nil,
+    extraFields: [DemoInspectorField] = []
+  ) -> DemoRequestInspection {
+    let inspectionClient = client ?? self.client
+    let transport = transport ?? self.mode.httpTransportName
+    let requestType = String(describing: R.self)
+
+    do {
+      let prepared = try inspectionClient.prepare(request)
+      let metadata = request.options.metadata
+      let metadataFields: [DemoInspectorField?] = [
+        metadata.displayName.map { DemoInspectorField(label: "Metadata", value: $0) },
+        metadata.tags.isEmpty
+          ? nil
+          : DemoInspectorField(label: "Tags", value: metadata.tags.joined(separator: ", "))
+      ]
+      let optionFields: [DemoInspectorField?] = [
+        DemoInspectorField(label: "Path", value: request.path.rawValue.isEmpty ? "/" : request.path.rawValue),
+        DemoInspectorField(label: "Response", value: String(describing: R.Response.self)),
+        request.options.apiVersion.map { DemoInspectorField(label: "API version", value: $0) },
+        request.options.absoluteURL.map { DemoInspectorField(label: "Absolute URL", value: $0.absoluteString) },
+        request.options.idempotencyKey.map { DemoInspectorField(label: "Idempotency key", value: $0) },
+        request.options.deduplicationKey.map { DemoInspectorField(label: "Deduplication key", value: $0) },
+        request.options.retryPolicy == nil
+          ? nil
+          : DemoInspectorField(label: "Retry policy", value: "Request override")
+      ]
+
+      return DemoRequestInspection(
+        title: demo.title,
+        requestType: requestType,
+        transport: transport,
+        method: prepared.method.rawValue,
+        url: prepared.url.absoluteString,
+        timeout: Self.formattedDuration(prepared.timeout),
+        fields: optionFields.compactMap { $0 }
+          + metadataFields.compactMap { $0 }
+          + extraFields
+          + Self.headerFields(from: prepared.headers),
+        bodyPreview: Self.bodyPreview(from: prepared.body),
+        curlCommand: prepared.curlCommand(
+          options: CURLCommandOptions(bodyFormatting: .prettyPrintedJSON)
+        )
+      )
+    } catch {
+      return DemoRequestInspection(
+        title: demo.title,
+        requestType: requestType,
+        transport: transport,
+        method: request.method.rawValue,
+        url: "Unavailable",
+        timeout: "Unavailable",
+        fields: [
+          DemoInspectorField(label: "Error", value: error.debugSummary)
+        ],
+        bodyPreview: "Request preparation failed.",
+        curlCommand: nil
+      )
+    }
+  }
+
+  private func webSocketInspection(
+    for request: WebSocketRequest,
+    demo: Demo,
+    transport: String
+  ) -> DemoRequestInspection {
+    let headers = Self.headerFields(from: request.headers)
+    let subprotocols = request.subprotocols.isEmpty
+      ? "None"
+      : request.subprotocols.joined(separator: ", ")
+
+    return DemoRequestInspection(
+      title: demo.title,
+      requestType: String(describing: WebSocketRequest.self),
+      transport: transport,
+      method: "GET",
+      url: request.url.absoluteString,
+      timeout: request.timeout.map(Self.formattedDuration) ?? "Default",
+      fields: [
+        DemoInspectorField(label: "Subprotocols", value: subprotocols),
+        DemoInspectorField(label: "Message limit", value: "\(request.maximumMessageSize) bytes")
+      ] + headers,
+      bodyPreview: "WebSocket handshake only.",
+      curlCommand: nil
+    )
+  }
+
   private func expectedNetworkFailureOutput<R: APIRequest>(
     request: R,
     expected: (NetworkError) -> Bool,
@@ -692,11 +835,7 @@ final class DemoCatalog {
         selectedSubprotocol: "comet.demo.v1"
       )
     )
-    let request = WebSocketRequest(
-      url: URL(string: "wss://comet.local/socket-close")!,
-      subprotocols: ["comet.demo.v1"],
-      timeout: .seconds(10)
-    )
+    let request = Self.socketCloseRequest()
 
     self.recordSocketEvent(
       "started close scenario",
@@ -739,7 +878,7 @@ final class DemoCatalog {
 
   private func recordSocketEvent(_ title: String, details: [String]) {
     self.activityLog.insert(
-      ([title] + details).joined(separator: " • "),
+      Self.socketActivityEntry(title: title, details: details),
       at: 0
     )
   }
@@ -751,7 +890,7 @@ final class DemoCatalog {
         guard !Task.isCancelled else { return }
         guard let self else { return }
         await MainActor.run {
-          self.activityLog.insert(Self.describe(event), at: 0)
+          self.activityLog.insert(Self.activityEntry(for: event), at: 0)
         }
       }
     }
@@ -878,23 +1017,174 @@ final class DemoCatalog {
     }
   }
 
-  private static func describe(_ event: NetworkEvent) -> String {
-    switch event {
-    case .requestStarted(let id, let method, let url, let metadata):
-      return "\(metadata.eventPrefix)\(method.rawValue) started • \(id.uuidString.prefix(8)) • \(url.absoluteString)"
-    case .requestCompleted(let id, let statusCode, let duration, let metadata):
-      return "\(metadata.eventPrefix)completed \(statusCode) • \(id.uuidString.prefix(8)) • \(duration.formatted(.units(allowed: [.seconds, .milliseconds], width: .narrow)))"
-    case .requestFailed(let id, let error, let duration, let metadata):
-      return "\(metadata.eventPrefix)failed • \(id.uuidString.prefix(8)) • \(duration.formatted(.units(allowed: [.seconds, .milliseconds], width: .narrow))) • \(error)"
-    case .requestRetried(let id, let attempt, let delay, let metadata):
-      return "\(metadata.eventPrefix)retry \(attempt) • \(id.uuidString.prefix(8)) • \(delay.formatted(.units(allowed: [.seconds, .milliseconds], width: .narrow)))"
+  private static func socketCloseRequest() -> WebSocketRequest {
+    WebSocketRequest(
+      url: URL(string: "wss://comet.local/socket-close")!,
+      subprotocols: ["comet.demo.v1"],
+      timeout: .seconds(10)
+    )
+  }
+
+  private static func activityEntry(for event: NetworkEvent) -> DemoActivityEntry {
+    let shortID = String(event.id.uuidString.prefix(8))
+    let name = event.displayName ?? "Request"
+    let metadata = event.metadata
+    var fields = [
+      DemoInspectorField(label: "Request ID", value: shortID)
+    ]
+
+    if let displayName = metadata.displayName {
+      fields.append(DemoInspectorField(label: "Metadata", value: displayName))
     }
+    if !metadata.tags.isEmpty {
+      fields.append(DemoInspectorField(label: "Tags", value: metadata.tags.joined(separator: ", ")))
+    }
+
+    switch event {
+    case .requestStarted(_, let method, let url, _):
+      fields.append(DemoInspectorField(label: "Method", value: method.rawValue))
+      fields.append(DemoInspectorField(label: "URL", value: url.absoluteString))
+      let title = "\(name) started"
+      let detail = "\(method.rawValue) \(url.absoluteString)"
+      return DemoActivityEntry(
+        kind: .started,
+        title: title,
+        detail: detail,
+        fields: fields,
+        rawValue: ([title, "id \(shortID)", detail]).joined(separator: " • ")
+      )
+
+    case .requestCompleted(_, let statusCode, let duration, _):
+      let formattedDuration = Self.formattedDuration(duration)
+      fields.append(DemoInspectorField(label: "Status", value: "\(statusCode)"))
+      fields.append(DemoInspectorField(label: "Duration", value: formattedDuration))
+      let title = "\(name) completed"
+      let detail = "HTTP \(statusCode) in \(formattedDuration)"
+      return DemoActivityEntry(
+        kind: .completed,
+        title: title,
+        detail: detail,
+        fields: fields,
+        rawValue: ([title, "id \(shortID)", detail]).joined(separator: " • ")
+      )
+
+    case .requestFailed(_, let error, let duration, _):
+      let formattedDuration = Self.formattedDuration(duration)
+      fields.append(DemoInspectorField(label: "Duration", value: formattedDuration))
+      fields.append(DemoInspectorField(label: "Error", value: error.debugSummary))
+      if let statusCode = error.statusCode {
+        fields.append(DemoInspectorField(label: "Status", value: "\(statusCode)"))
+      }
+      if let bodyString = error.bodyString, !bodyString.isEmpty {
+        fields.append(DemoInspectorField(label: "Body", value: bodyString))
+      }
+      let title = "\(name) failed"
+      let detail = "\(error.debugSummary) in \(formattedDuration)"
+      return DemoActivityEntry(
+        kind: .failed,
+        title: title,
+        detail: detail,
+        fields: fields,
+        rawValue: ([title, "id \(shortID)", detail]).joined(separator: " • ")
+      )
+
+    case .requestRetried(_, let attempt, let delay, _):
+      let formattedDelay = Self.formattedDuration(delay)
+      fields.append(DemoInspectorField(label: "Attempt", value: "\(attempt)"))
+      fields.append(DemoInspectorField(label: "Delay", value: formattedDelay))
+      let title = "\(name) retry"
+      let detail = "Attempt \(attempt) after \(formattedDelay)"
+      return DemoActivityEntry(
+        kind: .retried,
+        title: title,
+        detail: detail,
+        fields: fields,
+        rawValue: ([title, "id \(shortID)", detail]).joined(separator: " • ")
+      )
+    }
+  }
+
+  private static func socketActivityEntry(title: String, details: [String]) -> DemoActivityEntry {
+    let fields = details.enumerated().map { index, value in
+      DemoInspectorField(label: "Detail \(index + 1)", value: value)
+    }
+    let rawValue = ([title] + details).joined(separator: " • ")
+    return DemoActivityEntry(
+      kind: .socket,
+      title: title,
+      detail: details.joined(separator: " • "),
+      fields: fields,
+      rawValue: rawValue
+    )
+  }
+
+  private static func headerFields(from headers: HTTPFields) -> [DemoInspectorField] {
+    let fields = headers
+      .map { field in
+        DemoInspectorField(
+          label: "Header",
+          value: "\(field.name.canonicalName): \(field.value)"
+        )
+      }
+      .sorted { $0.value.localizedStandardCompare($1.value) == .orderedAscending }
+
+    return fields.isEmpty
+      ? [DemoInspectorField(label: "Headers", value: "None")]
+      : fields
+  }
+
+  private static func bodyPreview(from body: Data?) -> String {
+    guard let body, !body.isEmpty else {
+      return "No request body."
+    }
+    if let prettyJSON = Self.prettyPrintedJSONString(from: body) {
+      return prettyJSON
+    }
+    if let string = String(data: body, encoding: .utf8) {
+      return string
+    }
+    return "Binary body: \(body.count) bytes."
+  }
+
+  private static func prettyPrintedJSONString(from data: Data) -> String? {
+    let trimmed = String(decoding: data, as: UTF8.self)
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    guard trimmed.first == "{" || trimmed.first == "[" else { return nil }
+
+    do {
+      let object = try JSONSerialization.jsonObject(with: data)
+      let prettyData = try JSONSerialization.data(
+        withJSONObject: object,
+        options: [.prettyPrinted, .sortedKeys]
+      )
+      return String(decoding: prettyData, as: UTF8.self)
+    } catch {
+      return nil
+    }
+  }
+
+  private static func formattedDuration(_ duration: Duration) -> String {
+    duration.formatted(.units(allowed: [.seconds, .milliseconds], width: .narrow))
   }
 }
 
-private extension RequestMetadata {
-  var eventPrefix: String {
-    self.displayName.map { "\($0) • " } ?? ""
+private extension DemoCatalog.ClientMode {
+  var httpTransportName: String {
+    switch self {
+    case .mock:
+      "MockTransport"
+    case .live:
+      "URLSessionTransport"
+    }
+  }
+
+  var webSocketTransportName: String {
+    switch self {
+    case .mock:
+      "MockWebSocketTransport"
+    case .live:
+      "URLSessionWebSocketTransport"
+    }
   }
 }
 

@@ -31,6 +31,7 @@ The shipped live transports today are ``URLSessionTransport`` and ``URLSessionWe
 - ``ClientConfiguration``
 - ``RequestOptions``
 - ``RequestMetadata``
+- ``PreparedRequest``
 - ``ResponseSerializer``
 - ``ErrorResponseSerializer``
 - ``APIRequestWithErrorResponse``

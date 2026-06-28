@@ -146,7 +146,7 @@ struct HomeTab: View {
 
         HomeShortcutButton(
           title: "Inspect activity",
-          message: model.activityLog.first ?? "Run any proof to populate the event stream.",
+          message: model.activityLog.first?.rawValue ?? "Run any proof to populate the event stream.",
           symbolName: "waveform.path.ecg"
         ) {
           selectedTab = .activity

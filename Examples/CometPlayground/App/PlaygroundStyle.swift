@@ -269,6 +269,44 @@ struct OutputConsole: View {
   }
 }
 
+struct InspectorFieldList: View {
+  let fields: [DemoInspectorField]
+
+  private let columns = [
+    GridItem(.adaptive(minimum: 148), spacing: 10)
+  ]
+
+  var body: some View {
+    LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
+      ForEach(fields) { field in
+        VStack(alignment: .leading, spacing: 6) {
+          Text(field.label)
+            .font(.system(.caption, design: .rounded).weight(.semibold))
+            .textCase(.uppercase)
+            .foregroundStyle(.secondary)
+
+          Text(field.value)
+            .font(.system(.footnote, design: .monospaced))
+            .foregroundStyle(ThemeColor.ink)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .textSelection(.enabled)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+          RoundedRectangle(cornerRadius: 16, style: .continuous)
+            .fill(Color.white.opacity(0.56))
+        )
+        .overlay(
+          RoundedRectangle(cornerRadius: 16, style: .continuous)
+            .strokeBorder(ThemeColor.fallbackStroke, lineWidth: 1)
+        )
+      }
+    }
+  }
+}
+
 extension View {
   @ViewBuilder
   func liquidPanel(tint: Color? = nil, cornerRadius: CGFloat = 28) -> some View {

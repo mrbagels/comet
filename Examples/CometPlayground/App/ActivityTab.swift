@@ -6,6 +6,7 @@ private enum ActivityFilter: String, CaseIterable, Identifiable {
   case completed
   case failed
   case retried
+  case socket
 
   var id: String { rawValue }
 
@@ -21,64 +22,23 @@ private enum ActivityFilter: String, CaseIterable, Identifiable {
       "Failed"
     case .retried:
       "Retried"
-    }
-  }
-}
-
-private struct ActivityEvent: Hashable, Identifiable {
-  let offset: Int
-  let rawValue: String
-
-  var id: String { "\(offset)-\(rawValue)" }
-
-  var filter: ActivityFilter {
-    if rawValue.hasPrefix("completed") { return .completed }
-    if rawValue.hasPrefix("failed") { return .failed }
-    if rawValue.hasPrefix("retry") { return .retried }
-    return .started
-  }
-
-  var accent: Color {
-    switch filter {
-    case .all:
-      ThemeColor.ocean
-    case .started:
-      ThemeColor.ocean
-    case .completed:
-      ThemeColor.mint
-    case .failed:
-      ThemeColor.ruby
-    case .retried:
-      ThemeColor.sunset
+    case .socket:
+      "Socket"
     }
   }
 
-  var symbolName: String {
-    switch filter {
-    case .all:
-      "waveform.path.ecg"
-    case .started:
-      "arrow.up.forward.circle"
-    case .completed:
-      "checkmark.circle"
-    case .failed:
-      "exclamationmark.triangle"
-    case .retried:
-      "arrow.clockwise"
+  func contains(_ kind: DemoActivityEntry.Kind) -> Bool {
+    switch (self, kind) {
+    case (.all, _),
+      (.started, .started),
+      (.completed, .completed),
+      (.failed, .failed),
+      (.retried, .retried),
+      (.socket, .socket):
+      true
+    default:
+      false
     }
-  }
-
-  var title: String {
-    rawValue.components(separatedBy: "•").first?.trimmingCharacters(in: .whitespaces) ?? rawValue
-  }
-
-  var detail: String {
-    let parts = rawValue
-      .components(separatedBy: "•")
-      .dropFirst()
-      .map { $0.trimmingCharacters(in: .whitespaces) }
-
-    return parts.isEmpty ? "No secondary details recorded yet." : parts.joined(separator: " • ")
   }
 }
 
@@ -115,7 +75,7 @@ struct ActivityTab: View {
           }
         }
       }
-      .navigationDestination(for: ActivityEvent.self) { event in
+      .navigationDestination(for: DemoActivityEntry.self) { event in
         ActivityDetailScreen(event: event)
       }
       .searchable(text: $searchText, prompt: "Search events")
@@ -140,28 +100,28 @@ struct ActivityTab: View {
     }
   }
 
-  private var events: [ActivityEvent] {
-    model.activityLog.enumerated().map { ActivityEvent(offset: $0.offset, rawValue: $0.element) }
+  private var events: [DemoActivityEntry] {
+    model.activityLog
   }
 
-  private var filteredEvents: [ActivityEvent] {
+  private var filteredEvents: [DemoActivityEntry] {
     events.filter { event in
-      let matchesFilter = filter == .all || event.filter == filter
-      let matchesSearch = searchText.isEmpty || event.rawValue.localizedStandardContains(searchText)
+      let matchesFilter = filter.contains(event.kind)
+      let matchesSearch = searchText.isEmpty || event.searchableText.localizedStandardContains(searchText)
       return matchesFilter && matchesSearch
     }
   }
 }
 
 private struct ActivitySummaryPanel: View {
-  let latestSignal: String?
+  let latestSignal: DemoActivityEntry?
   @Binding var filter: ActivityFilter
 
   var body: some View {
     GlassPanel(tint: ThemeColor.ocean) {
       VStack(alignment: .leading, spacing: 8) {
         SectionEyebrow(text: "Latest Signal")
-        Text(latestSignal ?? "Run any proof and the newest network event will land here.")
+        Text(latestSignal?.rawValue ?? "Run any proof and the newest network event will land here.")
           .font(.system(.body, design: .monospaced))
           .foregroundStyle(latestSignal == nil ? .secondary : ThemeColor.ink)
           .fixedSize(horizontal: false, vertical: true)
@@ -194,20 +154,22 @@ private struct ActivitySummaryPanel: View {
       ThemeColor.ruby
     case .retried:
       ThemeColor.sunset
+    case .socket:
+      ThemeColor.ruby
     }
   }
 }
 
 private struct ActivityEventRow: View {
-  let event: ActivityEvent
+  let event: DemoActivityEntry
 
   var body: some View {
     HStack(alignment: .top, spacing: 14) {
-      Image(systemName: event.symbolName)
+      Image(systemName: event.kind.symbolName)
         .font(.system(size: 17, weight: .semibold))
-        .foregroundStyle(event.accent)
+        .foregroundStyle(event.kind.accent)
         .frame(width: 38, height: 38)
-        .background(event.accent.opacity(0.12), in: .rect(cornerRadius: 14))
+        .background(event.kind.accent.opacity(0.12), in: .rect(cornerRadius: 14))
 
       VStack(alignment: .leading, spacing: 6) {
         Text(event.title)
@@ -225,13 +187,13 @@ private struct ActivityEventRow: View {
 }
 
 private struct ActivityDetailScreen: View {
-  let event: ActivityEvent
+  let event: DemoActivityEntry
 
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 20) {
         VStack(alignment: .leading, spacing: 12) {
-          SectionEyebrow(text: event.filter.title)
+          SectionEyebrow(text: event.kind.title)
 
           Text(event.title)
             .font(.system(size: 34, weight: .bold, design: .rounded))
@@ -243,7 +205,12 @@ private struct ActivityDetailScreen: View {
             .fixedSize(horizontal: false, vertical: true)
         }
 
-        GlassPanel(tint: event.accent) {
+        GlassPanel(tint: event.kind.accent) {
+          SectionEyebrow(text: "Details")
+          InspectorFieldList(fields: event.fields)
+        }
+
+        GlassPanel(tint: event.kind.accent) {
           SectionEyebrow(text: "Raw Event")
           OutputConsole(value: event.rawValue)
         }
@@ -256,5 +223,52 @@ private struct ActivityDetailScreen: View {
     .background(PlaygroundBackdrop())
     .navigationTitle("Event Detail")
     .navigationBarTitleDisplayMode(.inline)
+  }
+}
+
+private extension DemoActivityEntry.Kind {
+  var title: String {
+    switch self {
+    case .started:
+      "Started"
+    case .completed:
+      "Completed"
+    case .failed:
+      "Failed"
+    case .retried:
+      "Retried"
+    case .socket:
+      "Socket"
+    }
+  }
+
+  var accent: Color {
+    switch self {
+    case .started:
+      ThemeColor.ocean
+    case .completed:
+      ThemeColor.mint
+    case .failed:
+      ThemeColor.ruby
+    case .retried:
+      ThemeColor.sunset
+    case .socket:
+      ThemeColor.ruby
+    }
+  }
+
+  var symbolName: String {
+    switch self {
+    case .started:
+      "arrow.up.forward.circle"
+    case .completed:
+      "checkmark.circle"
+    case .failed:
+      "exclamationmark.triangle"
+    case .retried:
+      "arrow.clockwise"
+    case .socket:
+      "dot.radiowaves.left.and.right"
+    }
   }
 }
