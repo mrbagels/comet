@@ -17,7 +17,61 @@ private enum TestFeatureError: Error, Equatable, Sendable {
 }
 
 @Reducer
-private struct TestFeature {
+private struct DependencyClientFeature {
+  @ObservableState
+  struct State: Equatable {
+    var value = ""
+  }
+
+  enum Action: Equatable {
+    case load
+    case response(Result<String, TestFeatureError>)
+  }
+
+  @Dependency(\.httpClient) var httpClient
+
+  var body: some ReducerOf<Self> {
+    Reduce { state, action in
+      switch action {
+      case .load:
+        return .request(
+          CometTCATestRequest(),
+          map: { result in
+            .response(
+              result.mapError { .message(String(describing: $0)) }
+            )
+          }
+        )
+
+      case .response(.success(let value)):
+        state.value = value
+        return .none
+
+      case .response(.failure):
+        return .none
+      }
+    }
+  }
+}
+
+@MainActor
+@Test func effectRequestUsesInjectedClient() async {
+  let store = TestStore(initialState: DependencyClientFeature.State()) {
+    DependencyClientFeature()
+  } withDependencies: {
+    $0.httpClient = .mock { _ in
+      RawResponse(data: Data("hello".utf8), statusCode: 200)
+    }
+  }
+
+  await store.send(.load)
+  await store.receive(.response(.success("hello"))) {
+    $0.value = "hello"
+  }
+}
+
+@Reducer
+private struct ExplicitClientFeature {
   @ObservableState
   struct State: Equatable {
     var value = ""
@@ -56,18 +110,18 @@ private struct TestFeature {
 }
 
 @MainActor
-@Test func effectRequestUsesInjectedClient() async {
-  let store = TestStore(initialState: TestFeature.State()) {
-    TestFeature()
+@Test func effectRequestStillSupportsExplicitClient() async {
+  let store = TestStore(initialState: ExplicitClientFeature.State()) {
+    ExplicitClientFeature()
   } withDependencies: {
     $0.httpClient = .mock { _ in
-      RawResponse(data: Data("hello".utf8), statusCode: 200)
+      RawResponse(data: Data("explicit".utf8), statusCode: 200)
     }
   }
 
   await store.send(.load)
-  await store.receive(.response(.success("hello"))) {
-    $0.value = "hello"
+  await store.receive(.response(.success("explicit"))) {
+    $0.value = "explicit"
   }
 }
 

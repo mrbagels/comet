@@ -2,6 +2,15 @@ import ComposableArchitecture
 import Comet
 
 public extension Effect where Action: Sendable {
+  /// Builds an effect that executes a Comet request with the injected ``HTTPClient`` dependency.
+  static func request<R: APIRequest>(
+    _ request: R,
+    map: @escaping @Sendable (Result<R.Response, NetworkError>) -> Action
+  ) -> Self {
+    @Dependency(\.httpClient) var client
+    return .request(request, using: client, map: map)
+  }
+
   /// Builds an effect that executes a Comet request and maps the typed result into an action.
   static func request<R: APIRequest>(
     _ request: R,

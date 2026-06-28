@@ -42,7 +42,7 @@ struct UserFeature {
     Reduce { state, action in
       switch action {
       case .task:
-        return .request(GetUser(userID: 42), using: httpClient) {
+        return .request(GetUser(userID: 42)) {
           .userResponse($0)
         }
 
@@ -55,6 +55,15 @@ struct UserFeature {
       }
     }
   }
+}
+```
+
+Use the `using:` overload when a feature needs a one-off client instead of the
+dependency value:
+
+```swift
+return .request(GetUser(userID: 42), using: previewClient) {
+  .userResponse($0)
 }
 ```
 
