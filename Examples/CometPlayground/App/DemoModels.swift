@@ -145,4 +145,5 @@ struct DemoCassetteSnapshot: Hashable, Sendable {
   let summary: String
   let fields: [DemoInspectorField]
   let json: String
+  let replayOutput: String?
 }

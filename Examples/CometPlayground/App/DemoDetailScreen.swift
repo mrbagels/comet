@@ -341,6 +341,13 @@ struct DemoDetailScreen: View {
 
           InspectorFieldList(fields: cassette.fields)
 
+          if let replayOutput = cassette.replayOutput {
+            VStack(alignment: .leading, spacing: 10) {
+              SectionEyebrow(text: "Replay Verification")
+              OutputConsole(value: replayOutput)
+            }
+          }
+
           VStack(alignment: .leading, spacing: 10) {
             SectionEyebrow(text: "JSON")
             OutputConsole(value: cassette.json)

@@ -406,6 +406,8 @@ Dependencies:
 
 Turn requests/cassettes into local contract testing workflows.
 
+Status: initial playground cassette replay verification completed in the `0.1.x` patch line.
+
 Technical shape:
 
 - Serve recorded cassettes or registered `APIRequest` fixtures from a local mock server.

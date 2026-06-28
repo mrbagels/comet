@@ -58,7 +58,7 @@ Each completed detail screen also shows a response viewer with structured fields
 
 Realtime detail screens include a socket monitor with outbound, inbound, and close frames plus a copyable monitor snapshot.
 
-Mock HTTP detail screens include a cassette viewer that exports the latest scenario through `RecordingTransport` as copyable `HTTPCassette` JSON.
+Mock HTTP detail screens include a cassette viewer that exports the latest scenario through `RecordingTransport` as copyable `HTTPCassette` JSON and verifies it with `ReplayTransport`.
 
 ### 2. Run A Live Spot Check
 

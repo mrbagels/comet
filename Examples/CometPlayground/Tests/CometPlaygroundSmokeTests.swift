@@ -51,10 +51,17 @@ final class CometPlaygroundSmokeTests: XCTestCase {
     )
     XCTAssertTrue(model.state(for: .json).cassette?.json.contains("\"exchanges\"") == true)
     XCTAssertEqual(
+      model.state(for: .json).cassette?.fields.first { $0.label == "Replay" }?.value,
+      "Verified"
+    )
+    XCTAssertTrue(model.state(for: .json).cassette?.replayOutput?.contains("success replay") == true)
+    XCTAssertEqual(
       model.state(for: .rateLimited).cassette?.fields.first { $0.label == "Exchanges" }?.value,
       "2"
     )
+    XCTAssertTrue(model.state(for: .rateLimited).cassette?.replayOutput?.contains("consumed: 2/2") == true)
     XCTAssertTrue(model.state(for: .timeout).cassette?.json.contains("\"timeout\"") == true)
+    XCTAssertTrue(model.state(for: .timeout).cassette?.replayOutput?.contains("expected failure replay") == true)
     let rateLimitTrace = model.traceTimeline(for: .rateLimited)
     XCTAssertEqual(rateLimitTrace?.fields.first { $0.label == "Correlation" }?.value.count, 8)
     XCTAssertEqual(rateLimitTrace?.events.map(\.kind), [.started, .retried, .completed])

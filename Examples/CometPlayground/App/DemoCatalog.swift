@@ -4,6 +4,11 @@ import Observation
 import Comet
 import CometTesting
 
+private struct DemoCassetteReplayVerification: Sendable {
+  let status: String
+  let output: String
+}
+
 @MainActor
 @Observable
 final class DemoCatalog {
@@ -328,6 +333,15 @@ final class DemoCatalog {
         "CancelledDemo"
       case .webSocket, .webSocketClose:
         nil
+      }
+    }
+
+    var expectsMockReplayFailure: Bool {
+      switch self {
+      case .timeout, .unauthorized, .serverError, .malformedJSON, .cancelled:
+        true
+      case .json, .text, .empty, .raw, .rateLimited, .webSocket, .webSocketClose:
+        false
       }
     }
   }
@@ -927,18 +941,21 @@ final class DemoCatalog {
     do {
       let data = try cassette.encoded(prettyPrinted: true)
       let json = String(decoding: data, as: UTF8.self)
+      let replay = await self.replayVerification(for: demo, cassette: cassette)
       return DemoCassetteSnapshot(
         title: "\(demo.title) cassette",
-        summary: "A deterministic mock cassette exported from `RecordingTransport`.",
+        summary: "A deterministic mock cassette exported from `RecordingTransport` and verified through `ReplayTransport`.",
         fields: [
           DemoInspectorField(label: "Mode", value: self.mode.title),
           DemoInspectorField(label: "Exchanges", value: "\(cassette.exchanges.count)"),
+          DemoInspectorField(label: "Replay", value: replay.status),
           DemoInspectorField(
             label: "Outcomes",
             value: cassette.exchanges.map(Self.cassetteOutcomeLabel(for:)).joined(separator: ", ")
           )
         ],
-        json: json
+        json: json,
+        replayOutput: replay.output
       )
     } catch {
       return DemoCassetteSnapshot(
@@ -947,7 +964,88 @@ final class DemoCatalog {
         fields: [
           DemoInspectorField(label: "Error", value: error.localizedDescription)
         ],
-        json: "Cassette export failed: \(error)"
+        json: "Cassette export failed: \(error)",
+        replayOutput: nil
+      )
+    }
+  }
+
+  private func replayVerification(
+    for demo: Demo,
+    cassette: HTTPCassette
+  ) async -> DemoCassetteReplayVerification {
+    let replay = ReplayTransport(cassette: cassette, mode: .sequential)
+    let replayClient = HTTPClient.live(
+      configuration: DemoClientFactory.makeHTTPConfiguration(mode: .mock),
+      transport: replay
+    )
+    let totalExchanges = cassette.exchanges.count
+
+    do {
+      try await self.record(demo, with: replayClient)
+      let remaining = await replay.remainingCount()
+      let consumed = totalExchanges - remaining
+
+      guard remaining == 0 else {
+        return DemoCassetteReplayVerification(
+          status: "Failed",
+          output: """
+          failed: replay left recorded exchanges unused
+          mode: sequential
+          consumed: \(consumed)/\(totalExchanges)
+          remaining: \(remaining)
+          """
+        )
+      }
+
+      guard !demo.expectsMockReplayFailure else {
+        return DemoCassetteReplayVerification(
+          status: "Failed",
+          output: """
+          failed: replay succeeded but this scenario should reproduce an expected failure
+          mode: sequential
+          consumed: \(consumed)/\(totalExchanges)
+          remaining: \(remaining)
+          """
+        )
+      }
+
+      return DemoCassetteReplayVerification(
+        status: "Verified",
+        output: """
+        verified: success replay
+        mode: sequential
+        consumed: \(consumed)/\(totalExchanges)
+        remaining: \(remaining)
+        """
+      )
+    } catch {
+      let remaining = await replay.remainingCount()
+      let consumed = totalExchanges - remaining
+      let errorLabel = Self.replayErrorLabel(error)
+
+      guard demo.expectsMockReplayFailure, remaining == 0 else {
+        return DemoCassetteReplayVerification(
+          status: "Failed",
+          output: """
+          failed: replay did not match the expected scenario
+          mode: sequential
+          consumed: \(consumed)/\(totalExchanges)
+          remaining: \(remaining)
+          error: \(errorLabel)
+          """
+        )
+      }
+
+      return DemoCassetteReplayVerification(
+        status: "Verified",
+        output: """
+        verified: expected failure replay
+        mode: sequential
+        consumed: \(consumed)/\(totalExchanges)
+        remaining: \(remaining)
+        error: \(errorLabel)
+        """
       )
     }
   }
@@ -1441,6 +1539,14 @@ final class DemoCatalog {
     case .failure(let error):
       error.kind.rawValue
     }
+  }
+
+  private static func replayErrorLabel(_ error: any Error) -> String {
+    if let networkError = error as? NetworkError {
+      return networkError.debugSummary
+    }
+
+    return String(describing: error)
   }
 
   private static func messageText(from message: WebSocketMessage) -> String {
