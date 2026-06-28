@@ -35,6 +35,8 @@ The shipped live transports today are ``URLSessionTransport`` and ``URLSessionWe
 - ``RequestOptions``
 - ``RequestMetadata``
 - ``HTTPCachePolicy``
+- ``HTTPCacheControl``
+- ``HTTPCacheMetadata``
 - ``HTTPCacheKey``
 - ``CachedHTTPResponse``
 - ``HTTPCacheStore``

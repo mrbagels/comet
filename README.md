@@ -200,6 +200,12 @@ var options: RequestOptions {
 }
 ```
 
+`returnCacheElseLoad` serves fresh cached responses and revalidates stale entries
+when `ETag` or `Last-Modified` validators are available. Use `.revalidate` to
+force a conditional request, `.cacheOnly` for offline reads, `.networkOnly` to
+avoid reading or writing the cache, or `.reloadIgnoringCache` to fetch and store
+a replacement.
+
 Cache decisions are included in completed traces:
 
 ```swift

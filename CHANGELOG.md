@@ -16,8 +16,11 @@ live transports remain future minor-version work.
 - Propagated trace IDs on `RequestMetadata` and completed `RequestTrace` values.
 - Playground raw-response proof that shows the outbound trace header in mock mode.
 - `HTTPCachePolicy`, `HTTPCacheKey`, `CachedHTTPResponse`, `HTTPCacheStore`, and `MemoryHTTPCacheStore`.
+- `HTTPCacheControl` and `HTTPCacheMetadata` for typed `Cache-Control`, `Expires`, `ETag`, and `Last-Modified` parsing.
 - `CacheMiddleware` for opt-in safe-method response caching.
-- Cache hit, miss, bypass, store, and skipped-store events on completed `RequestTrace` values.
+- HTTP cache revalidation with conditional `If-None-Match` and `If-Modified-Since` requests, `304 Not Modified` merge behavior, and replacement storage for refreshed `200` responses.
+- Cache-only, network-only, return-cache-else-load, reload-ignoring-cache, and revalidate request policies.
+- Cache hit, miss, bypass, stale, revalidate, update, store, and skipped-store events on completed `RequestTrace` values.
 
 ### Changed
 

@@ -312,6 +312,11 @@ Dependencies:
 
 Add cache helpers around HTTP semantics.
 
+Status: cache core and HTTP revalidation are implemented in `Unreleased` with
+memory storage, request-level policies, freshness parsing, validators,
+conditional requests, `304` merging, and cache trace events. Persistent storage,
+pruning, stale-if-error, and stale-while-revalidate remain future work.
+
 Technical shape:
 
 - Add cache store protocol and middleware.

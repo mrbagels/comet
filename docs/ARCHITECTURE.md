@@ -652,7 +652,7 @@ The project is generated from `project.yml` with XcodeGen.
 - repeated headers are preserved inside Comet but combined at `Foundation` boundaries
 - activity events cover request lifecycle, not decode lifecycle
 - WebSocket session activity is modeled through `WebSocketSessionEvent`, not `NetworkEvent`
-- distributed trace propagation and caching remain V3-or-later work
+- file-backed cache storage and server-side live transports remain V3-or-later work
 
 ---
 
@@ -661,6 +661,5 @@ The project is generated from `project.yml` with XcodeGen.
 When Comet grows beyond this MVP, the highest-value next additions are likely:
 
 - a server-side live transport
-- distributed tracing/context propagation
-- caching primitives
+- persistent cache storage and pruning
 - targeted docs and examples for real app integration

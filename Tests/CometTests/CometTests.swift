@@ -97,6 +97,38 @@ private struct SequenceTransport: HTTPTransport, Sendable {
   }
 }
 
+private actor ScriptedTransportState {
+  private var responses: [RawResponse]
+  private var requests: [PreparedRequest] = []
+
+  init(responses: [RawResponse]) {
+    self.responses = responses
+  }
+
+  func next(request: PreparedRequest) -> RawResponse {
+    self.requests.append(request)
+    precondition(!self.responses.isEmpty, "No more transport responses configured.")
+    return self.responses.removeFirst()
+  }
+
+  func count() -> Int {
+    self.requests.count
+  }
+
+  func request(at index: Int) -> PreparedRequest? {
+    guard self.requests.indices.contains(index) else { return nil }
+    return self.requests[index]
+  }
+}
+
+private struct ScriptedTransport: HTTPTransport, Sendable {
+  let state: ScriptedTransportState
+
+  func send(_ request: PreparedRequest) async throws(NetworkError) -> RawResponse {
+    await self.state.next(request: request)
+  }
+}
+
 private actor CacheCountingTransportState {
   private var callCount = 0
 
@@ -1026,6 +1058,299 @@ private func durationMilliseconds(_ duration: Duration) -> Int64 {
   #expect(second == "network-2")
   #expect(third == "network-2")
   #expect(await transportState.count() == 2)
+}
+
+@Test func cacheMetadataParsesFreshnessAndValidators() throws {
+  var headers = HTTPFields()
+  headers[HTTPField.Name("Cache-Control")!] = "max-age=60, must-revalidate"
+  headers[HTTPField.Name("Expires")!] = "Wed, 21 Oct 2015 07:28:00 GMT"
+  headers[HTTPField.Name("ETag")!] = #""v1""#
+  headers[HTTPField.Name("Last-Modified")!] = "Wed, 21 Oct 2015 07:20:00 GMT"
+  let storedAt = Date(timeIntervalSince1970: 1_445_412_420)
+
+  let metadata = HTTPCacheMetadata(headers: headers, storedAt: storedAt)
+
+  #expect(metadata.cacheControl.maxAgeSeconds == 60)
+  #expect(metadata.cacheControl.mustRevalidate)
+  #expect(metadata.eTag == #""v1""#)
+  #expect(metadata.lastModified != nil)
+  #expect(metadata.isFresh(at: storedAt.addingTimeInterval(30)))
+  #expect(!metadata.isFresh(at: storedAt.addingTimeInterval(61)))
+  #expect(metadata.conditionalHeaders()[HTTPField.Name("If-None-Match")!] == #""v1""#)
+  #expect(metadata.conditionalHeaders()[HTTPField.Name("If-Modified-Since")!] == "Wed, 21 Oct 2015 07:20:00 GMT")
+}
+
+@Test func cacheMiddlewareRevalidatesStaleResponsesWithETagAndMerges304() async throws {
+  let key = HTTPCacheKey(method: .get, url: URL(string: "https://example.com/cache")!)
+  var cachedHeaders = HTTPFields()
+  cachedHeaders[HTTPField.Name("Cache-Control")!] = "max-age=0"
+  cachedHeaders[HTTPField.Name("ETag")!] = #""v1""#
+  cachedHeaders[.contentType] = "application/json"
+  let store = MemoryHTTPCacheStore(
+    responses: [
+      key: CachedHTTPResponse(
+        data: Data("cached".utf8),
+        statusCode: 200,
+        headers: cachedHeaders,
+        storedAt: Date(timeIntervalSince1970: 0)
+      )
+    ]
+  )
+
+  var revalidatedHeaders = HTTPFields()
+  revalidatedHeaders[HTTPField.Name("Cache-Control")!] = "max-age=60"
+  revalidatedHeaders[HTTPField.Name("ETag")!] = #""v1""#
+  let transportState = ScriptedTransportState(
+    responses: [
+      RawResponse(data: Data(), statusCode: 304, headers: revalidatedHeaders)
+    ]
+  )
+  let client = HTTPClient.live(
+    configuration: ClientConfiguration(
+      baseURL: URL(string: "https://example.com")!,
+      middleware: [
+        CacheMiddleware(
+          store: store,
+          now: { Date(timeIntervalSince1970: 10) }
+        )
+      ]
+    ),
+    transport: ScriptedTransport(state: transportState)
+  )
+  var traces = client.traces.makeAsyncIterator()
+  let request = TestRequest(
+    path: "cache",
+    method: .get,
+    responseSerializer: .string(),
+    options: RequestOptions(cachePolicy: .returnCacheElseLoad)
+  )
+
+  let response = try await client.send(request)
+  let trace = try #require(await traces.next())
+  let sentRequest = try #require(await transportState.request(at: 0))
+  let stored = try #require(await store.cachedResponse(for: key))
+
+  #expect(response == "cached")
+  #expect(await transportState.count() == 1)
+  #expect(sentRequest.headers[HTTPField.Name("If-None-Match")!] == #""v1""#)
+  #expect(stored.data == Data("cached".utf8))
+  #expect(stored.headers[HTTPField.Name("Cache-Control")!] == "max-age=60")
+  #expect(trace.cacheEvents.map(\.kind) == [.stale, .revalidate, .update])
+  #expect(trace.cacheEvents.last?.reason == .notModified)
+}
+
+@Test func cacheMiddlewareRevalidatesFreshResponsesWithoutStaleTrace() async throws {
+  let key = HTTPCacheKey(method: .get, url: URL(string: "https://example.com/cache")!)
+  var cachedHeaders = HTTPFields()
+  cachedHeaders[HTTPField.Name("Cache-Control")!] = "max-age=60"
+  cachedHeaders[HTTPField.Name("ETag")!] = #""v1""#
+  let store = MemoryHTTPCacheStore(
+    responses: [
+      key: CachedHTTPResponse(
+        data: Data("cached".utf8),
+        statusCode: 200,
+        headers: cachedHeaders,
+        storedAt: Date(timeIntervalSince1970: 0)
+      )
+    ]
+  )
+
+  var revalidatedHeaders = HTTPFields()
+  revalidatedHeaders[HTTPField.Name("Cache-Control")!] = "max-age=120"
+  revalidatedHeaders[HTTPField.Name("ETag")!] = #""v1""#
+  let transportState = ScriptedTransportState(
+    responses: [
+      RawResponse(data: Data(), statusCode: 304, headers: revalidatedHeaders)
+    ]
+  )
+  let client = HTTPClient.live(
+    configuration: ClientConfiguration(
+      baseURL: URL(string: "https://example.com")!,
+      middleware: [
+        CacheMiddleware(
+          store: store,
+          now: { Date(timeIntervalSince1970: 10) }
+        )
+      ]
+    ),
+    transport: ScriptedTransport(state: transportState)
+  )
+  var traces = client.traces.makeAsyncIterator()
+  let request = TestRequest(
+    path: "cache",
+    method: .get,
+    responseSerializer: .string(),
+    options: RequestOptions(cachePolicy: .revalidate)
+  )
+
+  let response = try await client.send(request)
+  let trace = try #require(await traces.next())
+  let sentRequest = try #require(await transportState.request(at: 0))
+  let stored = try #require(await store.cachedResponse(for: key))
+
+  #expect(response == "cached")
+  #expect(sentRequest.headers[HTTPField.Name("If-None-Match")!] == #""v1""#)
+  #expect(stored.headers[HTTPField.Name("Cache-Control")!] == "max-age=120")
+  #expect(trace.cacheEvents.map(\.kind) == [.revalidate, .update])
+  #expect(trace.cacheEvents.last?.reason == .notModified)
+}
+
+@Test func cacheMiddlewareStoresReplacementWhenRevalidationReturns200() async throws {
+  let key = HTTPCacheKey(method: .get, url: URL(string: "https://example.com/cache")!)
+  var cachedHeaders = HTTPFields()
+  cachedHeaders[HTTPField.Name("Cache-Control")!] = "max-age=0"
+  cachedHeaders[HTTPField.Name("ETag")!] = #""v1""#
+  let store = MemoryHTTPCacheStore(
+    responses: [
+      key: CachedHTTPResponse(
+        data: Data("cached".utf8),
+        statusCode: 200,
+        headers: cachedHeaders,
+        storedAt: Date(timeIntervalSince1970: 0)
+      )
+    ]
+  )
+
+  var replacementHeaders = HTTPFields()
+  replacementHeaders[HTTPField.Name("Cache-Control")!] = "max-age=60"
+  replacementHeaders[HTTPField.Name("ETag")!] = #""v2""#
+  let transportState = ScriptedTransportState(
+    responses: [
+      RawResponse(data: Data("replacement".utf8), statusCode: 200, headers: replacementHeaders)
+    ]
+  )
+  let client = HTTPClient.live(
+    configuration: ClientConfiguration(
+      baseURL: URL(string: "https://example.com")!,
+      middleware: [
+        CacheMiddleware(
+          store: store,
+          now: { Date(timeIntervalSince1970: 10) }
+        )
+      ]
+    ),
+    transport: ScriptedTransport(state: transportState)
+  )
+  var traces = client.traces.makeAsyncIterator()
+  let request = TestRequest(
+    path: "cache",
+    method: .get,
+    responseSerializer: .string(),
+    options: RequestOptions(cachePolicy: .revalidate)
+  )
+
+  let response = try await client.send(request)
+  let trace = try #require(await traces.next())
+  let sentRequest = try #require(await transportState.request(at: 0))
+  let stored = try #require(await store.cachedResponse(for: key))
+
+  #expect(response == "replacement")
+  #expect(sentRequest.headers[HTTPField.Name("If-None-Match")!] == #""v1""#)
+  #expect(stored.data == Data("replacement".utf8))
+  #expect(stored.headers[HTTPField.Name("ETag")!] == #""v2""#)
+  #expect(trace.cacheEvents.map(\.kind) == [.stale, .revalidate, .store])
+  #expect(trace.cacheEvents.last?.reason == .replaced)
+}
+
+@Test func cacheMiddlewareRefreshesExpiredEntriesWithoutValidators() async throws {
+  let key = HTTPCacheKey(method: .get, url: URL(string: "https://example.com/cache")!)
+  var cachedHeaders = HTTPFields()
+  cachedHeaders[HTTPField.Name("Expires")!] = "Wed, 21 Oct 2015 07:28:00 GMT"
+  let store = MemoryHTTPCacheStore(
+    responses: [
+      key: CachedHTTPResponse(
+        data: Data("cached".utf8),
+        statusCode: 200,
+        headers: cachedHeaders,
+        storedAt: Date(timeIntervalSince1970: 1_445_412_420)
+      )
+    ]
+  )
+
+  let transportState = ScriptedTransportState(
+    responses: [
+      RawResponse(data: Data("network".utf8), statusCode: 200)
+    ]
+  )
+  let client = HTTPClient.live(
+    configuration: ClientConfiguration(
+      baseURL: URL(string: "https://example.com")!,
+      middleware: [
+        CacheMiddleware(
+          store: store,
+          now: { Date(timeIntervalSince1970: 1_445_412_481) }
+        )
+      ]
+    ),
+    transport: ScriptedTransport(state: transportState)
+  )
+  var traces = client.traces.makeAsyncIterator()
+  let request = TestRequest(
+    path: "cache",
+    method: .get,
+    responseSerializer: .string(),
+    options: RequestOptions(cachePolicy: .returnCacheElseLoad)
+  )
+
+  let response = try await client.send(request)
+  let trace = try #require(await traces.next())
+  let sentRequest = try #require(await transportState.request(at: 0))
+  let stored = try #require(await store.cachedResponse(for: key))
+
+  #expect(response == "network")
+  #expect(sentRequest.headers[HTTPField.Name("If-None-Match")!] == nil)
+  #expect(sentRequest.headers[HTTPField.Name("If-Modified-Since")!] == nil)
+  #expect(stored.data == Data("network".utf8))
+  #expect(trace.cacheEvents.map(\.kind) == [.stale, .revalidate, .store])
+  #expect(trace.cacheEvents[1].reason == .noValidator)
+  #expect(trace.cacheEvents.last?.reason == .replaced)
+}
+
+@Test func cacheMiddlewareSupportsCacheOnlyAndNetworkOnlyPolicies() async throws {
+  let key = HTTPCacheKey(method: .get, url: URL(string: "https://example.com/cache")!)
+  let store = MemoryHTTPCacheStore(
+    responses: [
+      key: CachedHTTPResponse(data: Data("cached".utf8), statusCode: 200)
+    ]
+  )
+  let transportState = CacheCountingTransportState()
+  let client = HTTPClient.live(
+    configuration: ClientConfiguration(
+      baseURL: URL(string: "https://example.com")!,
+      middleware: [CacheMiddleware(store: store)]
+    ),
+    transport: CacheCountingTransport(state: transportState)
+  )
+  let cacheOnlyRequest = TestRequest(
+    path: "cache",
+    method: .get,
+    responseSerializer: .string(),
+    options: RequestOptions(cachePolicy: .cacheOnly)
+  )
+  let missingCacheOnlyRequest = TestRequest(
+    path: "missing",
+    method: .get,
+    responseSerializer: .string(),
+    options: RequestOptions(cachePolicy: .cacheOnly)
+  )
+  let networkOnlyRequest = TestRequest(
+    path: "cache",
+    method: .get,
+    responseSerializer: .string(),
+    options: RequestOptions(cachePolicy: .networkOnly)
+  )
+
+  let cached = try await client.send(cacheOnlyRequest)
+  await #expect(throws: NetworkError.self) {
+    _ = try await client.send(missingCacheOnlyRequest)
+  }
+  let network = try await client.send(networkOnlyRequest)
+  let stored = try #require(await store.cachedResponse(for: key))
+
+  #expect(cached == "cached")
+  #expect(network == "network-1")
+  #expect(await transportState.count() == 1)
+  #expect(stored.data == Data("cached".utf8))
 }
 
 @Test func httpClientStreamsResponseLines() async throws {

@@ -113,6 +113,11 @@ Acceptance:
 Purpose: make cached reads respect HTTP validators and standard freshness
 metadata.
 
+Status: implemented in `Unreleased` with typed cache metadata, conditional
+request headers, `304 Not Modified` merge behavior, explicit cache-only,
+network-only, return-cache-else-load, reload-ignoring-cache, and revalidate
+policies, plus trace coverage for stale and revalidation decisions.
+
 Deliverables:
 
 - Parse `Cache-Control`, `Expires`, `ETag`, and `Last-Modified` response
