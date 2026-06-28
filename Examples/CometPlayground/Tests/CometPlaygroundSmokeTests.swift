@@ -43,6 +43,12 @@ final class CometPlaygroundSmokeTests: XCTestCase {
       model.state(for: .webSocketClose).socket?.fields.first { $0.label == "Close code" }?.value,
       "1001"
     )
+    XCTAssertTrue(model.state(for: .json).cassette?.json.contains("\"exchanges\"") == true)
+    XCTAssertEqual(
+      model.state(for: .rateLimited).cassette?.fields.first { $0.label == "Exchanges" }?.value,
+      "2"
+    )
+    XCTAssertTrue(model.state(for: .timeout).cassette?.json.contains("\"timeout\"") == true)
     XCTAssertGreaterThanOrEqual(model.activityLog.count, DemoCatalog.Demo.allCases.count)
     XCTAssertTrue(model.activityLog.contains { $0.kind == .failed })
     XCTAssertTrue(model.activityLog.contains { $0.kind == .retried })

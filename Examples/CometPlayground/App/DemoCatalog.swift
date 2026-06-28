@@ -341,6 +341,7 @@ final class DemoCatalog {
     var detail: String
     var response: DemoResponseSnapshot? = nil
     var socket: DemoSocketMonitorSnapshot? = nil
+    var cassette: DemoCassetteSnapshot? = nil
   }
 
   var mode: ClientMode = .mock {
@@ -706,6 +707,11 @@ final class DemoCatalog {
         )
       }
 
+      if var state = self.demoStates[demo] {
+        state.cassette = await self.mockCassetteSnapshot(for: demo)
+        self.demoStates[demo] = state
+      }
+
       self.runSummary = "Latest success: \(demo.title) in \(self.mode.title) mode."
     } catch {
       if demo == .webSocket {
@@ -858,6 +864,83 @@ final class DemoCatalog {
       bodyPreview: "WebSocket handshake only.",
       curlCommand: nil
     )
+  }
+
+  private func mockCassetteSnapshot(for demo: Demo) async -> DemoCassetteSnapshot? {
+    guard self.mode == .mock else { return nil }
+    guard demo.category != .realtime else { return nil }
+
+    let recorder = RecordingTransport(
+      base: DemoClientFactory.makeMockTransport(),
+      now: { Date(timeIntervalSince1970: 1_782_595_200) }
+    )
+    let client = HTTPClient.live(
+      configuration: DemoClientFactory.makeHTTPConfiguration(mode: .mock),
+      transport: recorder
+    )
+
+    do {
+      try await self.record(demo, with: client)
+    } catch {
+      // Expected failure scenarios are still recorded by RecordingTransport.
+    }
+
+    let cassette = await recorder.cassette()
+    guard !cassette.exchanges.isEmpty else { return nil }
+
+    do {
+      let data = try cassette.encoded(prettyPrinted: true)
+      let json = String(decoding: data, as: UTF8.self)
+      return DemoCassetteSnapshot(
+        title: "\(demo.title) cassette",
+        summary: "A deterministic mock cassette exported from `RecordingTransport`.",
+        fields: [
+          DemoInspectorField(label: "Mode", value: self.mode.title),
+          DemoInspectorField(label: "Exchanges", value: "\(cassette.exchanges.count)"),
+          DemoInspectorField(
+            label: "Outcomes",
+            value: cassette.exchanges.map(Self.cassetteOutcomeLabel(for:)).joined(separator: ", ")
+          )
+        ],
+        json: json
+      )
+    } catch {
+      return DemoCassetteSnapshot(
+        title: "\(demo.title) cassette",
+        summary: "Cassette export failed.",
+        fields: [
+          DemoInspectorField(label: "Error", value: error.localizedDescription)
+        ],
+        json: "Cassette export failed: \(error)"
+      )
+    }
+  }
+
+  private func record(_ demo: Demo, with client: HTTPClient) async throws {
+    switch demo {
+    case .json:
+      _ = try await client.send(TodoRequest())
+    case .text:
+      _ = try await client.send(TextDemoRequest())
+    case .empty:
+      _ = try await client.send(EmptyDemoRequest())
+    case .raw:
+      _ = try await client.sendRaw(RawTodoRequest())
+    case .timeout:
+      _ = try await client.send(TimeoutDemoRequest(mode: .mock))
+    case .unauthorized:
+      _ = try await client.sendWithTypedErrors(UnauthorizedDemoRequest(mode: .mock))
+    case .rateLimited:
+      _ = try await client.send(RateLimitDemoRequest(mode: .mock))
+    case .serverError:
+      _ = try await client.send(ServerErrorDemoRequest(mode: .mock))
+    case .malformedJSON:
+      _ = try await client.send(MalformedJSONDemoRequest(mode: .mock))
+    case .cancelled:
+      _ = try await client.send(CancelledDemoRequest())
+    case .webSocket, .webSocketClose:
+      return
+    }
   }
 
   private func expectedNetworkFailureOutput<R: APIRequest>(
@@ -1220,6 +1303,15 @@ final class DemoCatalog {
       frames: frames,
       rawValue: rawValue
     )
+  }
+
+  private static func cassetteOutcomeLabel(for exchange: RecordedExchange) -> String {
+    switch exchange.outcome {
+    case .success(let response):
+      "HTTP \(response.statusCode)"
+    case .failure(let error):
+      error.kind.rawValue
+    }
   }
 
   private static func messageText(from message: WebSocketMessage) -> String {

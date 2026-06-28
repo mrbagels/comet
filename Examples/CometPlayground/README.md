@@ -27,7 +27,7 @@ The app is organized as a modern iPhone-native demo:
 - `Proofs`: category-driven HTTP and realtime scenarios with detail pages
 - `Activity`: filtered structured request history plus socket session markers and detail fields
 - `Socket Monitor`: realtime frame, endpoint, transport, subprotocol, and close-code inspection
-- `Demo detail`: focused output, request inspector, response viewer, verification, and rerun controls
+- `Demo detail`: focused output, request inspector, response viewer, cassette viewer, verification, and rerun controls
 
 ## Recommended Verification Flow
 
@@ -55,6 +55,8 @@ The activity feed should populate with structured started, completed, failed, re
 Each completed detail screen also shows a response viewer with structured fields, body output, and a copyable snapshot for the latest success, failure, or socket result.
 
 Realtime detail screens include a socket monitor with outbound, inbound, and close frames plus a copyable monitor snapshot.
+
+Mock HTTP detail screens include a cassette viewer that exports the latest scenario through `RecordingTransport` as copyable `HTTPCassette` JSON.
 
 ### 2. Run A Live Spot Check
 
@@ -98,6 +100,8 @@ Each scenario in the UI shows the exact Comet API surface it is proving. The dem
 - `URLSessionWebSocketTransport`
 - `MockWebSocketTransport`
 - `PreparedRequest.curlCommand`
+- `RecordingTransport`
+- `HTTPCassette`
 
 ## Useful Files
 

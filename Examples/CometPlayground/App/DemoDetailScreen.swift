@@ -24,6 +24,7 @@ struct DemoDetailScreen: View {
         requestInspectorPanel
         responseViewerPanel
         socketMonitorPanel
+        cassetteViewerPanel
         verificationPanel
         packageSurfacePanel
         outputPanel
@@ -256,6 +257,45 @@ struct DemoDetailScreen: View {
     GlassPanel {
       SectionEyebrow(text: "Output")
       OutputConsole(value: state.output)
+    }
+  }
+
+  @ViewBuilder
+  private var cassetteViewerPanel: some View {
+    if demo.category != .realtime || state.cassette != nil {
+      GlassPanel(tint: ThemeColor.plum) {
+        SectionEyebrow(text: "Cassette Viewer")
+
+        if let cassette = state.cassette {
+          VStack(alignment: .leading, spacing: 8) {
+            Text(cassette.title)
+              .font(.system(.headline, design: .rounded).weight(.semibold))
+              .foregroundStyle(ThemeColor.ink)
+
+            Text(cassette.summary)
+              .font(.system(.body))
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+
+          InspectorFieldList(fields: cassette.fields)
+
+          VStack(alignment: .leading, spacing: 10) {
+            SectionEyebrow(text: "JSON")
+            OutputConsole(value: cassette.json)
+          }
+        } else if model.mode == .mock {
+          Text("Run the demo to record and inspect a deterministic mock cassette.")
+            .font(.system(.body))
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        } else {
+          Text("Switch to Mock mode to generate deterministic cassette previews.")
+            .font(.system(.body))
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
     }
   }
 

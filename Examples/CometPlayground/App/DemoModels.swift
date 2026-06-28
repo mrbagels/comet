@@ -131,3 +131,10 @@ struct DemoSocketMonitorSnapshot: Hashable, Sendable {
   let frames: [DemoSocketFrame]
   let rawValue: String
 }
+
+struct DemoCassetteSnapshot: Hashable, Sendable {
+  let title: String
+  let summary: String
+  let fields: [DemoInspectorField]
+  let json: String
+}
