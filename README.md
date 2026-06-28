@@ -27,6 +27,7 @@ The latest published release is `0.3.0`, the completed V3 foundation. It adds ca
 | `Comet` | Typed HTTP requests, WebSocket sessions, serializers, middleware, retry, cache, deduplication, activity events, traces, streaming, and progress primitives |
 | `CometTesting` | Mock transports, strict contracts, mock-server scenarios, cassette recording, replay transports, and mock WebSocket sessions |
 | `CometOpenAPIGenerator` | JSON and YAML OpenAPI 3.x request generator core plus the `comet-openapi-generate` executable |
+| `CometSQLiteData` | Optional SQLiteData tables, migrations, and storage helpers for Comet activity events and generated artifacts |
 | `CometTCA` | Lightweight Composable Architecture helpers for request effects and request state |
 | `CometPlayground` | iPhone-first verification app for HTTP, cache, contracts, replay, activity, and realtime flows |
 
@@ -51,6 +52,7 @@ Import the target you need:
 import Comet
 import CometTesting
 import CometOpenAPIGenerator
+import CometSQLiteData
 ```
 
 ## Quick Start
@@ -476,6 +478,44 @@ let snapshot = await provider.currentSnapshot()
 
 Use this to inform UI or retry choices, but keep transport errors as the source of truth.
 
+### Optional SQLiteData Persistence
+
+`CometSQLiteData` is a separate product for apps that already use SQLiteData or want persisted diagnostics without pulling TCA into the graph.
+
+Register the Comet migrations inside your app-owned database bootstrap:
+
+```swift
+import CometSQLiteData
+import Dependencies
+import SQLiteData
+
+extension DependencyValues {
+  mutating func bootstrapDatabase() throws {
+    let database = try SQLiteData.defaultDatabase()
+    var migrator = DatabaseMigrator()
+    CometSQLiteDataSchema.registerMigrations(&migrator)
+    try migrator.migrate(database)
+    defaultDatabase = database
+  }
+}
+```
+
+Then record activity events or artifacts from the configured database:
+
+```swift
+@Dependency(\.defaultDatabase) var database
+
+let store = CometSQLiteDataStore(database: database)
+
+Task {
+  for await event in client.activity {
+    try await store.record(event: event)
+  }
+}
+```
+
+The target stores generic artifact rows, so cassette JSON, contract reports, generated schema snapshots, and app-specific diagnostics can share one persistence surface.
+
 ## Example App
 
 `Examples/CometPlayground` is an iPhone-first verification app generated with XcodeGen. It provides:
@@ -484,6 +524,7 @@ Use this to inform UI or retry choices, but keep transport errors as the source 
 - deterministic mock verification with `CometTesting.MockTransport`
 - deterministic contract verification with `CometTesting.MockServer`
 - deterministic socket verification with `CometTesting.MockWebSocketTransport`
+- persisted activity history through the optional `CometSQLiteData` product
 - live transport checks through `URLSessionTransport` and `URLSessionWebSocketTransport`
 - proof, structured activity, failure-gallery, request-inspector, and detail flows showing which APIs are exercised and what output to verify
 

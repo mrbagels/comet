@@ -12,6 +12,7 @@ let package = Package(
   products: [
     .library(name: "Comet", targets: ["Comet"]),
     .library(name: "CometOpenAPIGenerator", targets: ["CometOpenAPIGenerator"]),
+    .library(name: "CometSQLiteData", targets: ["CometSQLiteData"]),
     .library(name: "CometTCA", targets: ["CometTCA"]),
     .library(name: "CometTesting", targets: ["CometTesting"]),
     .executable(name: "comet-openapi-generate", targets: ["CometOpenAPIGenerate"]),
@@ -21,6 +22,7 @@ let package = Package(
     .package(url: "https://github.com/apple/swift-http-types", from: "1.3.0"),
     .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.9.2"),
     .package(url: "https://github.com/pointfreeco/swift-composable-architecture", from: "1.20.0"),
+    .package(url: "https://github.com/pointfreeco/sqlite-data", from: "1.6.6"),
   ],
   targets: [
     .target(
@@ -35,6 +37,14 @@ let package = Package(
         "Comet",
         .product(name: "Dependencies", package: "swift-dependencies"),
         .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
+      ]
+    ),
+    .target(
+      name: "CometSQLiteData",
+      dependencies: [
+        "Comet",
+        .product(name: "Dependencies", package: "swift-dependencies"),
+        .product(name: "SQLiteData", package: "sqlite-data"),
       ]
     ),
     .target(
@@ -68,6 +78,13 @@ let package = Package(
       dependencies: [
         "CometTCA",
         "CometTesting"
+      ]
+    ),
+    .testTarget(
+      name: "CometSQLiteDataTests",
+      dependencies: [
+        "CometSQLiteData",
+        .product(name: "DependenciesTestSupport", package: "swift-dependencies")
       ]
     ),
     .testTarget(

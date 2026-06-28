@@ -29,6 +29,7 @@ and the playground proof flows that make those systems easier to inspect.
 - `CometOpenAPIGenerator` and `comet-openapi-generate` for dependency-free JSON OpenAPI request generation.
 - `ReachabilitySnapshot`, `ReachabilityHintProvider`, and `StaticReachabilityHintProvider` for app-owned reachability hints.
 - `CometRequestState` for lightweight TCA request loading, value, and failure state.
+- `CometSQLiteData` as an optional SQLiteData-backed product for persisted activity events and generated artifacts.
 - Playground contract server scenario covering strict expectation matching and clean contract reports.
 
 ### Changed
