@@ -140,6 +140,26 @@ public struct WebSocketConnection: Sendable {
     }
   }
 
+  /// Returns a stream that repeatedly receives WebSocket messages until the connection throws.
+  public func messages() -> AsyncThrowingStream<WebSocketMessage, Error> {
+    AsyncThrowingStream { continuation in
+      let task = Task {
+        do {
+          while !Task.isCancelled {
+            continuation.yield(try await self.receive())
+          }
+          continuation.finish()
+        } catch {
+          continuation.finish(throwing: error)
+        }
+      }
+
+      continuation.onTermination = { _ in
+        task.cancel()
+      }
+    }
+  }
+
   /// Sends a ping frame and waits for the pong acknowledgement.
   public func ping() async throws(NetworkError) {
     do {

@@ -226,6 +226,15 @@ let reply = try await connection.receive()
 try await connection.close(code: .normalClosure)
 ```
 
+For long-lived readers, use the message stream and stop iterating when the connection
+closes or the surrounding task is cancelled:
+
+```swift
+for try await message in connection.messages() {
+  // Handle .text or .data frames.
+}
+```
+
 ### Deterministic Testing And Replay
 
 ```swift

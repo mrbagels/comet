@@ -25,6 +25,15 @@ let message = try await connection.receive()
 try await connection.close(code: .normalClosure)
 ```
 
+Use ``WebSocketConnection/messages()`` when a reader should consume frames until the
+connection closes or the task is cancelled.
+
+```swift
+for try await message in connection.messages() {
+  // Route text and binary frames from a single async loop.
+}
+```
+
 Use `MockWebSocketTransport` in tests and demos when you need deterministic socket behavior.
 
 ```swift
@@ -36,4 +45,4 @@ let sockets = WebSocketClient.live(
 )
 ```
 
-The current WebSocket layer is intentionally low-level. Resilient sessions, reconnect policies, and `AsyncSequence` message consumption are planned for the next larger feature pass.
+The current WebSocket layer is intentionally low-level. Resilient sessions and reconnect policies are planned for the next larger feature pass.

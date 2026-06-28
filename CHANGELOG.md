@@ -13,6 +13,7 @@ completed v2 foundation.
 - Playground response viewer snapshots for demo output, HTTP metadata, failure bodies, and socket transcript results.
 - Playground socket monitor snapshots for realtime frames, transports, subprotocols, and close codes.
 - Playground cassette viewer exports deterministic mock HTTP scenarios as `CometTesting` cassette JSON.
+- `WebSocketConnection.messages()` for consuming socket frames as an `AsyncThrowingStream`.
 
 ## 0.1.5 - 2026-06-28
 

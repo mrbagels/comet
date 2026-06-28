@@ -21,6 +21,22 @@ private actor TestSocketState {
   }
 }
 
+private actor QueuedSocketState {
+  private var incomingMessages: [WebSocketMessage]
+
+  init(incomingMessages: [WebSocketMessage]) {
+    self.incomingMessages = incomingMessages
+  }
+
+  func nextMessage() throws(NetworkError) -> WebSocketMessage {
+    guard !self.incomingMessages.isEmpty else {
+      throw .webSocketClosed(code: .normalClosure, reason: Data("done".utf8))
+    }
+
+    return self.incomingMessages.removeFirst()
+  }
+}
+
 private struct TestWebSocketTransport: WebSocketTransport, Sendable {
   let state: TestSocketState
 
@@ -39,6 +55,21 @@ private struct TestWebSocketTransport: WebSocketTransport, Sendable {
       close: { code, reason in
         await self.state.recordClose(WebSocketCloseFrame(code: code, reason: reason))
       }
+    )
+  }
+}
+
+private struct QueuedWebSocketTransport: WebSocketTransport, Sendable {
+  let state: QueuedSocketState
+
+  func connect(_ request: WebSocketRequest) async throws(NetworkError) -> WebSocketConnection {
+    WebSocketConnection(
+      send: { _ in },
+      receive: {
+        try await self.state.nextMessage()
+      },
+      ping: {},
+      close: { _, _ in }
     )
   }
 }
@@ -81,6 +112,37 @@ private struct TestWebSocketTransport: WebSocketTransport, Sendable {
   #expect(await state.sentMessages == [.text("hello")])
   #expect(await state.pingCount == 1)
   #expect(await state.closeFrames == [WebSocketCloseFrame(code: .goingAway, reason: Data("bye".utf8))])
+}
+
+@Test func webSocketConnectionMessagesStreamReceivesUntilClose() async throws {
+  let state = QueuedSocketState(incomingMessages: [
+    .text("first"),
+    .data(Data("second".utf8))
+  ])
+  let client = WebSocketClient.live(transport: QueuedWebSocketTransport(state: state))
+  let connection = try await client.connect(
+    WebSocketRequest(url: URL(string: "wss://example.com/socket")!)
+  )
+  var iterator = connection.messages().makeAsyncIterator()
+
+  let first = try await iterator.next()
+  let second = try await iterator.next()
+
+  #expect(first == .text("first"))
+  #expect(second == .data(Data("second".utf8)))
+
+  do {
+    _ = try await iterator.next()
+    Issue.record("Expected the stream to finish by throwing the close error.")
+  } catch let error as NetworkError {
+    #expect(error.statusCode == nil)
+    guard case .webSocketClosed(let code, let reason) = error else {
+      Issue.record("Expected a WebSocket close error.")
+      return
+    }
+    #expect(code == .normalClosure)
+    #expect(String(data: reason ?? Data(), encoding: .utf8) == "done")
+  }
 }
 
 @Test func networkErrorSummarizesWebSocketCloseReason() {
