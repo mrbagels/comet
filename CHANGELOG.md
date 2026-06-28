@@ -11,6 +11,7 @@ completed v2 foundation.
 ### Added
 
 - Playground response viewer snapshots for demo output, HTTP metadata, failure bodies, and socket transcript results.
+- Playground socket monitor snapshots for realtime frames, transports, subprotocols, and close codes.
 
 ## 0.1.5 - 2026-06-28
 

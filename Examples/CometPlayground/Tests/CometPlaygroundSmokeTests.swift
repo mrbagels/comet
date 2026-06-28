@@ -37,6 +37,12 @@ final class CometPlaygroundSmokeTests: XCTestCase {
     XCTAssertEqual(model.state(for: .raw).response?.fields.first { $0.label == "Status" }?.value, "200")
     XCTAssertTrue(model.state(for: .json).response?.body.contains("Mock transport says hello") == true)
     XCTAssertTrue(model.state(for: .serverError).response?.rawValue.contains("Status: 500") == true)
+    XCTAssertEqual(model.state(for: .webSocket).socket?.frames.count, 3)
+    XCTAssertTrue(model.state(for: .webSocket).socket?.rawValue.contains("MockWebSocketTransport") == true)
+    XCTAssertEqual(
+      model.state(for: .webSocketClose).socket?.fields.first { $0.label == "Close code" }?.value,
+      "1001"
+    )
     XCTAssertGreaterThanOrEqual(model.activityLog.count, DemoCatalog.Demo.allCases.count)
     XCTAssertTrue(model.activityLog.contains { $0.kind == .failed })
     XCTAssertTrue(model.activityLog.contains { $0.kind == .retried })

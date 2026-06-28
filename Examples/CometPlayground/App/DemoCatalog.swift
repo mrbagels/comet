@@ -340,6 +340,7 @@ final class DemoCatalog {
     var status: Status
     var detail: String
     var response: DemoResponseSnapshot? = nil
+    var socket: DemoSocketMonitorSnapshot? = nil
   }
 
   var mode: ClientMode = .mock {
@@ -635,6 +636,35 @@ final class DemoCatalog {
               DemoInspectorField(label: "Close code", value: "\(transcript.closeCode)")
             ],
             body: output
+          ),
+          socket: Self.socketMonitorSnapshot(
+            title: "WebSocket echo monitor",
+            endpoint: transcript.endpoint,
+            transport: transcript.transport,
+            fields: [
+              DemoInspectorField(
+                label: "Subprotocol",
+                value: transcript.negotiatedSubprotocol ?? "None"
+              ),
+              DemoInspectorField(label: "Close code", value: "\(transcript.closeCode)")
+            ],
+            frames: [
+              DemoSocketFrame(
+                direction: .outbound,
+                title: "Sent text frame",
+                payload: Self.prettyPrintedJSON(for: transcript.outbound)
+              ),
+              DemoSocketFrame(
+                direction: .inbound,
+                title: "Received text frame",
+                payload: transcript.inboundText
+              ),
+              DemoSocketFrame(
+                direction: .close,
+                title: "Closed session",
+                payload: "code \(transcript.closeCode)"
+              )
+            ]
           )
         )
       case .webSocketClose:
@@ -651,6 +681,27 @@ final class DemoCatalog {
               DemoInspectorField(label: "Close code", value: "\(WebSocketCloseCode.goingAway.rawValue)")
             ],
             body: output
+          ),
+          socket: Self.socketMonitorSnapshot(
+            title: "WebSocket close monitor",
+            endpoint: Self.socketCloseRequest().url.absoluteString,
+            transport: "MockWebSocketTransport",
+            fields: [
+              DemoInspectorField(label: "Subprotocol", value: "comet.demo.v1"),
+              DemoInspectorField(label: "Close code", value: "\(WebSocketCloseCode.goingAway.rawValue)")
+            ],
+            frames: [
+              DemoSocketFrame(
+                direction: .close,
+                title: "Sent close frame",
+                payload: "code \(WebSocketCloseCode.goingAway.rawValue), reason Demo close frame"
+              ),
+              DemoSocketFrame(
+                direction: .inbound,
+                title: "Receive after close",
+                payload: output
+              )
+            ]
           )
         )
       }
@@ -1141,6 +1192,32 @@ final class DemoCatalog {
       summary: summary,
       fields: fields,
       body: body,
+      rawValue: rawValue
+    )
+  }
+
+  private static func socketMonitorSnapshot(
+    title: String,
+    endpoint: String,
+    transport: String,
+    fields: [DemoInspectorField],
+    frames: [DemoSocketFrame]
+  ) -> DemoSocketMonitorSnapshot {
+    let baseFields = [
+      DemoInspectorField(label: "Endpoint", value: endpoint),
+      DemoInspectorField(label: "Transport", value: transport)
+    ] + fields
+    let frameLines = frames.map { frame in
+      "[\(frame.direction.rawValue)] \(frame.title)\n\(frame.payload)"
+    }
+    let rawValue = ([title] + baseFields.map { "\($0.label): \($0.value)" } + [""] + frameLines)
+      .joined(separator: "\n")
+    return DemoSocketMonitorSnapshot(
+      title: title,
+      endpoint: endpoint,
+      transport: transport,
+      fields: baseFields,
+      frames: frames,
       rawValue: rawValue
     )
   }

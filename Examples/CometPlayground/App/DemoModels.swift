@@ -97,3 +97,37 @@ struct DemoResponseSnapshot: Hashable, Sendable {
   let body: String
   let rawValue: String
 }
+
+struct DemoSocketFrame: Hashable, Identifiable, Sendable {
+  enum Direction: String, Sendable {
+    case outbound
+    case inbound
+    case close
+  }
+
+  let id: UUID
+  let direction: Direction
+  let title: String
+  let payload: String
+
+  init(
+    id: UUID = UUID(),
+    direction: Direction,
+    title: String,
+    payload: String
+  ) {
+    self.id = id
+    self.direction = direction
+    self.title = title
+    self.payload = payload
+  }
+}
+
+struct DemoSocketMonitorSnapshot: Hashable, Sendable {
+  let title: String
+  let endpoint: String
+  let transport: String
+  let fields: [DemoInspectorField]
+  let frames: [DemoSocketFrame]
+  let rawValue: String
+}

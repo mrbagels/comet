@@ -26,6 +26,7 @@ The app is organized as a modern iPhone-native demo:
 - `Home`: quick launch, mode switching, and session summary
 - `Proofs`: category-driven HTTP and realtime scenarios with detail pages
 - `Activity`: filtered structured request history plus socket session markers and detail fields
+- `Socket Monitor`: realtime frame, endpoint, transport, subprotocol, and close-code inspection
 - `Demo detail`: focused output, request inspector, response viewer, verification, and rerun controls
 
 ## Recommended Verification Flow
@@ -52,6 +53,8 @@ Expected outputs:
 The activity feed should populate with structured started, completed, failed, retried, and socket events. Open any activity detail to inspect request IDs, metadata, status, retry delay, error summaries, and copyable raw text.
 
 Each completed detail screen also shows a response viewer with structured fields, body output, and a copyable snapshot for the latest success, failure, or socket result.
+
+Realtime detail screens include a socket monitor with outbound, inbound, and close frames plus a copyable monitor snapshot.
 
 ### 2. Run A Live Spot Check
 

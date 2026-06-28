@@ -23,6 +23,7 @@ struct DemoDetailScreen: View {
         summaryPanel
         requestInspectorPanel
         responseViewerPanel
+        socketMonitorPanel
         verificationPanel
         packageSurfacePanel
         outputPanel
@@ -189,6 +190,68 @@ struct DemoDetailScreen: View {
     }
   }
 
+  @ViewBuilder
+  private var socketMonitorPanel: some View {
+    if demo.category == .realtime || state.socket != nil {
+      GlassPanel(tint: ThemeColor.ruby) {
+        SectionEyebrow(text: "Socket Monitor")
+
+        if let socket = state.socket {
+          VStack(alignment: .leading, spacing: 8) {
+            Text(socket.title)
+              .font(.system(.headline, design: .rounded).weight(.semibold))
+              .foregroundStyle(ThemeColor.ink)
+
+            Text("\(socket.transport) at \(socket.endpoint)")
+              .font(.system(.body))
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+          }
+
+          InspectorFieldList(fields: socket.fields)
+
+          VStack(alignment: .leading, spacing: 12) {
+            SectionEyebrow(text: "Frames")
+
+            ForEach(socket.frames) { frame in
+              VStack(alignment: .leading, spacing: 8) {
+                Label(frame.title, systemImage: frame.direction.symbolName)
+                  .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                  .foregroundStyle(frame.direction.accent)
+
+                Text(frame.payload)
+                  .font(.system(.footnote, design: .monospaced))
+                  .foregroundStyle(ThemeColor.ink)
+                  .textSelection(.enabled)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .padding(12)
+              .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                  .fill(Color.white.opacity(0.56))
+              )
+              .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                  .strokeBorder(ThemeColor.fallbackStroke, lineWidth: 1)
+              )
+            }
+          }
+
+          VStack(alignment: .leading, spacing: 10) {
+            SectionEyebrow(text: "Monitor Snapshot")
+            OutputConsole(value: socket.rawValue)
+          }
+        } else {
+          Text("Run a realtime demo to inspect socket frames, close codes, and transport details.")
+            .font(.system(.body))
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+    }
+  }
+
   private var outputPanel: some View {
     GlassPanel {
       SectionEyebrow(text: "Output")
@@ -219,6 +282,30 @@ struct DemoDetailScreen: View {
       "arrow.clockwise.circle.fill"
     case .failed:
       "exclamationmark.arrow.circlepath"
+    }
+  }
+}
+
+private extension DemoSocketFrame.Direction {
+  var accent: Color {
+    switch self {
+    case .outbound:
+      ThemeColor.ocean
+    case .inbound:
+      ThemeColor.mint
+    case .close:
+      ThemeColor.ruby
+    }
+  }
+
+  var symbolName: String {
+    switch self {
+    case .outbound:
+      "arrow.up.forward.circle"
+    case .inbound:
+      "arrow.down.backward.circle"
+    case .close:
+      "xmark.circle"
     }
   }
 }
