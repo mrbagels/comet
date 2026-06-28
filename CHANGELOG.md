@@ -11,6 +11,11 @@ live transports remain future minor-version work.
 ### Added
 
 - `0.3.0` release train plan in Markdown and static HTML, with patch milestones from `0.2.x` through the final minor release.
+- Fresh external client smoke script for validating package adoption outside this repository.
+
+### Changed
+
+- Playground test target now links `HTTPTypes` directly to match the app target and reduce Xcode dependency-scan ambiguity.
 
 ## 0.2.0 - 2026-06-28
 

@@ -16,6 +16,7 @@
 		48E48C40049AF9F7D473914C /* Comet in Frameworks */ = {isa = PBXBuildFile; productRef = 5CE47540789D4107D4B0F769 /* Comet */; };
 		4930EBDFC6A9838F2385CE09 /* ActivityTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A213D6855F9A5C291C2BA3F /* ActivityTab.swift */; };
 		54DA35E68EA72E2839331C78 /* DemoClientFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57EB7885F7DED93E72382ADD /* DemoClientFactory.swift */; };
+		585996BA6F556C5D6E5330A2 /* HTTPTypes in Frameworks */ = {isa = PBXBuildFile; productRef = 8360B47AD0976B068AFCE92E /* HTTPTypes */; };
 		B8C88563A18CEB5D50FE5BBA /* DemoDetailScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E55D681423E695D37A16CD1 /* DemoDetailScreen.swift */; };
 		C042F610DADFEB8110D7E18B /* CometTesting in Frameworks */ = {isa = PBXBuildFile; productRef = AD92DD97D6081ABA77FD5D3A /* CometTesting */; };
 		C363CCD4662A1869579C1168 /* HomeTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E21FF71662C0FC6C05D3E89 /* HomeTab.swift */; };
@@ -65,6 +66,7 @@
 			files = (
 				E94A30612DC61EA5852415B3 /* Comet in Frameworks */,
 				C042F610DADFEB8110D7E18B /* CometTesting in Frameworks */,
+				585996BA6F556C5D6E5330A2 /* HTTPTypes in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -155,6 +157,7 @@
 			packageProductDependencies = (
 				C194EE3AFA70C6E4AA1D3326 /* Comet */,
 				AD92DD97D6081ABA77FD5D3A /* CometTesting */,
+				8360B47AD0976B068AFCE92E /* HTTPTypes */,
 			);
 			productName = CometPlaygroundTests;
 			productReference = 2EFCF7BB447C392733D24297 /* CometPlaygroundTests.xctest */;
@@ -514,6 +517,10 @@
 		5CE47540789D4107D4B0F769 /* Comet */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = Comet;
+		};
+		8360B47AD0976B068AFCE92E /* HTTPTypes */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = HTTPTypes;
 		};
 		AD92DD97D6081ABA77FD5D3A /* CometTesting */ = {
 			isa = XCSwiftPackageProductDependency;

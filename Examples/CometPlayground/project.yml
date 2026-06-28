@@ -60,3 +60,5 @@ targets:
         product: Comet
       - package: CometPackage
         product: CometTesting
+      - package: CometPackage
+        product: HTTPTypes

@@ -369,6 +369,12 @@ Check for public API changes against the latest patch release:
 swift package diagnose-api-breaking-changes v0.2.0
 ```
 
+Run a fresh external client smoke check:
+
+```sh
+.github/scripts/fresh-client-smoke.sh
+```
+
 ## Branching
 
 - `next` is the default integration branch for upcoming work.
@@ -386,6 +392,7 @@ SVG brand assets live in [Resources/Brand](Resources/Brand). The README uses the
 - `Tests/`: package test targets
 - `Examples/CometPlayground/`: XcodeGen-driven iOS demo app
 - `Resources/Brand/`: SVG logo and icon files for docs, README, and app assets
+- `.github/scripts/fresh-client-smoke.sh`: external package integration smoke check
 - `.github/workflows/ci.yml`: package and iOS smoke test automation
 - `docs/ARCHITECTURE.md`: architecture notes
 - `docs/IMPLEMENTATION_PLAN.md`: implementation plan and rollout notes

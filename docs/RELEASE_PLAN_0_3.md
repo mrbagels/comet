@@ -37,6 +37,9 @@ not only a typed request executor. The completed release should give users:
 Purpose: make the release train explicit and reduce friction before larger
 features start landing.
 
+Status: started in `Unreleased` with plan artifacts, a fresh-client smoke
+script, and a direct `HTTPTypes` dependency for the playground test target.
+
 Deliverables:
 
 - Add this `0.3.0` milestone plan in Markdown and static HTML.
