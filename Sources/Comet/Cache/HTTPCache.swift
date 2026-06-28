@@ -10,7 +10,6 @@ public struct HTTPCachePolicy: Sendable, Hashable {
     case returnCacheElseLoad
     case reloadIgnoringCache
     case revalidate
-    case staleWhileRevalidate
   }
 
   public var strategy: Strategy
@@ -19,6 +18,7 @@ public struct HTTPCachePolicy: Sendable, Hashable {
   public var defaultFreshnessLifetime: Duration?
   public var isShared: Bool
   public var respectsVary: Bool
+  public var refreshesStaleResponses: Bool
 
   public init(
     strategy: Strategy = .returnCacheElseLoad,
@@ -41,12 +41,33 @@ public struct HTTPCachePolicy: Sendable, Hashable {
     isShared: Bool = false,
     respectsVary: Bool = true
   ) {
+    self.init(
+      strategy: strategy,
+      allowsUnsafeMethods: allowsUnsafeMethods,
+      allowsStaleIfError: allowsStaleIfError,
+      defaultFreshnessLifetime: defaultFreshnessLifetime,
+      isShared: isShared,
+      respectsVary: respectsVary,
+      refreshesStaleResponses: false
+    )
+  }
+
+  public init(
+    strategy: Strategy,
+    allowsUnsafeMethods: Bool = false,
+    allowsStaleIfError: Bool = false,
+    defaultFreshnessLifetime: Duration? = nil,
+    isShared: Bool = false,
+    respectsVary: Bool = true,
+    refreshesStaleResponses: Bool
+  ) {
     self.strategy = strategy
     self.allowsUnsafeMethods = allowsUnsafeMethods
     self.allowsStaleIfError = allowsStaleIfError
     self.defaultFreshnessLifetime = defaultFreshnessLifetime
     self.isShared = isShared
     self.respectsVary = respectsVary
+    self.refreshesStaleResponses = refreshesStaleResponses
   }
 
   public static let disabled = Self(strategy: .disabled)
@@ -55,7 +76,10 @@ public struct HTTPCachePolicy: Sendable, Hashable {
   public static let returnCacheElseLoad = Self(strategy: .returnCacheElseLoad)
   public static let reloadIgnoringCache = Self(strategy: .reloadIgnoringCache)
   public static let revalidate = Self(strategy: .revalidate)
-  public static let staleWhileRevalidate = Self(strategy: .staleWhileRevalidate)
+  public static let staleWhileRevalidate = Self(
+    strategy: .returnCacheElseLoad,
+    refreshesStaleResponses: true
+  )
 }
 
 /// Parsed response cache directives from `Cache-Control`.
@@ -448,7 +472,6 @@ public struct RequestCacheTraceEvent: Sendable, Hashable {
     case bypass
     case stale
     case revalidate
-    case refresh
     case update
     case store
     case skippedStore
@@ -469,7 +492,6 @@ public struct RequestCacheTraceEvent: Sendable, Hashable {
     case replaced
     case cacheHit
     case staleIfError
-    case staleWhileRevalidate
   }
 
   public let kind: Kind
@@ -536,7 +558,7 @@ public struct CacheMiddleware: BackgroundRefreshingMiddleware {
       isShared: policy.isShared,
       defaultFreshnessLifetime: policy.defaultFreshnessLifetime
     )
-    if policy.strategy == .staleWhileRevalidate,
+    if policy.refreshesStaleResponses,
        !isFresh,
        self.canServeStaleWhileRevalidate(metadata, policy: policy) {
       return request
@@ -635,7 +657,7 @@ public struct CacheMiddleware: BackgroundRefreshingMiddleware {
         await context.recordCacheEvent(.init(kind: .miss, key: key, policy: policy, reason: .stale))
         throw .middleware("Cached response for \(key) is stale.")
       }
-      if policy.strategy == .staleWhileRevalidate,
+      if policy.refreshesStaleResponses,
          !isFresh,
          self.canServeStaleWhileRevalidate(metadata, policy: policy) {
         let refreshRequest = self.revalidationRequest(for: request, metadata: metadata)
@@ -685,10 +707,10 @@ public struct CacheMiddleware: BackgroundRefreshingMiddleware {
     }
     await context.recordCacheEvent(
       .init(
-        kind: .refresh,
+        kind: .revalidate,
         key: refresh.key,
         policy: context.cachePolicy,
-        reason: .staleWhileRevalidate
+        reason: .stale
       )
     )
     return refresh.request
@@ -919,7 +941,7 @@ private actor CacheMiddlewareState {
 private extension HTTPCachePolicy.Strategy {
   var shouldReadCache: Bool {
     switch self {
-    case .cacheOnly, .returnCacheElseLoad, .revalidate, .staleWhileRevalidate:
+    case .cacheOnly, .returnCacheElseLoad, .revalidate:
       true
     case .disabled, .networkOnly, .reloadIgnoringCache:
       false

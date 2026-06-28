@@ -1816,8 +1816,8 @@ private func waitUntil(
   let trace = try #require(await traces.next())
 
   #expect(response == "cached")
-  #expect(trace.cacheEvents.map(\.kind) == [.stale, .hit, .refresh, .skippedStore])
-  #expect(trace.cacheEvents[2].reason == .staleWhileRevalidate)
+  #expect(trace.cacheEvents.map(\.kind) == [.stale, .hit, .revalidate, .skippedStore])
+  #expect(trace.cacheEvents[2].reason == .stale)
 
   await waitUntil { await transport.count() == 1 }
   let refreshRequest = try #require(await transport.request(at: 0))
