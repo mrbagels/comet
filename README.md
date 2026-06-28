@@ -252,6 +252,22 @@ for try await message in connection.messages() {
 }
 ```
 
+### Streaming And Progress
+
+```swift
+for try await line in client.lines(StreamEvents()) {
+  print(line)
+}
+
+for try await event in client.serverSentEvents(StreamEvents()) {
+  print(event.data)
+}
+
+let response = try await client.sendRaw(UploadAsset()) { progress in
+  print(progress.kind, progress.completedBytes, progress.totalBytes as Any)
+}
+```
+
 ### Deterministic Testing And Replay
 
 ```swift

@@ -43,6 +43,8 @@ The shipped live transports today are ``URLSessionTransport`` and ``URLSessionWe
 ### Transport And Errors
 
 - ``HTTPTransport``
+- ``HTTPStreamingTransport``
+- ``HTTPProgressTransport``
 - ``URLSessionTransport``
 - ``WebSocketTransport``
 - ``WebSocketClient``
@@ -50,6 +52,11 @@ The shipped live transports today are ``URLSessionTransport`` and ``URLSessionWe
 - ``WebSocketConnection``
 - ``URLSessionWebSocketTransport``
 - ``RawResponse``
+- ``HTTPStreamEvent``
+- ``HTTPStreamResponse``
+- ``ServerSentEvent``
+- ``TransferProgress``
+- ``TransferProgressKind``
 - ``NetworkError``
 - ``APIClientError``
 - ``DecodedErrorResponse``

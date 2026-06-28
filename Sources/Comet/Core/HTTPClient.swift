@@ -130,23 +130,184 @@ public struct HTTPClient: Sendable {
     return try await self.sendPrepared(prepared, options: request.options)
   }
 
+  /// Sends a typed request while receiving transfer progress from capable transports.
+  public func sendRaw<R: APIRequest>(
+    _ request: R,
+    progress: @escaping @Sendable (TransferProgress) async -> Void
+  ) async throws(NetworkError) -> RawResponse {
+    let prepared = try self.prepare(request)
+    return try await self.sendPrepared(prepared, options: request.options, progress: progress)
+  }
+
   /// Executes a prepared request directly, applying middleware, retries, and optional deduplication.
   public func sendPrepared(
     _ request: PreparedRequest,
-    options: RequestOptions = .init()
+    options: RequestOptions = .init(),
+    progress: (@Sendable (TransferProgress) async -> Void)? = nil
   ) async throws(NetworkError) -> RawResponse {
     if let key = options.deduplicationKey {
       return try await self.deduplicator.deduplicate(key: key) {
-        try await self.executeRequest(request, options: options)
+        try await self.executeRequest(request, options: options, progress: progress)
       }
     } else {
-      return try await self.executeRequest(request, options: options)
+      return try await self.executeRequest(request, options: options, progress: progress)
     }
   }
 
-  private func performTransport(_ request: PreparedRequest) async throws(NetworkError) -> RawResponse {
+  /// Streams raw HTTP response events from transports that support streaming, falling back to buffered responses.
+  public func stream<R: APIRequest>(
+    _ request: R,
+    chunkSize: Int = 16_384
+  ) -> AsyncThrowingStream<HTTPStreamEvent, Error> {
+    AsyncThrowingStream { continuation in
+      let task = Task {
+        if let streamingTransport = self.transport as? any HTTPStreamingTransport {
+          await self.streamWithStreamingTransport(
+            request,
+            transport: streamingTransport,
+            chunkSize: chunkSize,
+            continuation: continuation
+          )
+        } else {
+          await self.streamWithBufferedTransport(
+            request,
+            continuation: continuation
+          )
+        }
+      }
+
+      continuation.onTermination = { _ in
+        task.cancel()
+      }
+    }
+  }
+
+  /// Streams response lines using the provided text encoding.
+  public func lines<R: APIRequest>(
+    _ request: R,
+    encoding: String.Encoding = .utf8,
+    chunkSize: Int = 16_384
+  ) -> AsyncThrowingStream<String, Error> {
+    AsyncThrowingStream { continuation in
+      let task = Task {
+        var buffer = Data()
+        var failedResponse: HTTPStreamResponse?
+        var failureBody = Data()
+
+        do {
+          for try await event in self.stream(request, chunkSize: chunkSize) {
+            switch event {
+            case .response(let response):
+              if !request.options.statusValidation.contains(response.statusCode) {
+                failedResponse = response
+              }
+
+            case .bytes(let data):
+              if failedResponse != nil {
+                failureBody.append(data)
+              } else {
+                buffer.append(data)
+                while let line = try Self.nextLine(from: &buffer, encoding: encoding) {
+                  continuation.yield(line)
+                }
+              }
+
+            case .complete:
+              if let failedResponse {
+                continuation.finish(
+                  throwing: NetworkError.http(
+                    statusCode: failedResponse.statusCode,
+                    body: failureBody,
+                    headers: failedResponse.headers
+                  )
+                )
+                return
+              }
+              if !buffer.isEmpty {
+                guard let line = String(data: buffer, encoding: encoding) else {
+                  throw NetworkError.decoding(
+                    DecodingError.dataCorrupted(
+                      .init(codingPath: [], debugDescription: "Unable to decode streamed line.")
+                    )
+                  )
+                }
+                continuation.yield(line.trimmingTrailingCarriageReturn())
+              }
+              continuation.finish()
+            }
+          }
+        } catch {
+          continuation.finish(throwing: NetworkError.from(error))
+        }
+      }
+
+      continuation.onTermination = { _ in
+        task.cancel()
+      }
+    }
+  }
+
+  /// Streams parsed Server-Sent Events frames.
+  public func serverSentEvents<R: APIRequest>(
+    _ request: R,
+    encoding: String.Encoding = .utf8,
+    chunkSize: Int = 16_384
+  ) -> AsyncThrowingStream<ServerSentEvent, Error> {
+    AsyncThrowingStream { continuation in
+      let task = Task {
+        var parser = ServerSentEventParser()
+
+        do {
+          for try await line in self.lines(request, encoding: encoding, chunkSize: chunkSize) {
+            if let event = parser.append(line) {
+              continuation.yield(event)
+            }
+          }
+          if let event = parser.finish() {
+            continuation.yield(event)
+          }
+          continuation.finish()
+        } catch {
+          continuation.finish(throwing: NetworkError.from(error))
+        }
+      }
+
+      continuation.onTermination = { _ in
+        task.cancel()
+      }
+    }
+  }
+
+  private func performTransport(
+    _ request: PreparedRequest,
+    progress: (@Sendable (TransferProgress) async -> Void)? = nil
+  ) async throws(NetworkError) -> RawResponse {
     do {
-      return try await self.transport.send(request)
+      if let progress, let transport = self.transport as? any HTTPProgressTransport {
+        return try await transport.send(request, progress: progress)
+      }
+
+      if let progress, let body = request.body {
+        await progress(
+          TransferProgress(
+            kind: .upload,
+            completedBytes: Int64(body.count),
+            totalBytes: Int64(body.count)
+          )
+        )
+      }
+
+      let response = try await self.transport.send(request)
+      if let progress {
+        await progress(
+          TransferProgress(
+            kind: .download,
+            completedBytes: Int64(response.data.count),
+            totalBytes: Int64(response.data.count)
+          )
+        )
+      }
+      return response
     } catch {
       throw NetworkError.from(error)
     }
@@ -154,7 +315,8 @@ public struct HTTPClient: Sendable {
 
   private func executeRequest(
     _ request: PreparedRequest,
-    options: RequestOptions
+    options: RequestOptions,
+    progress: (@Sendable (TransferProgress) async -> Void)? = nil
   ) async throws(NetworkError) -> RawResponse {
     let requestID = self.configuration.makeRequestID()
     let context = MiddlewareContext(
@@ -192,7 +354,9 @@ public struct HTTPClient: Sendable {
       let response = try await chain.execute(
         request,
         context: context,
-        perform: self.performTransport
+        perform: { (preparedRequest: PreparedRequest) async throws(NetworkError) -> RawResponse in
+          try await self.performTransport(preparedRequest, progress: progress)
+        }
       )
       let duration = context.startTime.duration(to: self.configuration.now())
       self.broadcaster.emit(.requestCompleted(id: requestID, statusCode: response.statusCode, duration: duration, metadata: request.metadata))
@@ -217,8 +381,244 @@ public struct HTTPClient: Sendable {
     }
   }
 
+  private func streamWithBufferedTransport<R: APIRequest>(
+    _ request: R,
+    continuation: AsyncThrowingStream<HTTPStreamEvent, Error>.Continuation
+  ) async {
+    do {
+      let response = try await self.sendRaw(request)
+      continuation.yield(
+        .response(
+          HTTPStreamResponse(
+            statusCode: response.statusCode,
+            headers: response.headers
+          )
+        )
+      )
+      if !response.data.isEmpty {
+        continuation.yield(.bytes(response.data))
+      }
+      continuation.yield(.complete)
+      continuation.finish()
+    } catch {
+      continuation.finish(throwing: NetworkError.from(error))
+    }
+  }
+
+  private func streamWithStreamingTransport<R: APIRequest>(
+    _ request: R,
+    transport: any HTTPStreamingTransport,
+    chunkSize: Int,
+    continuation: AsyncThrowingStream<HTTPStreamEvent, Error>.Continuation
+  ) async {
+    do {
+      let prepared = try self.prepare(request)
+      let requestID = self.configuration.makeRequestID()
+      let context = MiddlewareContext(
+        requestID: requestID,
+        attempt: 0,
+        startTime: self.configuration.now(),
+        randomDouble: self.configuration.randomDouble
+      )
+      var currentRequest = prepared
+      for middleware in self.configuration.middleware + request.options.middleware {
+        currentRequest = try await middleware.prepare(currentRequest, context: context)
+      }
+
+      self.broadcaster.emit(
+        .requestStarted(
+          id: requestID,
+          method: currentRequest.method,
+          url: currentRequest.url,
+          metadata: currentRequest.metadata
+        )
+      )
+
+      let startedAt = self.configuration.now()
+      var responseMetadata: HTTPStreamResponse?
+      var responseBytes = 0
+      var didComplete = false
+
+      do {
+        for try await event in transport.stream(currentRequest, chunkSize: max(1, chunkSize)) {
+          switch event {
+          case .response(let response):
+            responseMetadata = response
+          case .bytes(let data):
+            responseBytes += data.count
+          case .complete:
+            didComplete = true
+          }
+          continuation.yield(event)
+        }
+
+        if !didComplete {
+          continuation.yield(.complete)
+        }
+
+        let duration = startedAt.duration(to: self.configuration.now())
+        let statusCode = responseMetadata?.statusCode ?? 0
+        self.broadcaster.emit(
+          .requestCompleted(
+            id: requestID,
+            statusCode: statusCode,
+            duration: duration,
+            metadata: currentRequest.metadata
+          )
+        )
+        self.traceBroadcaster.emit(
+          RequestTrace(
+            id: requestID,
+            metadata: currentRequest.metadata,
+            method: currentRequest.method,
+            url: currentRequest.url,
+            attempts: [
+              RequestTraceAttempt(
+                number: 1,
+                method: currentRequest.method,
+                url: currentRequest.url,
+                requestBytes: currentRequest.body?.count ?? 0,
+                responseStatusCode: responseMetadata?.statusCode,
+                responseBytes: responseBytes,
+                error: nil,
+                duration: duration
+              )
+            ],
+            duration: duration,
+            result: .success(statusCode: statusCode, responseBytes: responseBytes)
+          )
+        )
+        continuation.finish()
+      } catch {
+        let networkError = NetworkError.from(error)
+        let duration = startedAt.duration(to: self.configuration.now())
+        self.broadcaster.emit(
+          .requestFailed(
+            id: requestID,
+            error: networkError,
+            duration: duration,
+            metadata: currentRequest.metadata
+          )
+        )
+        self.traceBroadcaster.emit(
+          RequestTrace(
+            id: requestID,
+            metadata: currentRequest.metadata,
+            method: currentRequest.method,
+            url: currentRequest.url,
+            attempts: [
+              RequestTraceAttempt(
+                number: 1,
+                method: currentRequest.method,
+                url: currentRequest.url,
+                requestBytes: currentRequest.body?.count ?? 0,
+                responseStatusCode: responseMetadata?.statusCode,
+                responseBytes: responseBytes,
+                error: networkError,
+                duration: duration
+              )
+            ],
+            duration: duration,
+            result: .failure(networkError)
+          )
+        )
+        continuation.finish(throwing: networkError)
+      }
+    } catch {
+      continuation.finish(throwing: NetworkError.from(error))
+    }
+  }
+
+  private static func nextLine(
+    from buffer: inout Data,
+    encoding: String.Encoding
+  ) throws(NetworkError) -> String? {
+    guard let newlineIndex = buffer.firstIndex(of: 0x0A) else { return nil }
+    var lineData = buffer[..<newlineIndex]
+    if lineData.last == 0x0D {
+      lineData = lineData.dropLast()
+    }
+    buffer.removeSubrange(buffer.startIndex...newlineIndex)
+
+    guard let line = String(data: Data(lineData), encoding: encoding) else {
+      throw .decoding(
+        DecodingError.dataCorrupted(
+          .init(codingPath: [], debugDescription: "Unable to decode streamed line.")
+        )
+      )
+    }
+    return line
+  }
+
   private static func httpError(from response: RawResponse) -> NetworkError {
     .http(statusCode: response.statusCode, body: response.data, headers: response.headers)
+  }
+}
+
+private struct ServerSentEventParser {
+  private var event: String?
+  private var id: String?
+  private var dataLines: [String] = []
+  private var retryMilliseconds: Int?
+
+  mutating func append(_ line: String) -> ServerSentEvent? {
+    if line.isEmpty {
+      return self.flush()
+    }
+    if line.hasPrefix(":") {
+      return nil
+    }
+
+    let parts = line.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
+    let field = String(parts.first ?? "")
+    var value = parts.count > 1 ? String(parts[1]) : ""
+    if value.first == " " {
+      value.removeFirst()
+    }
+
+    switch field {
+    case "event":
+      self.event = value
+    case "id":
+      self.id = value
+    case "data":
+      self.dataLines.append(value)
+    case "retry":
+      self.retryMilliseconds = Int(value)
+    default:
+      break
+    }
+
+    return nil
+  }
+
+  mutating func finish() -> ServerSentEvent? {
+    self.flush()
+  }
+
+  private mutating func flush() -> ServerSentEvent? {
+    guard self.event != nil || self.id != nil || !self.dataLines.isEmpty || self.retryMilliseconds != nil else {
+      return nil
+    }
+
+    let event = ServerSentEvent(
+      event: self.event,
+      id: self.id,
+      data: self.dataLines.joined(separator: "\n"),
+      retryMilliseconds: self.retryMilliseconds
+    )
+    self.event = nil
+    self.id = nil
+    self.dataLines.removeAll()
+    self.retryMilliseconds = nil
+    return event
+  }
+}
+
+private extension String {
+  func trimmingTrailingCarriageReturn() -> String {
+    guard self.last == "\r" else { return self }
+    return String(self.dropLast())
   }
 }
 

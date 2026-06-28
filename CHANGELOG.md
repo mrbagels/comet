@@ -18,6 +18,7 @@ completed v2 foundation.
 - Playground cassette replay verification checks exported mock cassettes with `ReplayTransport`.
 - `HTTPClient.traces` emits completed `RequestTrace` values with attempts, retry delays, timings, bytes, metadata, and final outcomes.
 - `AuthenticationCoordinator` and `AuthenticationMiddleware` provide token reads, refresh de-duplication, and safe 401 replay.
+- Streaming and transfer primitives with `HTTPClient.stream`, `HTTPClient.lines`, `HTTPClient.serverSentEvents`, `HTTPStreamingTransport`, and progress-aware `sendRaw`.
 
 ## 0.1.5 - 2026-06-28
 

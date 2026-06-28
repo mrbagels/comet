@@ -2,7 +2,7 @@ import Foundation
 import Comet
 
 /// An in-memory transport for deterministic tests and examples.
-public struct MockTransport: HTTPTransport, Sendable {
+public struct MockTransport: HTTPStreamingTransport, HTTPProgressTransport, Sendable {
   /// Identifies a mocked route by method, path, and optional query string.
   public struct RequestKey: Hashable, Sendable {
     public let method: HTTPMethod?
@@ -40,6 +40,71 @@ public struct MockTransport: HTTPTransport, Sendable {
   /// Sends a request through the configured in-memory handler.
   public func send(_ request: PreparedRequest) async throws(NetworkError) -> RawResponse {
     try await self.handler(request)
+  }
+
+  /// Streams a mocked response as response metadata followed by deterministic chunks.
+  public func stream(
+    _ request: PreparedRequest,
+    chunkSize: Int = 16_384
+  ) -> AsyncThrowingStream<HTTPStreamEvent, Error> {
+    AsyncThrowingStream { continuation in
+      let task = Task {
+        do {
+          let response = try await self.send(request)
+          continuation.yield(
+            .response(
+              HTTPStreamResponse(
+                statusCode: response.statusCode,
+                headers: response.headers
+              )
+            )
+          )
+
+          let resolvedChunkSize = max(1, chunkSize)
+          var offset = 0
+          while offset < response.data.count {
+            let end = min(offset + resolvedChunkSize, response.data.count)
+            continuation.yield(.bytes(response.data.subdata(in: offset..<end)))
+            offset = end
+          }
+
+          continuation.yield(.complete)
+          continuation.finish()
+        } catch {
+          continuation.finish(throwing: NetworkError.from(error))
+        }
+      }
+
+      continuation.onTermination = { _ in
+        task.cancel()
+      }
+    }
+  }
+
+  /// Sends a mocked response while reporting completed upload and download byte counts.
+  public func send(
+    _ request: PreparedRequest,
+    progress: @escaping @Sendable (TransferProgress) async -> Void
+  ) async throws(NetworkError) -> RawResponse {
+    if let body = request.body {
+      await progress(
+        TransferProgress(
+          kind: .upload,
+          completedBytes: Int64(body.count),
+          totalBytes: Int64(body.count)
+        )
+      )
+    }
+
+    let response = try await self.send(request)
+    await progress(
+      TransferProgress(
+        kind: .download,
+        completedBytes: Int64(response.data.count),
+        totalBytes: Int64(response.data.count)
+      )
+    )
+    return response
   }
 
   /// Creates a mock transport backed by simple path-to-response mappings.

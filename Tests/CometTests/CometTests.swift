@@ -158,6 +158,74 @@ private struct AuthTransport: HTTPTransport, Sendable {
   }
 }
 
+private struct StaticStreamingTransport: HTTPStreamingTransport, HTTPProgressTransport, Sendable {
+  let response: RawResponse
+
+  func send(_ request: PreparedRequest) async throws(NetworkError) -> RawResponse {
+    self.response
+  }
+
+  func stream(
+    _ request: PreparedRequest,
+    chunkSize: Int
+  ) -> AsyncThrowingStream<HTTPStreamEvent, Error> {
+    AsyncThrowingStream { continuation in
+      continuation.yield(
+        .response(
+          HTTPStreamResponse(
+            statusCode: self.response.statusCode,
+            headers: self.response.headers
+          )
+        )
+      )
+      let resolvedChunkSize = max(1, chunkSize)
+      var offset = 0
+      while offset < self.response.data.count {
+        let end = min(offset + resolvedChunkSize, self.response.data.count)
+        continuation.yield(.bytes(self.response.data.subdata(in: offset..<end)))
+        offset = end
+      }
+      continuation.yield(.complete)
+      continuation.finish()
+    }
+  }
+
+  func send(
+    _ request: PreparedRequest,
+    progress: @escaping @Sendable (TransferProgress) async -> Void
+  ) async throws(NetworkError) -> RawResponse {
+    if let body = request.body {
+      await progress(
+        TransferProgress(
+          kind: .upload,
+          completedBytes: Int64(body.count),
+          totalBytes: Int64(body.count)
+        )
+      )
+    }
+    await progress(
+      TransferProgress(
+        kind: .download,
+        completedBytes: Int64(self.response.data.count),
+        totalBytes: Int64(self.response.data.count)
+      )
+    )
+    return self.response
+  }
+}
+
+private actor ProgressRecorder {
+  private var values: [TransferProgress] = []
+
+  func record(_ progress: TransferProgress) {
+    self.values.append(progress)
+  }
+
+  func snapshot() -> [TransferProgress] {
+    self.values
+  }
+}
+
 private final class LogSink: @unchecked Sendable {
   private let lock = NSLock()
   private var messages: [String] = []
@@ -657,6 +725,88 @@ private func durationMilliseconds(_ duration: Duration) -> Int64 {
   #expect(trace.responseBytes == 2)
   #expect(trace.error == nil)
   #expect(trace.diagnosticSummary.contains("TraceProof"))
+}
+
+@Test func httpClientStreamsResponseLines() async throws {
+  let client = HTTPClient.live(
+    configuration: .default(baseURL: URL(string: "https://example.com")!),
+    transport: StaticStreamingTransport(
+      response: RawResponse(data: Data("one\ntwo\r\nthree".utf8), statusCode: 200)
+    )
+  )
+  let request = TestRequest(
+    path: "lines",
+    method: .get,
+    responseSerializer: .string()
+  )
+  var lines: [String] = []
+
+  for try await line in client.lines(request, chunkSize: 3) {
+    lines.append(line)
+  }
+
+  #expect(lines == ["one", "two", "three"])
+}
+
+@Test func httpClientParsesServerSentEvents() async throws {
+  let body = """
+  id: 1
+  event: message
+  data: hello
+  data: world
+  retry: 1500
+
+  : ignored comment
+  data: done
+
+  """
+  let client = HTTPClient.live(
+    configuration: .default(baseURL: URL(string: "https://example.com")!),
+    transport: StaticStreamingTransport(
+      response: RawResponse(data: Data(body.utf8), statusCode: 200)
+    )
+  )
+  let request = TestRequest(
+    path: "events",
+    method: .get,
+    responseSerializer: .string()
+  )
+  var events: [ServerSentEvent] = []
+
+  for try await event in client.serverSentEvents(request, chunkSize: 5) {
+    events.append(event)
+  }
+
+  #expect(events == [
+    ServerSentEvent(event: "message", id: "1", data: "hello\nworld", retryMilliseconds: 1_500),
+    ServerSentEvent(data: "done")
+  ])
+}
+
+@Test func httpClientReportsTransferProgress() async throws {
+  let recorder = ProgressRecorder()
+  let client = HTTPClient.live(
+    configuration: .default(baseURL: URL(string: "https://example.com")!),
+    transport: StaticStreamingTransport(
+      response: RawResponse(data: Data("ok".utf8), statusCode: 200)
+    )
+  )
+  let request = TestRequest(
+    path: "upload",
+    method: .post,
+    responseSerializer: .data,
+    body: .text("upload")
+  )
+
+  let response = try await client.sendRaw(request) { progress in
+    await recorder.record(progress)
+  }
+
+  #expect(response.data == Data("ok".utf8))
+  #expect(await recorder.snapshot() == [
+    TransferProgress(kind: .upload, completedBytes: 6, totalBytes: 6),
+    TransferProgress(kind: .download, completedBytes: 2, totalBytes: 2)
+  ])
 }
 
 @Test func networkEventExposesDiagnosticProperties() {
