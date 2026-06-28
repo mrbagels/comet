@@ -20,6 +20,7 @@ private struct DemoCacheLabResult: Sendable {
 private struct DemoContractServerResult: Sendable {
   let output: String
   let fields: [DemoInspectorField]
+  let reportJSON: String
 }
 
 @MainActor
@@ -451,6 +452,7 @@ final class DemoCatalog {
     var response: DemoResponseSnapshot? = nil
     var socket: DemoSocketMonitorSnapshot? = nil
     var cassette: DemoCassetteSnapshot? = nil
+    var proofBundle: DemoProofBundleSnapshot? = nil
   }
 
   var mode: ClientMode = .mock {
@@ -593,6 +595,7 @@ final class DemoCatalog {
   }
 
   private func perform(_ demo: Demo) async {
+    let runMode = self.mode
     self.demoStates[demo]?.status = .running
     self.demoStates[demo]?.detail = "Request in flight..."
 
@@ -700,7 +703,12 @@ final class DemoCatalog {
             title: "Contract report",
             summary: "A deterministic `MockServer` scenario backed by `ContractTransport`.",
             fields: result.fields,
-            body: result.output
+            body: """
+            \(result.output)
+
+            contract report:
+            \(result.reportJSON)
+            """
           )
         )
       case .timeout:
@@ -902,7 +910,7 @@ final class DemoCatalog {
         self.demoStates[demo] = state
       }
 
-      self.runSummary = "Latest success: \(demo.title) in \(self.mode.title) mode."
+      self.runSummary = "Latest success: \(demo.title) in \(runMode.title) mode."
     } catch {
       if demo == .webSocket {
         self.recordSocketEvent(
@@ -927,8 +935,10 @@ final class DemoCatalog {
           body: "Error: \(error)"
         )
       )
-      self.runSummary = "Latest failure: \(demo.title) in \(self.mode.title) mode."
+      self.runSummary = "Latest failure: \(demo.title) in \(runMode.title) mode."
     }
+
+    await self.finalizeProofBundle(for: demo, mode: runMode)
   }
 
   func runCurrentModeProof() async {
@@ -1460,7 +1470,8 @@ final class DemoCatalog {
         DemoInspectorField(label: "Matches", value: "\(report.matches.count)"),
         DemoInspectorField(label: "Violations", value: "\(report.violations.count)"),
         DemoInspectorField(label: "Report", value: report.passed ? "Passed" : "Failed")
-      ]
+      ],
+      reportJSON: reportJSON
     )
   }
 
@@ -1615,6 +1626,38 @@ final class DemoCatalog {
     }
   }
 
+  private func finalizeProofBundle(for demo: Demo, mode: ClientMode) async {
+    for _ in 0..<3 {
+      await Task.yield()
+    }
+
+    guard var state = self.demoStates[demo] else { return }
+    guard state.status != .idle && state.status != .running else { return }
+
+    let bundle = Self.proofBundleSnapshot(
+      demo: demo,
+      mode: mode,
+      state: state,
+      inspection: self.requestInspection(for: demo),
+      timeline: self.traceTimeline(for: demo)
+    )
+    state.proofBundle = bundle
+    self.demoStates[demo] = state
+
+    let store = CometSQLiteDataStore(database: self.database)
+    await withErrorReporting {
+      try await store.insert(
+        CometArtifactRecord(
+          kind: "proof-bundle",
+          name: bundle.title,
+          summary: bundle.summary,
+          contentType: "text/markdown; charset=utf-8",
+          body: bundle.markdown
+        )
+      )
+    }
+  }
+
   private static func makeInitialStates() -> [Demo: DemoState] {
     Dictionary(uniqueKeysWithValues: Demo.allCases.map { demo in
       (demo, Self.placeholderState(for: demo))
@@ -1754,6 +1797,114 @@ final class DemoCatalog {
       body: body,
       rawValue: rawValue
     )
+  }
+
+  private static func proofBundleSnapshot(
+    demo: Demo,
+    mode: ClientMode,
+    state: DemoState,
+    inspection: DemoRequestInspection,
+    timeline: DemoTraceTimeline?
+  ) -> DemoProofBundleSnapshot {
+    let title = "\(demo.title) proof bundle"
+    let summary = "\(mode.title) mode \(state.status.rawValue) proof bundle."
+    var sections: [(String, String)] = []
+
+    let overviewFields = [
+      DemoInspectorField(label: "Demo", value: demo.title),
+      DemoInspectorField(label: "Category", value: demo.category.title),
+      DemoInspectorField(label: "Mode", value: mode.title),
+      DemoInspectorField(label: "Status", value: state.status.rawValue),
+      DemoInspectorField(label: "Detail", value: state.detail)
+    ]
+    sections.append(("Overview", Self.markdownFields(overviewFields)))
+
+    let requestFields = [
+      DemoInspectorField(label: "Type", value: inspection.requestType),
+      DemoInspectorField(label: "Transport", value: inspection.transport),
+      DemoInspectorField(label: "Method", value: inspection.method),
+      DemoInspectorField(label: "URL", value: inspection.url),
+      DemoInspectorField(label: "Timeout", value: inspection.timeout)
+    ] + inspection.fields
+    var requestBody = Self.markdownFields(requestFields)
+    requestBody += "\n\n### Body\n\n\(Self.markdownCodeBlock(inspection.bodyPreview, language: "text"))"
+    if let curlCommand = inspection.curlCommand {
+      requestBody += "\n\n### cURL\n\n\(Self.markdownCodeBlock(curlCommand, language: "sh"))"
+    }
+    sections.append(("Request Inspector", requestBody))
+
+    if let timeline {
+      sections.append(("Trace Timeline", Self.markdownCodeBlock(timeline.rawValue, language: "text")))
+    } else {
+      sections.append(("Trace Timeline", "No matching trace timeline was captured for this run."))
+    }
+
+    if let response = state.response {
+      sections.append(("Response", Self.markdownCodeBlock(response.rawValue, language: "text")))
+    }
+
+    if let socket = state.socket {
+      sections.append(("Socket Monitor", Self.markdownCodeBlock(socket.rawValue, language: "text")))
+    }
+
+    if let cassette = state.cassette {
+      var cassetteBody = Self.markdownFields(cassette.fields)
+      if let replayOutput = cassette.replayOutput {
+        cassetteBody += "\n\n### Replay Verification\n\n\(Self.markdownCodeBlock(replayOutput, language: "text"))"
+      }
+      cassetteBody += "\n\n### Cassette JSON\n\n\(Self.markdownCodeBlock(cassette.json, language: "json"))"
+      sections.append(("Cassette", cassetteBody))
+    }
+
+    sections.append(("Output", Self.markdownCodeBlock(state.output, language: "text")))
+
+    let markdown = ([
+      "# \(title)",
+      "",
+      summary
+    ] + sections.flatMap { section in
+      [
+        "",
+        "## \(section.0)",
+        "",
+        section.1
+      ]
+    }).joined(separator: "\n")
+
+    return DemoProofBundleSnapshot(
+      title: title,
+      summary: summary,
+      fields: [
+        DemoInspectorField(label: "Mode", value: mode.title),
+        DemoInspectorField(label: "Status", value: state.status.rawValue),
+        DemoInspectorField(label: "Sections", value: "\(sections.count)"),
+        DemoInspectorField(label: "Content type", value: "Markdown")
+      ],
+      markdown: markdown
+    )
+  }
+
+  private static func markdownFields(_ fields: [DemoInspectorField]) -> String {
+    guard !fields.isEmpty else { return "No fields." }
+    return fields
+      .map { "- \($0.label): \($0.value)" }
+      .joined(separator: "\n")
+  }
+
+  private static func markdownCodeBlock(_ value: String, language: String) -> String {
+    var longestBacktickRun = 0
+    var currentBacktickRun = 0
+    for character in value {
+      if character == "`" {
+        currentBacktickRun += 1
+        longestBacktickRun = max(longestBacktickRun, currentBacktickRun)
+      } else {
+        currentBacktickRun = 0
+      }
+    }
+
+    let fence = String(repeating: "`", count: max(3, longestBacktickRun + 1))
+    return "\(fence)\(language)\n\(value)\n\(fence)"
   }
 
   private static func socketMonitorSnapshot(

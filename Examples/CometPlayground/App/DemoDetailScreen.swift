@@ -26,6 +26,7 @@ struct DemoDetailScreen: View {
         responseViewerPanel
         socketMonitorPanel
         cassetteViewerPanel
+        proofBundlePanel
         verificationPanel
         packageSurfacePanel
         outputPanel
@@ -299,6 +300,37 @@ struct DemoDetailScreen: View {
     GlassPanel {
       SectionEyebrow(text: "Output")
       OutputConsole(value: state.output)
+    }
+  }
+
+  private var proofBundlePanel: some View {
+    GlassPanel(tint: ThemeColor.mint) {
+      SectionEyebrow(text: "Proof Bundle")
+
+      if let bundle = state.proofBundle {
+        VStack(alignment: .leading, spacing: 8) {
+          Text(bundle.title)
+            .font(.system(.headline, design: .rounded).weight(.semibold))
+            .foregroundStyle(ThemeColor.ink)
+
+          Text(bundle.summary)
+            .font(.system(.body))
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+
+        InspectorFieldList(fields: bundle.fields)
+
+        VStack(alignment: .leading, spacing: 10) {
+          SectionEyebrow(text: "Markdown")
+          OutputConsole(value: bundle.markdown)
+        }
+      } else {
+        Text("Run the demo to package request, trace, response, cassette, and output into one persisted artifact.")
+          .font(.system(.body))
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
     }
   }
 

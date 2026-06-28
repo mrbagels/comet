@@ -147,3 +147,10 @@ struct DemoCassetteSnapshot: Hashable, Sendable {
   let json: String
   let replayOutput: String?
 }
+
+struct DemoProofBundleSnapshot: Hashable, Sendable {
+  let title: String
+  let summary: String
+  let fields: [DemoInspectorField]
+  let markdown: String
+}

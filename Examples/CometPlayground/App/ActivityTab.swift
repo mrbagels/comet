@@ -54,6 +54,14 @@ struct ActivityTab: View {
   @Dependency(\.defaultDatabase) private var database
   @FetchAll(CometActivityEventRecord.order { $0.occurredAt.desc() }.limit(50), animation: .default)
   private var persistedEvents
+  @FetchAll(
+    CometArtifactRecord
+      .where { $0.kind.eq("proof-bundle") }
+      .order { $0.createdAt.desc() }
+      .limit(25),
+    animation: .default
+  )
+  private var proofBundles
   @State private var filter: ActivityFilter = .all
   @State private var searchText = ""
 
@@ -100,6 +108,22 @@ struct ActivityTab: View {
             }
           }
         }
+
+        Section("Proof Bundles") {
+          if filteredProofBundles.isEmpty {
+            ContentUnavailableView(
+              "No Proof Bundles",
+              systemImage: "doc.text.magnifyingglass",
+              description: Text("Run a proof to persist a copyable bundle.")
+            )
+          } else {
+            ForEach(filteredProofBundles) { record in
+              NavigationLink(value: record) {
+                ProofBundleArtifactRow(record: record)
+              }
+            }
+          }
+        }
       }
       .navigationDestination(for: DemoActivityEntry.self) { event in
         ActivityDetailScreen(event: event)
@@ -107,7 +131,10 @@ struct ActivityTab: View {
       .navigationDestination(for: CometActivityEventRecord.self) { record in
         ActivityDetailScreen(event: record.activityEntry)
       }
-      .searchable(text: $searchText, prompt: "Search events")
+      .navigationDestination(for: CometArtifactRecord.self) { record in
+        ProofBundleArtifactDetailScreen(record: record)
+      }
+      .searchable(text: $searchText, prompt: "Search activity")
       .scrollContentBackground(.hidden)
       .background(PlaygroundBackdrop())
       .navigationTitle("Activity")
@@ -132,7 +159,7 @@ struct ActivityTab: View {
           } label: {
             Label("Clear saved history", systemImage: "externaldrive.badge.xmark")
           }
-          .disabled(model.isRunning || persistedEvents.isEmpty)
+          .disabled(model.isRunning || (persistedEvents.isEmpty && proofBundles.isEmpty))
         }
       }
     }
@@ -159,9 +186,17 @@ struct ActivityTab: View {
     }
   }
 
+  private var filteredProofBundles: [CometArtifactRecord] {
+    proofBundles.filter { record in
+      searchText.isEmpty || record.proofBundleSearchableText.localizedStandardContains(searchText)
+    }
+  }
+
   private func clearSavedHistoryButtonTapped() async {
     await withErrorReporting {
-      try await CometSQLiteDataStore(database: database).deleteActivity()
+      let store = CometSQLiteDataStore(database: database)
+      try await store.deleteActivity()
+      try await store.deleteArtifacts()
     }
   }
 }
@@ -270,6 +305,36 @@ private struct PersistedActivityEventRow: View {
   }
 }
 
+private struct ProofBundleArtifactRow: View {
+  let record: CometArtifactRecord
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 14) {
+      Image(systemName: "doc.text.magnifyingglass")
+        .font(.system(size: 17, weight: .semibold))
+        .foregroundStyle(ThemeColor.mint)
+        .frame(width: 38, height: 38)
+        .background(ThemeColor.mint.opacity(0.12), in: .rect(cornerRadius: 14))
+
+      VStack(alignment: .leading, spacing: 6) {
+        Text(record.name)
+          .font(.system(.headline, design: .rounded).weight(.semibold))
+          .foregroundStyle(ThemeColor.ink)
+
+        Text(record.summary ?? "Persisted proof bundle")
+          .font(.system(.subheadline))
+          .foregroundStyle(.secondary)
+          .lineLimit(2)
+
+        Text(record.createdAt.formatted(date: .abbreviated, time: .standard))
+          .font(.system(.caption, design: .monospaced))
+          .foregroundStyle(.tertiary)
+      }
+    }
+    .padding(.vertical, 4)
+  }
+}
+
 private struct ActivityDetailScreen: View {
   let event: DemoActivityEntry
 
@@ -306,6 +371,54 @@ private struct ActivityDetailScreen: View {
     .scrollIndicators(.hidden)
     .background(PlaygroundBackdrop())
     .navigationTitle("Event Detail")
+    .navigationBarTitleDisplayMode(.inline)
+  }
+}
+
+private struct ProofBundleArtifactDetailScreen: View {
+  let record: CometArtifactRecord
+
+  var body: some View {
+    ScrollView {
+      VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: 12) {
+          SectionEyebrow(text: "Proof Bundle")
+
+          Text(record.name)
+            .font(.system(size: 34, weight: .bold, design: .rounded))
+            .foregroundStyle(ThemeColor.ink)
+            .fixedSize(horizontal: false, vertical: true)
+
+          Text(record.summary ?? "Persisted proof artifact.")
+            .font(.system(.title3))
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+
+        GlassPanel(tint: ThemeColor.mint) {
+          SectionEyebrow(text: "Details")
+          InspectorFieldList(
+            fields: [
+              DemoInspectorField(label: "Kind", value: record.kind),
+              DemoInspectorField(label: "Content type", value: record.contentType),
+              DemoInspectorField(label: "Stored", value: record.createdAt.formatted(date: .abbreviated, time: .standard)),
+              DemoInspectorField(label: "Bytes", value: "\(record.body.utf8.count)")
+            ]
+          )
+        }
+
+        GlassPanel(tint: ThemeColor.mint) {
+          SectionEyebrow(text: "Markdown")
+          OutputConsole(value: record.body)
+        }
+      }
+      .padding(.horizontal, 20)
+      .padding(.top, 18)
+      .padding(.bottom, 80)
+    }
+    .scrollIndicators(.hidden)
+    .background(PlaygroundBackdrop())
+    .navigationTitle("Proof Bundle")
     .navigationBarTitleDisplayMode(.inline)
   }
 }
@@ -360,5 +473,18 @@ private extension CometActivityEventRecord {
       fields: fields,
       rawValue: self.rawValue
     )
+  }
+}
+
+private extension CometArtifactRecord {
+  var proofBundleSearchableText: String {
+    [
+      self.kind,
+      self.name,
+      self.summary ?? "",
+      self.contentType,
+      self.body
+    ]
+    .joined(separator: " ")
   }
 }
