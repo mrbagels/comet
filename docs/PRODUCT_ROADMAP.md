@@ -205,6 +205,8 @@ Dependencies:
 
 Add realistic failure and recovery scenarios to the iOS playground.
 
+Status: initial failure gallery completed in the `0.1.x` patch line with timeout, 401 typed errors, 429 retry, 500 errors, malformed JSON, cancellation, and WebSocket close scenarios.
+
 Technical shape:
 
 - Add mock scenarios for timeout, 401, 429 retry, 500, malformed JSON, cancelled request, and WebSocket close.
@@ -588,7 +590,7 @@ Why last:
 5. Retry safety defaults. Completed in the `0.1.x` patch line.
 6. Richer activity event payloads. Initial diagnostic properties completed in the `0.1.x` patch line.
 7. Query item builder ergonomics. Initial optional, boolean, collection, joined, and date helpers completed in the `0.1.x` patch line.
-8. Playground failure gallery.
+8. Playground failure gallery. Initial failure and recovery scenarios completed in the `0.1.x` patch line.
 9. DocC tutorials for core workflows. Initial workflow articles completed in the `0.1.x` patch line.
 10. Typed API error decoding. Initial request-level and call-site decoding completed in the `0.1.x` patch line.
 11. API stability gate policy. Initial CI gate completed in the `0.1.x` patch line.

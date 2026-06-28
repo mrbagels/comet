@@ -276,7 +276,7 @@ let recorder = RecordingTransport(
 - deterministic mock verification with `CometTesting.MockTransport`
 - deterministic socket verification with `CometTesting.MockWebSocketTransport`
 - live transport checks through `URLSessionTransport` and `URLSessionWebSocketTransport`
-- proof, activity, and detail flows showing which APIs are exercised and what output to verify
+- proof, activity, failure-gallery, and detail flows showing which APIs are exercised and what output to verify
 
 The full walkthrough lives in [Examples/CometPlayground/README.md](Examples/CometPlayground/README.md).
 

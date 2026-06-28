@@ -14,6 +14,7 @@ completed v2 foundation.
 - cURL command options for pretty-printed JSON request bodies and configurable verbose logging output.
 - A CI API stability gate that fails on public API breaks against the latest release tag.
 - DocC workflow tutorials for authenticated JSON, retries and activity, typed errors, testing and cassettes, WebSockets, and TCA integration.
+- Playground failure-gallery scenarios for timeout, 401 typed errors, 429 retry, 500 errors, malformed JSON, cancellation, and WebSocket close diagnostics.
 
 ## 0.1.4 - 2026-06-27
 

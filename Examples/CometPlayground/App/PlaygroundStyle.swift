@@ -390,6 +390,8 @@ extension DemoCatalog.DemoCategory {
       ThemeColor.ocean
     case .transport:
       ThemeColor.plum
+    case .failures:
+      ThemeColor.sunset
     case .realtime:
       ThemeColor.ruby
     }
@@ -407,7 +409,21 @@ extension DemoCatalog.Demo {
       ThemeColor.mint
     case .raw:
       ThemeColor.plum
+    case .timeout:
+      ThemeColor.sunset
+    case .unauthorized:
+      ThemeColor.ruby
+    case .rateLimited:
+      ThemeColor.ocean
+    case .serverError:
+      ThemeColor.ruby
+    case .malformedJSON:
+      ThemeColor.plum
+    case .cancelled:
+      ThemeColor.sunset
     case .webSocket:
+      ThemeColor.ruby
+    case .webSocketClose:
       ThemeColor.ruby
     }
   }

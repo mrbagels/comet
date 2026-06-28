@@ -32,7 +32,7 @@ The app is organized as a modern iPhone-native demo:
 
 ### 1. Start In Mock Mode
 
-Run `Mock Proof` first. All five scenarios should pass.
+Run `Mock Proof` first. All success, failure, and realtime scenarios should pass.
 
 Expected outputs:
 
@@ -40,7 +40,14 @@ Expected outputs:
 - `Plain Text`: output contains `Comet mock text response`
 - `Empty Response`: output confirms `Received an EmptyResponse successfully.`
 - `Raw Response`: output shows `status: 200` and `content-type: application/json`
+- `Timeout`: output records a timeout-shaped `NetworkError`
+- `Typed 401`: output includes the mock `unauthorized` error code
+- `429 Retry`: output confirms recovery after a retry
+- `Server Error`: output preserves the `500` status code
+- `Malformed JSON`: output identifies a decoding error
+- `Cancellation`: output identifies cancellation explicitly
 - `WebSocket Echo`: output shows `MockWebSocketTransport` and the negotiated `comet.demo.v1` subprotocol
+- `Socket Close`: output shows a WebSocket close error
 
 The activity feed should populate with started and completed events for each HTTP request, plus socket session markers for the realtime demo.
 
@@ -54,7 +61,14 @@ Good checks:
 - `Plain Text`: should include the Example Domain page text
 - `Empty Response`: should complete successfully against the live 204-style endpoint
 - `Raw Response`: should show a non-empty payload with real response metadata
+- `Timeout`: should report a timeout-shaped failure against a delayed endpoint
+- `Typed 401`: should preserve a live 401 status
+- `429 Retry`: should exercise retry behavior against a live 429 response
+- `Server Error`: should preserve a live 500 status
+- `Malformed JSON`: should report a decoding failure
+- `Cancellation`: should report deterministic cancellation
 - `WebSocket Echo`: should connect to `wss://ws.postman-echo.com/raw` and echo the JSON payload back into the transcript
+- `Socket Close`: should report a deterministic close-frame failure
 
 ### 3. Inspect Package Usage
 
@@ -70,6 +84,9 @@ Each scenario in the UI shows the exact Comet API surface it is proving. The dem
 - `EmptyResponse`
 - `RawResponse`
 - `NetworkEvent`
+- `RetryMiddleware`
+- `APIRequestWithErrorResponse`
+- `APIClientError`
 - `WebSocketClient.connect`
 - `WebSocketRequest`
 - `URLSessionWebSocketTransport`

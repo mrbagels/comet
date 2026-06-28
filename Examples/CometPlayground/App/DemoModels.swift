@@ -23,3 +23,8 @@ struct WebSocketDemoTranscript: Codable, Sendable, Equatable {
   let inboundText: String
   let closeCode: UInt16
 }
+
+struct DemoAPIError: Codable, Sendable, Equatable {
+  let code: String
+  let message: String
+}

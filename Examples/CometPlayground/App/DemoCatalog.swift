@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import Comet
+import CometTesting
 
 @MainActor
 @Observable
@@ -8,6 +9,7 @@ final class DemoCatalog {
   enum DemoCategory: String, CaseIterable, Identifiable {
     case requests
     case transport
+    case failures
     case realtime
 
     var id: String { self.rawValue }
@@ -16,6 +18,7 @@ final class DemoCatalog {
       switch self {
       case .requests: "Requests"
       case .transport: "Transport"
+      case .failures: "Failures"
       case .realtime: "Realtime"
       }
     }
@@ -26,6 +29,8 @@ final class DemoCatalog {
         "Typed serialization, URL shaping, and content transforms."
       case .transport:
         "Status validation, raw inspection, and payload-free flows."
+      case .failures:
+        "Timeouts, authorization failures, retries, decoding errors, cancellation, and socket closure."
       case .realtime:
         "Bidirectional sessions, echo transcripts, and socket transport swaps."
       }
@@ -35,6 +40,7 @@ final class DemoCatalog {
       switch self {
       case .requests: "point.3.connected.trianglepath.dotted"
       case .transport: "waveform.path.ecg.rectangle"
+      case .failures: "exclamationmark.triangle"
       case .realtime: "dot.radiowaves.left.and.right"
       }
     }
@@ -49,7 +55,14 @@ final class DemoCatalog {
     case text
     case empty
     case raw
+    case timeout
+    case unauthorized
+    case rateLimited
+    case serverError
+    case malformedJSON
+    case cancelled
     case webSocket
+    case webSocketClose
 
     var id: String { self.rawValue }
 
@@ -59,7 +72,14 @@ final class DemoCatalog {
       case .text: "Plain Text"
       case .empty: "Empty Response"
       case .raw: "Raw Response"
+      case .timeout: "Timeout"
+      case .unauthorized: "Typed 401"
+      case .rateLimited: "429 Retry"
+      case .serverError: "Server Error"
+      case .malformedJSON: "Malformed JSON"
+      case .cancelled: "Cancellation"
       case .webSocket: "WebSocket Echo"
+      case .webSocketClose: "Socket Close"
       }
     }
 
@@ -73,8 +93,22 @@ final class DemoCatalog {
         "Validate a 204-style endpoint using `EmptyResponse`."
       case .raw:
         "Inspect bytes, headers, and status directly with `sendRaw`."
+      case .timeout:
+        "Verify timeout errors flow through `NetworkError` and activity events."
+      case .unauthorized:
+        "Decode a structured 401 response with `APIRequestWithErrorResponse`."
+      case .rateLimited:
+        "Exercise retry middleware with an initial 429 and a recovered response."
+      case .serverError:
+        "Confirm non-success status validation preserves HTTP status and body details."
+      case .malformedJSON:
+        "Trigger response decoding failure while preserving useful diagnostics."
+      case .cancelled:
+        "Verify cancellation is represented as a first-class networking error."
       case .webSocket:
         "Open a socket, send JSON, and inspect the echoed transcript with the WebSocket client surface."
+      case .webSocketClose:
+        "Close a socket and verify the close frame is surfaced through `NetworkError`."
       }
     }
 
@@ -84,7 +118,11 @@ final class DemoCatalog {
         .requests
       case .empty, .raw:
         .transport
+      case .timeout, .unauthorized, .rateLimited, .serverError, .malformedJSON, .cancelled:
+        .failures
       case .webSocket:
+        .realtime
+      case .webSocketClose:
         .realtime
       }
     }
@@ -95,7 +133,14 @@ final class DemoCatalog {
       case .text: "text.page"
       case .empty: "checkmark.circle.badge.xmark"
       case .raw: "bolt.horizontal.circle"
+      case .timeout: "timer"
+      case .unauthorized: "lock.trianglebadge.exclamationmark"
+      case .rateLimited: "arrow.clockwise.circle"
+      case .serverError: "server.rack"
+      case .malformedJSON: "curlybraces.square"
+      case .cancelled: "xmark.circle"
       case .webSocket: "dot.radiowaves.up.forward"
+      case .webSocketClose: "rectangle.connected.to.line.below"
       }
     }
 
@@ -109,6 +154,18 @@ final class DemoCatalog {
         ["HTTPClient.send", "EmptyResponse", "StatusValidation"]
       case .raw:
         ["HTTPClient.sendRaw", "RawResponse", "HTTPFields"]
+      case .timeout:
+        ["HTTPClient.send", "NetworkError.timeout", "RequestOptions.timeout"]
+      case .unauthorized:
+        ["HTTPClient.sendWithTypedErrors", "APIClientError", "ErrorResponseSerializer.json"]
+      case .rateLimited:
+        ["RetryMiddleware", "RequestRetryPolicy", "NetworkEvent.requestRetried"]
+      case .serverError:
+        ["StatusValidation", "NetworkError.http", "NetworkError.bodyString"]
+      case .malformedJSON:
+        ["ResponseSerializer.json", "NetworkError.decoding", "ClientConfiguration.makeJSONDecoder"]
+      case .cancelled:
+        ["HTTPClient.send", "NetworkError.cancelled", "NetworkError.isCancellationError"]
       case .webSocket:
         [
           "WebSocketClient.connect",
@@ -116,6 +173,8 @@ final class DemoCatalog {
           "URLSessionWebSocketTransport",
           "MockWebSocketTransport"
         ]
+      case .webSocketClose:
+        ["WebSocketConnection.close", "NetworkError.webSocketClosed", "WebSocketCloseCode"]
       }
     }
 
@@ -161,6 +220,66 @@ final class DemoCatalog {
           "Status is `200` and the body bytes are non-empty.",
           "The raw payload is visible without decoding first."
         ]
+      case (.timeout, .mock):
+        [
+          "The result records `NetworkError.timeout` as an expected failure.",
+          "The activity feed shows a failed timeout event."
+        ]
+      case (.timeout, .live):
+        [
+          "The request uses a short timeout against a delayed endpoint.",
+          "The result records a timeout-shaped failure."
+        ]
+      case (.unauthorized, .mock):
+        [
+          "The 401 body decodes into `DemoAPIError`.",
+          "The raw HTTP status remains available through `APIClientError`."
+        ]
+      case (.unauthorized, .live):
+        [
+          "The 401 status is preserved even if the live endpoint has no typed JSON body.",
+          "The result distinguishes HTTP failure from transport failure."
+        ]
+      case (.rateLimited, .mock):
+        [
+          "The first response is `429` and retry middleware performs one retry.",
+          "The final output confirms recovery after the retry."
+        ]
+      case (.rateLimited, .live):
+        [
+          "The live 429 endpoint exercises retry middleware.",
+          "The final output preserves the 429 status after retries are exhausted."
+        ]
+      case (.serverError, .mock):
+        [
+          "The result preserves the mock `500` status code.",
+          "The output includes the server error body text."
+        ]
+      case (.serverError, .live):
+        [
+          "The result preserves the live `500` status code.",
+          "The activity feed records a failed request."
+        ]
+      case (.malformedJSON, .mock):
+        [
+          "The HTTP response succeeds but JSON decoding fails.",
+          "The output identifies a `NetworkError.decoding` result."
+        ]
+      case (.malformedJSON, .live):
+        [
+          "The live response is intentionally not shaped like `DemoTodo`.",
+          "The output identifies a decoding result."
+        ]
+      case (.cancelled, .mock):
+        [
+          "The mock transport throws `NetworkError.cancelled`.",
+          "The output confirms cancellation is detected explicitly."
+        ]
+      case (.cancelled, .live):
+        [
+          "The demo uses Comet's failing client to produce deterministic cancellation.",
+          "The output confirms cancellation is detected explicitly."
+        ]
       case (.webSocket, .mock):
         [
           "The transcript shows a mocked socket URL and negotiated subprotocol.",
@@ -170,6 +289,16 @@ final class DemoCatalog {
         [
           "The transcript shows a live `wss://` endpoint and echoed payload.",
           "The connection closes cleanly after the response is received."
+        ]
+      case (.webSocketClose, .mock):
+        [
+          "The mock session closes with code `1001`.",
+          "A receive after close reports `NetworkError.webSocketClosed`."
+        ]
+      case (.webSocketClose, .live):
+        [
+          "The connection is closed intentionally before the next receive.",
+          "The output reports the close code surfaced by the transport."
         ]
       }
     }
@@ -289,12 +418,76 @@ final class DemoCatalog {
           status: .passed,
           detail: "Inspected a raw response before decoding."
         )
+      case .timeout:
+        let output = try await self.expectedNetworkFailureOutput(
+          request: TimeoutDemoRequest(mode: self.mode),
+          expected: { $0.isTimeoutError },
+          successSummary: "Observed the expected timeout failure."
+        )
+        self.demoStates[demo] = DemoState(
+          output: output,
+          status: .passed,
+          detail: "Verified timeout handling and failure activity."
+        )
+      case .unauthorized:
+        let output = try await self.unauthorizedFailureOutput()
+        self.demoStates[demo] = DemoState(
+          output: output,
+          status: .passed,
+          detail: "Verified typed 401 decoding and raw HTTP preservation."
+        )
+      case .rateLimited:
+        let output = try await self.rateLimitOutput()
+        self.demoStates[demo] = DemoState(
+          output: output,
+          status: .passed,
+          detail: "Verified retry middleware behavior for rate limiting."
+        )
+      case .serverError:
+        let output = try await self.expectedNetworkFailureOutput(
+          request: ServerErrorDemoRequest(mode: self.mode),
+          expected: { $0.statusCode == 500 },
+          successSummary: "Observed the expected server error."
+        )
+        self.demoStates[demo] = DemoState(
+          output: output,
+          status: .passed,
+          detail: "Verified HTTP 500 status and body diagnostics."
+        )
+      case .malformedJSON:
+        let output = try await self.expectedNetworkFailureOutput(
+          request: MalformedJSONDemoRequest(mode: self.mode),
+          expected: { error in
+            guard case .decoding = error else { return false }
+            return true
+          },
+          successSummary: "Observed the expected decoding failure."
+        )
+        self.demoStates[demo] = DemoState(
+          output: output,
+          status: .passed,
+          detail: "Verified malformed JSON decoding diagnostics."
+        )
+      case .cancelled:
+        let output = try await self.cancellationOutput()
+        self.demoStates[demo] = DemoState(
+          output: output,
+          status: .passed,
+          detail: "Verified cancellation error normalization."
+        )
       case .webSocket:
         let transcript = try await self.runWebSocketDemo()
         self.demoStates[demo] = DemoState(
           output: Self.prettyPrintedJSON(for: transcript),
           status: .passed,
           detail: "Opened a socket, echoed JSON, and closed the session cleanly."
+        )
+      case .webSocketClose:
+        let output = try await self.webSocketCloseOutput()
+        self.demoStates[demo] = DemoState(
+          output: output,
+          status: .passed,
+          detail: "Verified WebSocket close diagnostics."
         )
       }
 
@@ -353,6 +546,97 @@ final class DemoCatalog {
     self.subscribeToActivity()
   }
 
+  private func expectedNetworkFailureOutput<R: APIRequest>(
+    request: R,
+    expected: (NetworkError) -> Bool,
+    successSummary: String
+  ) async throws -> String {
+    do {
+      _ = try await self.client.send(request)
+      throw NetworkError.invalidRequest("Expected the scenario to fail, but it succeeded.")
+    } catch let error as NetworkError {
+      guard expected(error) else { throw error }
+      return Self.failureOutput(
+        summary: successSummary,
+        error: error
+      )
+    } catch {
+      throw NetworkError.from(error)
+    }
+  }
+
+  private func unauthorizedFailureOutput() async throws -> String {
+    do {
+      _ = try await self.client.sendWithTypedErrors(
+        UnauthorizedDemoRequest(mode: self.mode)
+      )
+      throw NetworkError.invalidRequest("Expected the unauthorized scenario to fail, but it succeeded.")
+    } catch let error as APIClientError<DemoAPIError> {
+      switch error {
+      case .api(let response):
+        return """
+          expected: decoded typed HTTP error
+          status: \(response.statusCode)
+          code: \(response.body.code)
+          message: \(response.body.message)
+          raw: \(response.networkError.debugSummary)
+          """
+
+      case .errorResponseDecodingFailed(let networkError, let decodingError):
+        guard networkError.statusCode == 401 else { throw networkError }
+        return """
+          expected: HTTP 401 with undecodable live body
+          status: \(networkError.statusCode?.formatted(.number) ?? "n/a")
+          raw: \(networkError.debugSummary)
+          decoder: \(decodingError.debugSummary)
+          """
+
+      case .network(let networkError):
+        throw networkError
+      }
+    } catch {
+      throw NetworkError.from(error)
+    }
+  }
+
+  private func rateLimitOutput() async throws -> String {
+    do {
+      let response = try await self.client.send(
+        RateLimitDemoRequest(mode: self.mode)
+      )
+      return """
+        expected: recovered after retry
+        response: \(response)
+        activity: retry events appear in the activity tab
+        """
+    } catch {
+      guard self.mode == .live, error.statusCode == 429 else { throw error }
+      return Self.failureOutput(
+        summary: "Observed the live rate-limit response after retries were exhausted.",
+        error: error
+      )
+    }
+  }
+
+  private func cancellationOutput() async throws -> String {
+    let cancellationClient = self.mode == .mock
+      ? self.client
+      : HTTPClient.failing(with: .cancelled)
+
+    do {
+      _ = try await cancellationClient.send(CancelledDemoRequest())
+      throw NetworkError.invalidRequest("Expected the cancellation scenario to fail, but it succeeded.")
+    } catch let error as NetworkError {
+      guard error.isCancellationError else { throw error }
+      return Self.failureOutput(
+        summary: "Observed the expected cancellation failure.",
+        error: error
+      )
+    } catch {
+      throw NetworkError.from(error)
+    }
+  }
+
   private func runWebSocketDemo() async throws -> WebSocketDemoTranscript {
     let request = DemoClientFactory.makeWebSocketRequest(mode: self.mode)
     let payload = WebSocketDemoPayload(
@@ -400,6 +684,57 @@ final class DemoCatalog {
       inboundText: inboundText,
       closeCode: WebSocketCloseCode.normalClosure.rawValue
     )
+  }
+
+  private func webSocketCloseOutput() async throws -> String {
+    let sockets = WebSocketClient.live(
+      transport: MockWebSocketTransport(
+        selectedSubprotocol: "comet.demo.v1"
+      )
+    )
+    let request = WebSocketRequest(
+      url: URL(string: "wss://comet.local/socket-close")!,
+      subprotocols: ["comet.demo.v1"],
+      timeout: .seconds(10)
+    )
+
+    self.recordSocketEvent(
+      "started close scenario",
+      details: [
+        self.mode.rawValue,
+        request.url.absoluteString
+      ]
+    )
+
+    let connection = try await sockets.connect(request)
+    try await connection.close(
+      code: .goingAway,
+      reason: Data("Demo close frame".utf8)
+    )
+
+    do {
+      _ = try await connection.receive()
+      throw NetworkError.invalidRequest("Expected receive after close to fail, but it succeeded.")
+    } catch let error as NetworkError {
+      guard case .webSocketClosed(let code, let reason) = error else {
+        throw error
+      }
+
+      self.recordSocketEvent(
+        "closed socket",
+        details: [
+          "code \(code.rawValue)",
+          String(data: reason ?? Data(), encoding: .utf8) ?? "no reason"
+        ]
+      )
+
+      return Self.failureOutput(
+        summary: "Observed the expected WebSocket close failure.",
+        error: error
+      )
+    } catch {
+      throw NetworkError.from(error)
+    }
   }
 
   private func recordSocketEvent(_ title: String, details: [String]) {
@@ -454,11 +789,53 @@ final class DemoCatalog {
         status: .idle,
         detail: "Waiting for the first verification run."
       )
+    case .timeout:
+      DemoState(
+        output: "Run the timeout demo to verify timeout handling.",
+        status: .idle,
+        detail: "Waiting for the first failure-gallery run."
+      )
+    case .unauthorized:
+      DemoState(
+        output: "Run the typed 401 demo to inspect decoded API errors.",
+        status: .idle,
+        detail: "Waiting for the first failure-gallery run."
+      )
+    case .rateLimited:
+      DemoState(
+        output: "Run the 429 demo to verify retry behavior.",
+        status: .idle,
+        detail: "Waiting for the first failure-gallery run."
+      )
+    case .serverError:
+      DemoState(
+        output: "Run the server error demo to inspect HTTP failure metadata.",
+        status: .idle,
+        detail: "Waiting for the first failure-gallery run."
+      )
+    case .malformedJSON:
+      DemoState(
+        output: "Run the malformed JSON demo to inspect decoding diagnostics.",
+        status: .idle,
+        detail: "Waiting for the first failure-gallery run."
+      )
+    case .cancelled:
+      DemoState(
+        output: "Run the cancellation demo to verify cancellation normalization.",
+        status: .idle,
+        detail: "Waiting for the first failure-gallery run."
+      )
     case .webSocket:
       DemoState(
         output: "Run the WebSocket demo to inspect an echoed session transcript.",
         status: .idle,
         detail: "Waiting for the first verification run."
+      )
+    case .webSocketClose:
+      DemoState(
+        output: "Run the socket close demo to inspect close-frame diagnostics.",
+        status: .idle,
+        detail: "Waiting for the first realtime failure run."
       )
     }
   }
@@ -478,6 +855,18 @@ final class DemoCatalog {
   private static func decodeJSON<Value: Decodable>(_ type: Value.Type, from value: String) -> Value? {
     guard let data = value.data(using: .utf8) else { return nil }
     return try? JSONDecoder().decode(type, from: data)
+  }
+
+  private static func failureOutput(
+    summary: String,
+    error: NetworkError
+  ) -> String {
+    """
+    expected: \(summary)
+    error: \(error.debugSummary)
+    status: \(error.statusCode?.formatted(.number) ?? "n/a")
+    body: \(error.bodyString ?? "n/a")
+    """
   }
 
   private static func messageText(from message: WebSocketMessage) -> String {
