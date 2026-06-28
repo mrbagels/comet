@@ -252,6 +252,19 @@ for try await message in connection.messages() {
 }
 ```
 
+For lifecycle events and bounded reconnect attempts, use a session:
+
+```swift
+let session = sockets.session(
+  for: WebSocketRequest(url: URL(string: "wss://ws.postman-echo.com/raw")!),
+  configuration: WebSocketSessionConfiguration(maximumReconnectAttempts: 3)
+)
+
+for try await event in session.events() {
+  // Handle .connected, .message, .disconnected, and .reconnecting.
+}
+```
+
 ### Streaming And Progress
 
 ```swift

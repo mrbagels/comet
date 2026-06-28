@@ -50,6 +50,9 @@ The shipped live transports today are ``URLSessionTransport`` and ``URLSessionWe
 - ``WebSocketClient``
 - ``WebSocketRequest``
 - ``WebSocketConnection``
+- ``WebSocketSession``
+- ``WebSocketSessionConfiguration``
+- ``WebSocketSessionEvent``
 - ``URLSessionWebSocketTransport``
 - ``RawResponse``
 - ``HTTPStreamEvent``

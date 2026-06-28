@@ -182,6 +182,184 @@ public struct WebSocketConnection: Sendable {
   }
 }
 
+/// Reconnect behavior for ``WebSocketSession``.
+public struct WebSocketSessionConfiguration: Sendable {
+  public var maximumReconnectAttempts: Int
+  public var reconnectDelay: @Sendable (Int) -> Duration
+  public var sleep: @Sendable (Duration) async throws -> Void
+
+  public init(
+    maximumReconnectAttempts: Int = 3,
+    reconnectDelay: @escaping @Sendable (Int) -> Duration = { _ in .seconds(1) },
+    sleep: @escaping @Sendable (Duration) async throws -> Void = { duration in
+      try await Task.sleep(for: duration)
+    }
+  ) {
+    self.maximumReconnectAttempts = maximumReconnectAttempts
+    self.reconnectDelay = reconnectDelay
+    self.sleep = sleep
+  }
+}
+
+/// High-level WebSocket session events.
+public enum WebSocketSessionEvent: Sendable {
+  case connected(selectedSubprotocol: String?)
+  case message(WebSocketMessage)
+  case disconnected(NetworkError)
+  case reconnecting(attempt: Int, delay: Duration)
+}
+
+/// A resilient session wrapper over a low-level ``WebSocketConnection``.
+public actor WebSocketSession {
+  private let client: WebSocketClient
+  private let request: WebSocketRequest
+  private let configuration: WebSocketSessionConfiguration
+
+  private var connection: WebSocketConnection?
+  private var isClosed = false
+
+  public init(
+    client: WebSocketClient,
+    request: WebSocketRequest,
+    configuration: WebSocketSessionConfiguration = .init()
+  ) {
+    self.client = client
+    self.request = request
+    self.configuration = configuration
+  }
+
+  /// Connects the session if needed and returns the current connection.
+  public func connect() async throws(NetworkError) -> WebSocketConnection {
+    if let connection {
+      return connection
+    }
+
+    return try await self.connectFresh()
+  }
+
+  /// Sends a message through the current connection, reconnecting once when configured.
+  public func send(_ message: WebSocketMessage) async throws(NetworkError) {
+    do {
+      try await self.connect().send(message)
+    } catch {
+      self.connection = nil
+      guard self.configuration.maximumReconnectAttempts > 0 else {
+        throw .from(error)
+      }
+      try await self.connectFresh().send(message)
+    }
+  }
+
+  /// Sends a ping frame through the current connection.
+  public func ping() async throws(NetworkError) {
+    try await self.connect().ping()
+  }
+
+  /// Closes the current connection and prevents future event-stream reconnects.
+  public func close(
+    code: WebSocketCloseCode = .normalClosure,
+    reason: Data? = nil
+  ) async throws(NetworkError) {
+    self.isClosed = true
+    if let connection {
+      try await connection.close(code: code, reason: reason)
+    }
+    self.connection = nil
+  }
+
+  /// Streams session lifecycle events, including reconnect attempts and messages.
+  public nonisolated func events() -> AsyncThrowingStream<WebSocketSessionEvent, Error> {
+    AsyncThrowingStream { continuation in
+      let task = Task {
+        await self.runEvents(continuation: continuation)
+      }
+
+      continuation.onTermination = { _ in
+        task.cancel()
+      }
+    }
+  }
+
+  /// Streams only messages from ``events()``.
+  public nonisolated func messages() -> AsyncThrowingStream<WebSocketMessage, Error> {
+    AsyncThrowingStream { continuation in
+      let task = Task {
+        do {
+          for try await event in self.events() {
+            if case .message(let message) = event {
+              continuation.yield(message)
+            }
+          }
+          continuation.finish()
+        } catch {
+          continuation.finish(throwing: error)
+        }
+      }
+
+      continuation.onTermination = { _ in
+        task.cancel()
+      }
+    }
+  }
+
+  private func connectFresh() async throws(NetworkError) -> WebSocketConnection {
+    self.isClosed = false
+    let connection = try await self.client.connect(self.request)
+    self.connection = connection
+    return connection
+  }
+
+  private func runEvents(
+    continuation: AsyncThrowingStream<WebSocketSessionEvent, Error>.Continuation
+  ) async {
+    var reconnectAttempts = 0
+
+    while !Task.isCancelled {
+      do {
+        let connection = try await self.connectFresh()
+        continuation.yield(.connected(selectedSubprotocol: connection.selectedSubprotocol))
+
+        while !Task.isCancelled && !self.isClosed {
+          continuation.yield(.message(try await connection.receive()))
+        }
+
+        continuation.finish()
+        return
+      } catch {
+        let networkError = NetworkError.from(error)
+        self.connection = nil
+
+        guard !self.isClosed else {
+          continuation.finish()
+          return
+        }
+
+        continuation.yield(.disconnected(networkError))
+
+        guard reconnectAttempts < self.configuration.maximumReconnectAttempts else {
+          continuation.finish(throwing: networkError)
+          return
+        }
+
+        reconnectAttempts += 1
+        let delay = self.configuration.reconnectDelay(reconnectAttempts)
+        continuation.yield(.reconnecting(attempt: reconnectAttempts, delay: delay))
+
+        do {
+          if delay > .zero {
+            try await self.configuration.sleep(delay)
+          }
+        } catch {
+          continuation.finish(throwing: NetworkError.from(error))
+          return
+        }
+      }
+    }
+
+    continuation.finish()
+  }
+}
+
 /// Connects a ``WebSocketRequest`` and returns a live ``WebSocketConnection``.
 public protocol WebSocketTransport: Sendable {
   func connect(_ request: WebSocketRequest) async throws(NetworkError) -> WebSocketConnection
@@ -208,6 +386,14 @@ public struct WebSocketClient: Sendable {
   /// Connects a WebSocket request using the configured transport.
   public func connect(_ request: WebSocketRequest) async throws(NetworkError) -> WebSocketConnection {
     try await self.transport.connect(request)
+  }
+
+  /// Creates a resilient session wrapper for a WebSocket request.
+  public func session(
+    for request: WebSocketRequest,
+    configuration: WebSocketSessionConfiguration = .init()
+  ) -> WebSocketSession {
+    WebSocketSession(client: self, request: request, configuration: configuration)
   }
 }
 

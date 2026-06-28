@@ -74,6 +74,40 @@ private struct QueuedWebSocketTransport: WebSocketTransport, Sendable {
   }
 }
 
+private actor ReconnectingSocketState {
+  private var connectCountValue = 0
+
+  func connect() -> WebSocketConnection {
+    self.connectCountValue += 1
+    let messages: [WebSocketMessage] = self.connectCountValue == 1
+      ? [.text("first")]
+      : [.text("second")]
+    let connectionState = QueuedSocketState(incomingMessages: messages)
+
+    return WebSocketConnection(
+      selectedSubprotocol: "comet-demo",
+      send: { _ in },
+      receive: {
+        try await connectionState.nextMessage()
+      },
+      ping: {},
+      close: { _, _ in }
+    )
+  }
+
+  func connectCount() -> Int {
+    self.connectCountValue
+  }
+}
+
+private struct ReconnectingWebSocketTransport: WebSocketTransport, Sendable {
+  let state: ReconnectingSocketState
+
+  func connect(_ request: WebSocketRequest) async throws(NetworkError) -> WebSocketConnection {
+    await self.state.connect()
+  }
+}
+
 @Test func webSocketRequestBuildsURLRequestWithHeadersAndProtocols() {
   var headers = HTTPFields()
   headers[.authorization] = "Bearer token"
@@ -143,6 +177,71 @@ private struct QueuedWebSocketTransport: WebSocketTransport, Sendable {
     #expect(code == .normalClosure)
     #expect(String(data: reason ?? Data(), encoding: .utf8) == "done")
   }
+}
+
+@Test func webSocketSessionReconnectsAndEmitsLifecycleEvents() async throws {
+  let state = ReconnectingSocketState()
+  let client = WebSocketClient.live(transport: ReconnectingWebSocketTransport(state: state))
+  let session = client.session(
+    for: WebSocketRequest(url: URL(string: "wss://example.com/socket")!),
+    configuration: WebSocketSessionConfiguration(
+      maximumReconnectAttempts: 1,
+      reconnectDelay: { _ in .zero },
+      sleep: { _ in }
+    )
+  )
+  var iterator = session.events().makeAsyncIterator()
+
+  guard case .connected(let subprotocol)? = try await iterator.next() else {
+    Issue.record("Expected the session to connect.")
+    return
+  }
+  #expect(subprotocol == "comet-demo")
+
+  guard case .message(.text("first"))? = try await iterator.next() else {
+    Issue.record("Expected the first message.")
+    return
+  }
+
+  guard case .disconnected(let error)? = try await iterator.next() else {
+    Issue.record("Expected a disconnect after the first mocked session closes.")
+    return
+  }
+  guard case .webSocketClosed(let code, _) = error else {
+    Issue.record("Expected a WebSocket close error.")
+    return
+  }
+  #expect(code == .normalClosure)
+
+  guard case .reconnecting(let attempt, let delay)? = try await iterator.next() else {
+    Issue.record("Expected a reconnect event.")
+    return
+  }
+  #expect(attempt == 1)
+  #expect(delay == .zero)
+
+  guard case .connected? = try await iterator.next() else {
+    Issue.record("Expected the session to reconnect.")
+    return
+  }
+  guard case .message(.text("second"))? = try await iterator.next() else {
+    Issue.record("Expected the second message.")
+    return
+  }
+
+  #expect(await state.connectCount() == 2)
+}
+
+@Test func webSocketSessionSendsThroughCurrentConnection() async throws {
+  let state = TestSocketState()
+  let client = WebSocketClient.live(transport: TestWebSocketTransport(state: state))
+  let session = client.session(
+    for: WebSocketRequest(url: URL(string: "wss://example.com/socket")!)
+  )
+
+  try await session.send(.text("hello"))
+
+  #expect(await state.sentMessages == [.text("hello")])
 }
 
 @Test func networkErrorSummarizesWebSocketCloseReason() {

@@ -19,6 +19,7 @@ completed v2 foundation.
 - `HTTPClient.traces` emits completed `RequestTrace` values with attempts, retry delays, timings, bytes, metadata, and final outcomes.
 - `AuthenticationCoordinator` and `AuthenticationMiddleware` provide token reads, refresh de-duplication, and safe 401 replay.
 - Streaming and transfer primitives with `HTTPClient.stream`, `HTTPClient.lines`, `HTTPClient.serverSentEvents`, `HTTPStreamingTransport`, and progress-aware `sendRaw`.
+- `WebSocketSession` adds a resilient actor wrapper with lifecycle events, message streams, and bounded reconnect attempts.
 
 ## 0.1.5 - 2026-06-28
 
