@@ -17,6 +17,19 @@ The `0.4.2` patch release expands OpenAPI schema model generation with nested
 inline object structs and component `$ref` aliases while preserving the `0.4.x`
 public API contract.
 
+## Unreleased
+
+### Added
+
+- OpenAPI reusable component references now resolve for parameters, request bodies, and responses.
+- OpenAPI request generation now covers JSON bodies without schemas, plain-text bodies, and form URL-encoded bodies.
+- OpenAPI error responses now generate typed JSON, string, or raw data serializers from the declared response content.
+- OpenAPI schema generation now covers free-form `additionalProperties` dictionaries through `CometOpenAPIJSONValue` and `oneOf` or `anyOf` union enums.
+
+### Changed
+
+- Generated Swift type names now preserve uppercase acronym words in component and operation names.
+
 ## 0.4.2 - 2026-06-28
 
 ### Added

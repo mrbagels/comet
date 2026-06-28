@@ -32,11 +32,11 @@ let source = try OpenAPIGenerator().generate(data: openAPIData)
 The generator supports:
 
 - OpenAPI 3.0 and 3.1 JSON or YAML documents
-- path, query, and header parameters
-- component schema structs, nested inline object structs, typed `additionalProperties` dictionaries, simple `allOf` object composition, string enums, aliases, arrays, and local schema `$ref`s
-- JSON request bodies
-- typed JSON success response serializers
-- typed error response hooks using `APIRequestWithErrorResponse`
+- path, query, and header parameters, including reusable component parameters
+- component schema structs, nested inline object structs, typed and free-form `additionalProperties` dictionaries, simple `allOf` object composition, `oneOf` and `anyOf` union enums, string enums, aliases, arrays, and local schema `$ref`s
+- reusable request bodies and JSON, plain-text, and form URL-encoded request bodies
+- reusable responses and typed JSON or string success response serializers
+- typed JSON, string, or raw data error response hooks using `APIRequestWithErrorResponse`
 - request metadata populated from `operationId`
 
 Unsupported features fail with ``OpenAPIGeneratorError`` so generated clients do
