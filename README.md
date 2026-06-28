@@ -476,7 +476,7 @@ swift package --allow-writing-to-package-directory comet-openapi-generate \
   --output Sources/API/GeneratedAPI.swift
 ```
 
-The generator supports path, query, and header parameters, component schema models, nested inline object structs, component alias `$ref`s, local schema `$ref`s, JSON request bodies, typed JSON success serializers, operation metadata, and typed error-response hooks. Unsupported features fail with diagnostics instead of silently generating partial behavior.
+The generator supports path, query, and header parameters, component schema models, nested inline object structs, typed `additionalProperties` dictionaries, simple `allOf` object composition, component alias `$ref`s, local schema `$ref`s, JSON request bodies, typed JSON success serializers, operation metadata, and typed error-response hooks. Unsupported features fail with diagnostics instead of silently generating partial behavior.
 
 ### Reachability Hints
 

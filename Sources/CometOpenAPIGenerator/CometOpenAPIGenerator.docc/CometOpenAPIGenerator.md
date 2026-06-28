@@ -33,7 +33,7 @@ The generator supports:
 
 - OpenAPI 3.0 and 3.1 JSON or YAML documents
 - path, query, and header parameters
-- component schema structs, nested inline object structs, string enums, aliases, arrays, and local schema `$ref`s
+- component schema structs, nested inline object structs, typed `additionalProperties` dictionaries, simple `allOf` object composition, string enums, aliases, arrays, and local schema `$ref`s
 - JSON request bodies
 - typed JSON success response serializers
 - typed error response hooks using `APIRequestWithErrorResponse`
