@@ -367,7 +367,7 @@ Dependencies:
 
 Generate Comet request types from API specs.
 
-Status: V3 generator shipped in `0.3.0` and expanded with a JSON/YAML OpenAPI core target, `comet-openapi-generate` executable, SwiftPM command plugin, request generation for path/query/header parameters, component schema models, local schema `$ref`s, JSON bodies, operation metadata, typed success serializers, typed error-response hooks, and snapshot tests.
+Status: V3 generator shipped in `0.3.0` and expanded with a JSON/YAML OpenAPI core target, `comet-openapi-generate` executable, SwiftPM command plugin, request generation for path/query/header parameters, component schema models, nested inline object models, component alias `$ref`s, local schema `$ref`s, JSON bodies, operation metadata, typed success serializers, typed error-response hooks, and snapshot tests.
 
 Technical shape:
 

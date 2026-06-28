@@ -657,5 +657,5 @@ The project is generated from `project.yml` with XcodeGen.
 
 When Comet grows beyond this release line, the highest-value next additions are likely:
 
-- richer generated-model support for OpenAPI schemas
+- broader OpenAPI schema composition support, such as dictionaries and `oneOf`/`anyOf`/`allOf`
 - an explicit server-side live transport after a dependency decision
