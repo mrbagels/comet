@@ -107,6 +107,39 @@ import CometOpenAPIGenerator
   #expect(output.contains("public let responseSerializer: ResponseSerializer<String> = .string()"))
 }
 
+@Test func openAPIGeneratorAcceptsYAMLDocuments() throws {
+  let output = try OpenAPIGenerator().generate(
+    yamlString: """
+    openapi: 3.1.0
+    components:
+      schemas:
+        Ping:
+          type: object
+          required:
+            - message
+          properties:
+            message:
+              type: string
+    paths:
+      /ping:
+        get:
+          operationId: ping
+          responses:
+            "200":
+              description: OK
+              content:
+                application/json:
+                  schema:
+                    $ref: "#/components/schemas/Ping"
+    """
+  )
+
+  #expect(output.contains("public struct Ping: Codable, Sendable"))
+  #expect(output.contains("public struct PingRequest: APIRequest"))
+  #expect(output.contains("public typealias Response = Ping"))
+  #expect(output.contains("public let responseSerializer: ResponseSerializer<Ping> = .json(Ping.self)"))
+}
+
 @Test func openAPIGeneratorCreatesComponentModelsAndTypedJSONRequests() throws {
   let output = try OpenAPIGenerator().generate(
     jsonString: """

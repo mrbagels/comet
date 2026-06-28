@@ -1,17 +1,17 @@
 # ``CometOpenAPIGenerator``
 
-Generate Comet request types from focused JSON OpenAPI documents.
+Generate Comet request types from focused JSON or YAML OpenAPI documents.
 
 ## Overview
 
-`CometOpenAPIGenerator` is intentionally dependency-free and JSON-first. It is
-designed to prove generated Comet clients without hiding unsupported OpenAPI
+`CometOpenAPIGenerator` accepts JSON directly and uses Yams for YAML input. It
+is designed to prove generated Comet clients without hiding unsupported OpenAPI
 features.
 
 Use the executable from SwiftPM:
 
 ```sh
-swift run comet-openapi-generate --input openapi.json --output GeneratedAPI.swift
+swift run comet-openapi-generate --input openapi.yaml --output GeneratedAPI.swift
 ```
 
 Or call the generator core directly:
@@ -22,7 +22,7 @@ let source = try OpenAPIGenerator().generate(data: openAPIData)
 
 The generator supports:
 
-- OpenAPI 3.0 and 3.1 JSON documents
+- OpenAPI 3.0 and 3.1 JSON or YAML documents
 - path, query, and header parameters
 - component schema structs, string enums, aliases, arrays, and local schema `$ref`s
 - JSON request bodies

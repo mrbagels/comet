@@ -1,4 +1,5 @@
 import Foundation
+import Yams
 
 /// Configuration for generated Comet request source.
 public struct OpenAPIGeneratorConfiguration: Sendable, Hashable {
@@ -17,7 +18,7 @@ public struct OpenAPIGeneratorConfiguration: Sendable, Hashable {
   }
 }
 
-/// A focused JSON OpenAPI generator for Comet request types.
+/// A focused JSON and YAML OpenAPI generator for Comet request types.
 public struct OpenAPIGenerator: Sendable {
   public init() {}
 
@@ -30,8 +31,17 @@ public struct OpenAPIGenerator: Sendable {
       return try self.generate(document: document, configuration: configuration)
     } catch let error as OpenAPIGeneratorError {
       throw error
-    } catch {
-      throw OpenAPIGeneratorError.invalidDocument("Unable to decode OpenAPI JSON: \(error)")
+    } catch let jsonError {
+      do {
+        let document = try self.decodeYAMLDocument(data: data)
+        return try self.generate(document: document, configuration: configuration)
+      } catch let error as OpenAPIGeneratorError {
+        throw error
+      } catch {
+        throw OpenAPIGeneratorError.invalidDocument(
+          "Unable to decode OpenAPI JSON or YAML. JSON error: \(jsonError). YAML error: \(error)"
+        )
+      }
     }
   }
 
@@ -43,6 +53,30 @@ public struct OpenAPIGenerator: Sendable {
       throw OpenAPIGeneratorError.invalidDocument("Unable to encode input as UTF-8.")
     }
     return try self.generate(data: data, configuration: configuration)
+  }
+
+  public func generate(
+    yamlString: String,
+    configuration: OpenAPIGeneratorConfiguration = OpenAPIGeneratorConfiguration()
+  ) throws -> String {
+    guard let data = yamlString.data(using: .utf8) else {
+      throw OpenAPIGeneratorError.invalidDocument("Unable to encode input as UTF-8.")
+    }
+    return try self.generate(data: data, configuration: configuration)
+  }
+
+  private func decodeYAMLDocument(data: Data) throws -> OpenAPIDocument {
+    guard let string = String(data: data, encoding: .utf8) else {
+      throw OpenAPIGeneratorError.invalidDocument("Unable to decode input as UTF-8.")
+    }
+    guard let object = try Yams.load(yaml: string) else {
+      throw OpenAPIGeneratorError.invalidDocument("The OpenAPI YAML document was empty.")
+    }
+    guard JSONSerialization.isValidJSONObject(object) else {
+      throw OpenAPIGeneratorError.invalidDocument("The OpenAPI YAML document could not be represented as JSON.")
+    }
+    let data = try JSONSerialization.data(withJSONObject: object)
+    return try JSONDecoder().decode(OpenAPIDocument.self, from: data)
   }
 
   private func generate(

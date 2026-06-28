@@ -70,7 +70,7 @@ private struct CLIArguments {
   private static let help = """
   Usage: comet-openapi-generate --input openapi.json --output GeneratedAPI.swift
 
-  Omit --input to read JSON from stdin. Omit --output to write Swift to stdout.
+  Input can be JSON or YAML. Omit --input to read from stdin. Omit --output to write Swift to stdout.
   """
 }
 

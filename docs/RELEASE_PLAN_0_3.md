@@ -218,15 +218,15 @@ Acceptance:
 Purpose: prove generated Comet clients without trying to cover every OpenAPI
 feature in one pass.
 
-Status: completed in `0.3.0` with a dependency-free JSON OpenAPI
-generator core, `comet-openapi-generate` executable, request generation for
+Status: completed in `0.3.0` with a JSON/YAML OpenAPI generator core,
+`comet-openapi-generate` executable, request generation for
 parameters, component schema models, local schema `$ref`s, JSON bodies,
 metadata, typed success serializers, typed error hooks, and snapshot tests.
 
 Deliverables:
 
 - Add an executable or SwiftPM command plugin for generation.
-- Support JSON OpenAPI 3.0 or 3.1 documents first.
+- Support JSON and YAML OpenAPI 3.0 or 3.1 documents.
 - Generate request types for paths, methods, path parameters, query parameters,
   headers, JSON bodies, operation metadata, success responses, and typed error
   responses.
@@ -315,7 +315,7 @@ Acceptance:
   protection and app-level encryption decisions.
 - `MockServer` remains transport-level for `0.3.0`; a real local HTTP listener
   is deferred.
-- OpenAPI generation is JSON-first and dependency-free. YAML input, full JSON
+- OpenAPI generation supports JSON directly and YAML through Yams. Full JSON
   Schema coverage, formatting integration, and a SwiftPM command plugin can be
   revisited after the CLI proves useful.
 - Server-side live transports are deferred for `0.3.0`; see

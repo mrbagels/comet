@@ -17,6 +17,7 @@ let package = Package(
     .executable(name: "comet-openapi-generate", targets: ["CometOpenAPIGenerate"]),
   ],
   dependencies: [
+    .package(url: "https://github.com/jpsim/Yams.git", from: "6.2.2"),
     .package(url: "https://github.com/apple/swift-http-types", from: "1.3.0"),
     .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.9.2"),
     .package(url: "https://github.com/pointfreeco/swift-composable-architecture", from: "1.20.0"),
@@ -44,7 +45,10 @@ let package = Package(
       ]
     ),
     .target(
-      name: "CometOpenAPIGenerator"
+      name: "CometOpenAPIGenerator",
+      dependencies: [
+        .product(name: "Yams", package: "Yams")
+      ]
     ),
     .executableTarget(
       name: "CometOpenAPIGenerate",

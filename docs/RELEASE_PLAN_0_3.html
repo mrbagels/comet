@@ -382,7 +382,7 @@
         <article class="phase workflow">
           <span class="tag">0.2.8</span>
           <h3>OpenAPI Generator</h3>
-          <p>Implemented with a dependency-free JSON OpenAPI generator core, `comet-openapi-generate` executable, generated request types, component schema models, local schema `$ref`s, and snapshot tests.</p>
+          <p>Implemented with a JSON/YAML OpenAPI generator core, `comet-openapi-generate` executable, generated request types, component schema models, local schema `$ref`s, and snapshot tests.</p>
         </article>
 
         <article class="phase">
@@ -468,7 +468,7 @@ xcodebuild test -project CometPlayground.xcodeproj -scheme CometPlaygroundApp -d
         <ul>
           <li>File cache storage stays plain file-backed storage with user-owned protection policy.</li>
           <li>`MockServer` remains transport-level for `0.3.0`; a real local HTTP listener is deferred.</li>
-          <li>OpenAPI generation is JSON-first and dependency-free; YAML input, full JSON Schema coverage, formatting integration, and a SwiftPM command plugin can be revisited after the CLI proves useful.</li>
+          <li>OpenAPI generation supports JSON directly and YAML through Yams; full JSON Schema coverage, formatting integration, and a SwiftPM command plugin can be revisited after the CLI proves useful.</li>
           <li>Server-side live transports are deferred for `0.3.0` and documented in the server decision record.</li>
         </ul>
       </div>

@@ -18,7 +18,7 @@
 
 Comet turns API endpoints into Swift types. It ships with a `URLSession`-backed live client, middleware for production behavior, opt-in response caching, deterministic testing and contract transports, cassette recording and replay, OpenAPI request generation, request activity and trace streams, response streaming, transfer progress hooks, and resilient WebSocket sessions.
 
-The latest published release is `0.3.0`, the completed V3 foundation. It adds cache-aware reads, contract testing, mock-server scenarios, JSON OpenAPI request generation, trace propagation, reachability hints, and a documented server-side support boundary.
+The latest published release is `0.3.0`, the completed V3 foundation. It adds cache-aware reads, contract testing, mock-server scenarios, OpenAPI request generation, trace propagation, reachability hints, and a documented server-side support boundary.
 
 ## At A Glance
 
@@ -26,7 +26,7 @@ The latest published release is `0.3.0`, the completed V3 foundation. It adds ca
 | --- | --- |
 | `Comet` | Typed HTTP requests, WebSocket sessions, serializers, middleware, retry, cache, deduplication, activity events, traces, streaming, and progress primitives |
 | `CometTesting` | Mock transports, strict contracts, mock-server scenarios, cassette recording, replay transports, and mock WebSocket sessions |
-| `CometOpenAPIGenerator` | JSON OpenAPI 3.x request generator core plus the `comet-openapi-generate` executable |
+| `CometOpenAPIGenerator` | JSON and YAML OpenAPI 3.x request generator core plus the `comet-openapi-generate` executable |
 | `CometTCA` | Lightweight Composable Architecture helpers for request effects and request state |
 | `CometPlayground` | iPhone-first verification app for HTTP, cache, contracts, replay, activity, and realtime flows |
 
@@ -454,7 +454,7 @@ let mockServer = MockServer(expectations: expectations)
 
 ### OpenAPI Generation
 
-Generate Comet request types from JSON OpenAPI 3.x documents:
+Generate Comet request types from JSON or YAML OpenAPI 3.x documents:
 
 ```sh
 swift run comet-openapi-generate --input openapi.json --output GeneratedAPI.swift
@@ -545,7 +545,7 @@ SVG brand assets live in [Resources/Brand](Resources/Brand). The README uses the
 - `Sources/`: package source targets
 - `Tests/`: package test targets
 - `Examples/CometPlayground/`: XcodeGen-driven iOS demo app
-- `Sources/CometOpenAPIGenerator/`: JSON OpenAPI generator core
+- `Sources/CometOpenAPIGenerator/`: JSON and YAML OpenAPI generator core
 - `Resources/Brand/`: SVG logo and icon files for docs, README, and app assets
 - `.github/scripts/fresh-client-smoke.sh`: external package integration smoke check
 - `.github/scripts/select-ios-simulator.sh`: local and CI iPhone simulator selection
