@@ -653,7 +653,6 @@ The project is generated from `project.yml` with XcodeGen.
 - activity events cover request lifecycle, not decode lifecycle
 - WebSocket session activity is modeled through `WebSocketSessionEvent`, not `NetworkEvent`
 - server-side live transports remain V3-or-later work
-- playground cache lab scenarios are still in progress
 
 ---
 
@@ -662,5 +661,5 @@ The project is generated from `project.yml` with XcodeGen.
 When Comet grows beyond this MVP, the highest-value next additions are likely:
 
 - a server-side live transport
-- playground cache scenarios for first load, revalidation, offline stale fallback, and clear cache
+- stale-while-revalidate cache policy semantics
 - targeted docs and examples for real app integration

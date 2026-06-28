@@ -23,6 +23,7 @@ live transports remain future minor-version work.
 - Cache hit, miss, bypass, stale, revalidate, update, store, and skipped-store events on completed `RequestTrace` values.
 - `FileHTTPCacheStore` and `FileHTTPCacheStoreConfiguration` for namespace-isolated persistent cache entries with size limits, oldest-entry pruning, and corrupted-entry cleanup.
 - Stale-if-error cache fallback through `HTTPCachePolicy(allowsStaleIfError:)`.
+- Playground cache lab scenario covering first load, fresh cache hit, stale revalidation, offline stale fallback, and clear cache.
 
 ### Changed
 

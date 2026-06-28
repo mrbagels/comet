@@ -428,6 +428,8 @@ extension DemoCatalog.DemoCategory {
       ThemeColor.ocean
     case .transport:
       ThemeColor.plum
+    case .cache:
+      ThemeColor.mint
     case .failures:
       ThemeColor.sunset
     case .realtime:
@@ -447,6 +449,8 @@ extension DemoCatalog.Demo {
       ThemeColor.mint
     case .raw:
       ThemeColor.plum
+    case .cacheLab:
+      ThemeColor.mint
     case .timeout:
       ThemeColor.sunset
     case .unauthorized:

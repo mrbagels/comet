@@ -41,6 +41,7 @@ Expected outputs:
 - `Plain Text`: output contains `Comet mock text response`
 - `Empty Response`: output confirms `Received an EmptyResponse successfully.`
 - `Raw Response`: output shows `status: 200` and `content-type: application/json`
+- `Cache Lab`: output shows a first load, fresh hit, stale revalidation, offline stale fallback, and cleared cache
 - `Timeout`: output records a timeout-shaped `NetworkError`
 - `Typed 401`: output includes the mock `unauthorized` error code
 - `429 Retry`: output confirms recovery after a retry
@@ -70,6 +71,7 @@ Good checks:
 - `Plain Text`: should include the Example Domain page text
 - `Empty Response`: should complete successfully against the live 204-style endpoint
 - `Raw Response`: should show a non-empty payload with real response metadata
+- `Cache Lab`: should run the deterministic local cache flow and clear its file store
 - `Timeout`: should report a timeout-shaped failure against a delayed endpoint
 - `Typed 401`: should preserve a live 401 status
 - `429 Retry`: should exercise retry behavior against a live 429 response
@@ -93,6 +95,10 @@ Each scenario in the UI shows the exact Comet API surface it is proving. The dem
 - `RequestOptions.absoluteURL`
 - `EmptyResponse`
 - `RawResponse`
+- `CacheMiddleware`
+- `FileHTTPCacheStore`
+- `HTTPCachePolicy`
+- `RequestTrace.cacheEvents`
 - `NetworkEvent`
 - `RetryMiddleware`
 - `APIRequestWithErrorResponse`

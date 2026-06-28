@@ -126,6 +126,9 @@ enum DemoClientFactory {
       case "/failures/cancelled":
         throw NetworkError.cancelled
 
+      case "/cache/lab":
+        return await routeState.nextCacheLabResponse(request: request)
+
       case "":
         return RawResponse(
           data: Data("Comet mock text response".utf8),
@@ -143,6 +146,12 @@ enum DemoClientFactory {
       default:
         throw NetworkError.invalidRequest("No mock handler registered for \(request.url.absoluteString).")
       }
+    }
+  }
+
+  static func makeCacheLabTransport(state: DemoCacheLabTransportState) -> MockTransport {
+    MockTransport { request async throws(NetworkError) -> RawResponse in
+      try await state.send(request)
     }
   }
 
@@ -203,6 +212,7 @@ enum DemoClientFactory {
 
 private actor DemoRouteState {
   private var rateLimitAttempt = 0
+  private var cacheLabAttempt = 0
 
   func nextRateLimitResponse() -> RawResponse {
     self.rateLimitAttempt += 1
@@ -229,4 +239,90 @@ private actor DemoRouteState {
       )
     }
   }
+
+  func nextCacheLabResponse(request: PreparedRequest) -> RawResponse {
+    self.cacheLabAttempt += 1
+    if self.cacheLabAttempt > 1,
+       request.headers[DemoCacheLabHeaders.ifNoneMatch] == DemoCacheLabTransportState.eTag {
+      return Self.cacheLabNotModifiedResponse()
+    }
+    return Self.cacheLabSuccessResponse()
+  }
+
+  private static func cacheLabSuccessResponse() -> RawResponse {
+    var headers = HTTPFields()
+    headers[.contentType] = "text/plain; charset=utf-8"
+    headers[DemoCacheLabHeaders.cacheControl] = "max-age=60"
+    headers[DemoCacheLabHeaders.eTag] = DemoCacheLabTransportState.eTag
+    return RawResponse(
+      data: Data("cache lab payload v1".utf8),
+      statusCode: 200,
+      headers: headers
+    )
+  }
+
+  private static func cacheLabNotModifiedResponse() -> RawResponse {
+    var headers = HTTPFields()
+    headers[DemoCacheLabHeaders.cacheControl] = "max-age=60"
+    headers[DemoCacheLabHeaders.eTag] = DemoCacheLabTransportState.eTag
+    return RawResponse(data: Data(), statusCode: 304, headers: headers)
+  }
+}
+
+actor DemoCacheLabTransportState {
+  static let eTag = #""cache-lab-v1""#
+
+  private var requests: [PreparedRequest] = []
+
+  func send(_ request: PreparedRequest) throws(NetworkError) -> RawResponse {
+    self.requests.append(request)
+
+    switch self.requests.count {
+    case 1:
+      return Self.successResponse()
+
+    case 2:
+      guard request.headers[DemoCacheLabHeaders.ifNoneMatch] == Self.eTag else {
+        throw .invalidRequest("Cache lab expected an If-None-Match validator.")
+      }
+      return Self.notModifiedResponse()
+
+    default:
+      throw .timeout
+    }
+  }
+
+  func requestCount() -> Int {
+    self.requests.count
+  }
+
+  func request(at index: Int) -> PreparedRequest? {
+    guard self.requests.indices.contains(index) else { return nil }
+    return self.requests[index]
+  }
+
+  private static func successResponse() -> RawResponse {
+    var headers = HTTPFields()
+    headers[.contentType] = "text/plain; charset=utf-8"
+    headers[DemoCacheLabHeaders.cacheControl] = "max-age=60"
+    headers[DemoCacheLabHeaders.eTag] = Self.eTag
+    return RawResponse(
+      data: Data("cache lab payload v1".utf8),
+      statusCode: 200,
+      headers: headers
+    )
+  }
+
+  private static func notModifiedResponse() -> RawResponse {
+    var headers = HTTPFields()
+    headers[DemoCacheLabHeaders.cacheControl] = "max-age=60"
+    headers[DemoCacheLabHeaders.eTag] = Self.eTag
+    return RawResponse(data: Data(), statusCode: 304, headers: headers)
+  }
+}
+
+enum DemoCacheLabHeaders {
+  static let cacheControl = HTTPField.Name("Cache-Control")!
+  static let eTag = HTTPField.Name("ETag")!
+  static let ifNoneMatch = HTTPField.Name("If-None-Match")!
 }

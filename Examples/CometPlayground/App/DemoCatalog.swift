@@ -9,12 +9,18 @@ private struct DemoCassetteReplayVerification: Sendable {
   let output: String
 }
 
+private struct DemoCacheLabResult: Sendable {
+  let output: String
+  let fields: [DemoInspectorField]
+}
+
 @MainActor
 @Observable
 final class DemoCatalog {
   enum DemoCategory: String, CaseIterable, Identifiable {
     case requests
     case transport
+    case cache
     case failures
     case realtime
 
@@ -24,6 +30,7 @@ final class DemoCatalog {
       switch self {
       case .requests: "Requests"
       case .transport: "Transport"
+      case .cache: "Cache"
       case .failures: "Failures"
       case .realtime: "Realtime"
       }
@@ -35,6 +42,8 @@ final class DemoCatalog {
         "Typed serialization, URL shaping, and content transforms."
       case .transport:
         "Status validation, raw inspection, and payload-free flows."
+      case .cache:
+        "Fresh hits, revalidation, persistent storage, and offline stale fallback."
       case .failures:
         "Timeouts, authorization failures, retries, decoding errors, cancellation, and socket closure."
       case .realtime:
@@ -46,6 +55,7 @@ final class DemoCatalog {
       switch self {
       case .requests: "point.3.connected.trianglepath.dotted"
       case .transport: "waveform.path.ecg.rectangle"
+      case .cache: "externaldrive.badge.icloud"
       case .failures: "exclamationmark.triangle"
       case .realtime: "dot.radiowaves.left.and.right"
       }
@@ -61,6 +71,7 @@ final class DemoCatalog {
     case text
     case empty
     case raw
+    case cacheLab
     case timeout
     case unauthorized
     case rateLimited
@@ -78,6 +89,7 @@ final class DemoCatalog {
       case .text: "Plain Text"
       case .empty: "Empty Response"
       case .raw: "Raw Response"
+      case .cacheLab: "Cache Lab"
       case .timeout: "Timeout"
       case .unauthorized: "Typed 401"
       case .rateLimited: "429 Retry"
@@ -99,6 +111,8 @@ final class DemoCatalog {
         "Validate a 204-style endpoint using `EmptyResponse`."
       case .raw:
         "Inspect bytes, headers, and status directly with `sendRaw`."
+      case .cacheLab:
+        "Exercise first load, fresh hit, stale revalidation, offline fallback, and clear cache."
       case .timeout:
         "Verify timeout errors flow through `NetworkError` and activity events."
       case .unauthorized:
@@ -124,6 +138,8 @@ final class DemoCatalog {
         .requests
       case .empty, .raw:
         .transport
+      case .cacheLab:
+        .cache
       case .timeout, .unauthorized, .rateLimited, .serverError, .malformedJSON, .cancelled:
         .failures
       case .webSocket:
@@ -139,6 +155,7 @@ final class DemoCatalog {
       case .text: "text.page"
       case .empty: "checkmark.circle.badge.xmark"
       case .raw: "bolt.horizontal.circle"
+      case .cacheLab: "externaldrive.connected.to.line.below"
       case .timeout: "timer"
       case .unauthorized: "lock.trianglebadge.exclamationmark"
       case .rateLimited: "arrow.clockwise.circle"
@@ -160,6 +177,8 @@ final class DemoCatalog {
         ["HTTPClient.send", "EmptyResponse", "StatusValidation"]
       case .raw:
         ["HTTPClient.sendRaw", "RawResponse", "HTTPFields"]
+      case .cacheLab:
+        ["CacheMiddleware", "FileHTTPCacheStore", "HTTPCachePolicy", "RequestTrace.cacheEvents"]
       case .timeout:
         ["HTTPClient.send", "NetworkError.timeout", "RequestOptions.timeout"]
       case .unauthorized:
@@ -225,6 +244,18 @@ final class DemoCatalog {
         [
           "Status is `200` and the body bytes are non-empty.",
           "The raw payload is visible without decoding first."
+        ]
+      case (.cacheLab, .mock):
+        [
+          "The first request stores a file-backed cache entry.",
+          "The second request is served as a fresh cache hit without touching the transport.",
+          "A stale entry revalidates through `If-None-Match` and merges a `304` response.",
+          "A simulated timeout returns the stale response through `allowsStaleIfError`."
+        ]
+      case (.cacheLab, .live):
+        [
+          "The cache lab uses deterministic local mock transport even when the app is in Live mode.",
+          "The file-backed store is cleared after the scenario completes."
         ]
       case (.timeout, .mock):
         [
@@ -319,6 +350,8 @@ final class DemoCatalog {
         "EmptyDemo"
       case .raw:
         "RawTodoDemo"
+      case .cacheLab:
+        "CacheLabDemo"
       case .timeout:
         "TimeoutDemo"
       case .unauthorized:
@@ -340,7 +373,7 @@ final class DemoCatalog {
       switch self {
       case .timeout, .unauthorized, .serverError, .malformedJSON, .cancelled:
         true
-      case .json, .text, .empty, .raw, .rateLimited, .webSocket, .webSocketClose:
+      case .json, .text, .empty, .raw, .cacheLab, .rateLimited, .webSocket, .webSocketClose:
         false
       }
     }
@@ -433,6 +466,16 @@ final class DemoCatalog {
       return self.httpInspection(for: EmptyDemoRequest(), demo: demo)
     case .raw:
       return self.httpInspection(for: RawTodoRequest(), demo: demo)
+    case .cacheLab:
+      return self.httpInspection(
+        for: CacheLabRequest(),
+        demo: demo,
+        transport: "MockTransport + FileHTTPCacheStore",
+        extraFields: [
+          DemoInspectorField(label: "Cache policy", value: "returnCacheElseLoad"),
+          DemoInspectorField(label: "Stale fallback", value: "Enabled")
+        ]
+      )
     case .timeout:
       return self.httpInspection(for: TimeoutDemoRequest(mode: self.mode), demo: demo)
     case .unauthorized:
@@ -565,6 +608,19 @@ final class DemoCatalog {
               DemoInspectorField(label: "Bytes", value: "\(raw.data.count)")
             ] + Self.headerFields(from: raw.headers),
             body: String(decoding: raw.data, as: UTF8.self)
+          )
+        )
+      case .cacheLab:
+        let result = try await self.cacheLabOutput()
+        self.demoStates[demo] = DemoState(
+          output: result.output,
+          status: .passed,
+          detail: "Verified file-backed cache persistence, revalidation, stale fallback, and cleanup.",
+          response: Self.responseSnapshot(
+            title: "Cache lab result",
+            summary: "A deterministic cache flow through `FileHTTPCacheStore` and `CacheMiddleware`.",
+            fields: result.fields,
+            body: result.output
           )
         )
       case .timeout:
@@ -1066,6 +1122,8 @@ final class DemoCatalog {
       _ = try await client.send(EmptyDemoRequest())
     case .raw:
       _ = try await client.sendRaw(RawTodoRequest())
+    case .cacheLab:
+      _ = try await client.send(CacheLabRequest())
     case .timeout:
       _ = try await client.send(TimeoutDemoRequest(mode: .mock))
     case .unauthorized:
@@ -1153,6 +1211,90 @@ final class DemoCatalog {
         error: error
       )
     }
+  }
+
+  private func cacheLabOutput() async throws -> DemoCacheLabResult {
+    let namespace = "playground-cache-lab-\(UUID().uuidString)"
+    let cache = FileHTTPCacheStore(
+      namespace: namespace,
+      maximumSizeBytes: 512 * 1024
+    )
+    await cache.removeAllCachedResponses()
+
+    let routeState = DemoCacheLabTransportState()
+    let transport = DemoClientFactory.makeCacheLabTransport(state: routeState)
+    let request = CacheLabRequest()
+
+    func makeClient(now: Date) -> HTTPClient {
+      HTTPClient.live(
+        configuration: ClientConfiguration(
+          baseURL: URL(string: "https://comet.local")!,
+          middleware: [
+            TracePropagationMiddleware(),
+            CacheMiddleware(store: cache, now: { now })
+          ]
+        ),
+        transport: transport
+      )
+    }
+
+    func runPhase(label: String, now: Date) async throws -> (String, RequestTrace) {
+      let client = makeClient(now: now)
+      var traces = client.traces.makeAsyncIterator()
+      let response = try await client.send(request)
+      guard let trace = await traces.next() else {
+        throw NetworkError.invalidRequest("Cache lab did not emit a request trace for \(label).")
+      }
+      return (response, trace)
+    }
+
+    let first = try await runPhase(label: "first load", now: Date(timeIntervalSince1970: 0))
+    let fresh = try await runPhase(label: "fresh hit", now: Date(timeIntervalSince1970: 10))
+    let revalidated = try await runPhase(label: "stale revalidation", now: Date(timeIntervalSince1970: 70))
+    let fallback = try await runPhase(label: "offline fallback", now: Date(timeIntervalSince1970: 140))
+    guard let revalidationRequest = await routeState.request(at: 1) else {
+      throw NetworkError.invalidRequest("Cache lab did not send a revalidation request.")
+    }
+    let requestCountBeforeClear = await routeState.requestCount()
+    let cacheEntriesBeforeClear = await cache.count()
+
+    await cache.removeAllCachedResponses()
+    let cacheEntriesAfterClear = await cache.count()
+
+    let firstEvents = Self.cacheEventSummary(first.1)
+    let freshEvents = Self.cacheEventSummary(fresh.1)
+    let revalidatedEvents = Self.cacheEventSummary(revalidated.1)
+    let fallbackEvents = Self.cacheEventSummary(fallback.1)
+    let validator = revalidationRequest.headers[DemoCacheLabHeaders.ifNoneMatch] ?? "missing"
+    let output = """
+    first load: \(first.0)
+    first events: \(firstEvents)
+    fresh hit: \(fresh.0)
+    fresh events: \(freshEvents)
+    stale revalidation: \(revalidated.0)
+    stale events: \(revalidatedEvents)
+    validator: \(validator)
+    offline stale fallback: \(fallback.0)
+    fallback events: \(fallbackEvents)
+    transport requests before clear: \(requestCountBeforeClear)
+    cache entries before clear: \(cacheEntriesBeforeClear)
+    cache entries after clear: \(cacheEntriesAfterClear)
+    """
+
+    return DemoCacheLabResult(
+      output: output,
+      fields: [
+        DemoInspectorField(label: "Store", value: String(describing: FileHTTPCacheStore.self)),
+        DemoInspectorField(label: "Namespace", value: namespace),
+        DemoInspectorField(label: "Validator", value: validator),
+        DemoInspectorField(label: "Network requests", value: "\(requestCountBeforeClear)"),
+        DemoInspectorField(label: "Before clear", value: "\(cacheEntriesBeforeClear) entry"),
+        DemoInspectorField(label: "After clear", value: "\(cacheEntriesAfterClear) entries"),
+        DemoInspectorField(label: "Fresh events", value: freshEvents),
+        DemoInspectorField(label: "Revalidate events", value: revalidatedEvents),
+        DemoInspectorField(label: "Fallback events", value: fallbackEvents)
+      ]
+    )
   }
 
   private func cancellationOutput() async throws -> String {
@@ -1325,6 +1467,12 @@ final class DemoCatalog {
         output: "Run the raw demo to inspect metadata.",
         status: .idle,
         detail: "Waiting for the first verification run."
+      )
+    case .cacheLab:
+      DemoState(
+        output: "Run the cache lab to inspect first load, fresh hit, revalidation, stale fallback, and cleanup.",
+        status: .idle,
+        detail: "Waiting for the first cache verification run."
       )
     case .timeout:
       DemoState(
@@ -1536,6 +1684,18 @@ final class DemoCatalog {
       events: entries,
       rawValue: rawValue
     )
+  }
+
+  private static func cacheEventSummary(_ trace: RequestTrace) -> String {
+    guard !trace.cacheEvents.isEmpty else { return "none" }
+    return trace.cacheEvents
+      .map { event in
+        if let reason = event.reason {
+          return "\(event.kind.rawValue)(\(reason.rawValue))"
+        }
+        return event.kind.rawValue
+      }
+      .joined(separator: " -> ")
   }
 
   private static func cassetteOutcomeLabel(for exchange: RecordedExchange) -> String {

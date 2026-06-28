@@ -141,9 +141,10 @@ Acceptance:
 Purpose: make the cache useful beyond a single process and make the behavior
 inspectable.
 
-Status: package-level persistent cache is implemented in `Unreleased` with a
-file-backed store, namespace configuration, size pruning, corrupted-entry
-cleanup, and stale-if-error fallback. Playground cache lab scenarios remain.
+Status: implemented in `Unreleased` with a file-backed store, namespace
+configuration, size pruning, corrupted-entry cleanup, stale-if-error fallback,
+and a deterministic playground cache lab covering first load, fresh hit, stale
+revalidation, offline stale fallback, and clear cache.
 
 Deliverables:
 

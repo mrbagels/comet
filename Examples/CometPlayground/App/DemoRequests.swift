@@ -61,6 +61,25 @@ struct RawTodoRequest: APIRequest {
   )
 }
 
+struct CacheLabRequest: APIRequest {
+  typealias Response = String
+
+  let path: Path = "cache" / "lab"
+  let method: HTTPMethod = .get
+  let responseSerializer: ResponseSerializer<String> = .string()
+
+  var options: RequestOptions {
+    RequestOptions(
+      apiVersion: nil,
+      metadata: RequestMetadata(name: "CacheLabDemo", tags: ["cache", "revalidation"]),
+      cachePolicy: HTTPCachePolicy(
+        strategy: .returnCacheElseLoad,
+        allowsStaleIfError: true
+      )
+    )
+  }
+}
+
 struct TimeoutDemoRequest: APIRequest {
   typealias Response = String
 

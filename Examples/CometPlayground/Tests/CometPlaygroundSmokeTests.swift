@@ -31,6 +31,10 @@ final class CometPlaygroundSmokeTests: XCTestCase {
     XCTAssertTrue(model.state(for: .text).output.contains("Comet mock text response"))
     XCTAssertTrue(model.state(for: .empty).output.contains("EmptyResponse"))
     XCTAssertTrue(model.state(for: .raw).output.contains("status: 200"))
+    XCTAssertTrue(model.state(for: .cacheLab).output.contains("fresh hit: cache lab payload v1"))
+    XCTAssertTrue(model.state(for: .cacheLab).output.contains("stale events: stale(stale) -> revalidate -> update(notModified)"))
+    XCTAssertTrue(model.state(for: .cacheLab).output.contains("fallback events: stale(stale) -> revalidate -> hit(staleIfError)"))
+    XCTAssertTrue(model.state(for: .cacheLab).output.contains("cache entries after clear: 0"))
     XCTAssertTrue(model.state(for: .timeout).output.contains("timeout"))
     XCTAssertTrue(model.state(for: .unauthorized).output.contains("unauthorized"))
     XCTAssertTrue(model.state(for: .rateLimited).output.contains("recovered after retry"))
@@ -50,6 +54,10 @@ final class CometPlaygroundSmokeTests: XCTestCase {
     )
     XCTAssertTrue(model.state(for: .json).response?.body.contains("Mock transport says hello") == true)
     XCTAssertTrue(model.state(for: .serverError).response?.rawValue.contains("Status: 500") == true)
+    XCTAssertEqual(
+      model.state(for: .cacheLab).response?.fields.first { $0.label == "After clear" }?.value,
+      "0 entries"
+    )
     XCTAssertEqual(model.state(for: .webSocket).socket?.frames.count, 3)
     XCTAssertTrue(model.state(for: .webSocket).socket?.rawValue.contains("MockWebSocketTransport") == true)
     XCTAssertEqual(
@@ -85,6 +93,7 @@ final class CometPlaygroundSmokeTests: XCTestCase {
   func testTypedRequestsDoNotInjectAPIVersion() {
     XCTAssertNil(TodoRequest().options.apiVersion)
     XCTAssertNil(RawTodoRequest().options.apiVersion)
+    XCTAssertNil(CacheLabRequest().options.apiVersion)
     XCTAssertNil(TimeoutDemoRequest(mode: .mock).options.apiVersion)
     XCTAssertNil(UnauthorizedDemoRequest(mode: .mock).options.apiVersion)
   }
@@ -104,6 +113,10 @@ final class CometPlaygroundSmokeTests: XCTestCase {
       raw.fields.first { $0.label == "Trace ID" }?.value,
       "4bf92f3577b34da6a3ce929d0e0e4736"
     )
+
+    let cacheLab = model.requestInspection(for: .cacheLab)
+    XCTAssertEqual(cacheLab.transport, "MockTransport + FileHTTPCacheStore")
+    XCTAssertTrue(cacheLab.fields.contains { $0.label == "Cache policy" })
 
     let socketClose = model.requestInspection(for: .webSocketClose)
     XCTAssertEqual(socketClose.transport, "MockWebSocketTransport")
