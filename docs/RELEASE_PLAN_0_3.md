@@ -312,7 +312,7 @@ change, also run the iOS playground smoke tests through XcodeBuildMCP or:
 ```sh
 cd Examples/CometPlayground
 xcodegen generate
-xcodebuild test -project CometPlayground.xcodeproj -scheme CometPlaygroundApp -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=latest'
+xcodebuild test -project CometPlayground.xcodeproj -scheme CometPlaygroundApp -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=latest' SWIFT_ENABLE_EXPLICIT_MODULES=NO
 ```
 
 Docs patches should additionally run:

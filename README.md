@@ -413,7 +413,7 @@ xcodegen generate
 Run the example smoke tests:
 
 ```sh
-xcodebuild test -project CometPlayground.xcodeproj -scheme CometPlaygroundApp -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=latest'
+xcodebuild test -project CometPlayground.xcodeproj -scheme CometPlaygroundApp -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=latest' SWIFT_ENABLE_EXPLICIT_MODULES=NO
 ```
 
 GitHub Actions runs the Swift package suite, secret scanning, public API break gating, and the iOS example smoke tests on every push to `next` and `master`.

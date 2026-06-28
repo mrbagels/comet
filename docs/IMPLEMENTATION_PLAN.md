@@ -35,7 +35,7 @@ What exists today:
 Verified commands:
 
 - `swift test --disable-xctest`
-- `xcodebuild test -scheme CometPlaygroundApp -project CometPlayground.xcodeproj -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.5'`
+- `xcodebuild test -scheme CometPlaygroundApp -project CometPlayground.xcodeproj -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.5' SWIFT_ENABLE_EXPLICIT_MODULES=NO`
 
 ---
 

@@ -124,7 +124,7 @@ Each scenario in the UI shows the exact Comet API surface it is proving. The dem
 iOS:
 
 ```sh
-xcodebuild test -project CometPlayground.xcodeproj -scheme CometPlaygroundApp -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.5'
+xcodebuild test -project CometPlayground.xcodeproj -scheme CometPlaygroundApp -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.5' SWIFT_ENABLE_EXPLICIT_MODULES=NO
 ```
 
 ## Extending The Demo Lab

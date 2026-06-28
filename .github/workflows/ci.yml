@@ -115,4 +115,5 @@ jobs:
           xcodebuild test \
             -project CometPlayground.xcodeproj \
             -scheme CometPlaygroundApp \
-            -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}"
+            -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}" \
+            SWIFT_ENABLE_EXPLICIT_MODULES=NO
