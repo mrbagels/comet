@@ -318,7 +318,7 @@ stores, namespace configuration, size pruning, corrupted-entry cleanup,
 request-level policies, freshness parsing, validators, conditional requests,
 `304` merging, stale-if-error fallback, cache trace events, and deterministic
 demo coverage for first load, fresh hit, stale revalidation, offline fallback,
-and clear cache. Stale-while-revalidate shipped after `0.4.0` with foreground
+and clear cache. Stale-while-revalidate shipped in `0.4.1` with foreground
 stale hits, background refresh scheduling, validator reuse, and per-key refresh
 coalescing.
 
@@ -596,7 +596,7 @@ Why fifth:
 
 Goal: support fast, resilient read workflows.
 
-Status: V3 cache foundation shipped in `0.3.0`; stale-while-revalidate shipped after `0.4.0`.
+Status: V3 cache foundation shipped in `0.3.0`; stale-while-revalidate shipped in `0.4.1`.
 
 Includes:
 

@@ -10,6 +10,27 @@ YAML OpenAPI input, optional SQLiteData persistence, TCA playground coverage,
 and cache and middleware hardening. It includes a `CometTCA` API break where the
 request effect helper now returns `Effect<Action>` instead of the underscored
 `_Effect<Action>` spelling.
+The `0.4.1` patch release adds stale-while-revalidate caching, proof bundle
+exports in the playground, and a SwiftPM OpenAPI command plugin while preserving
+the `0.4.0` public API contract.
+
+## 0.4.1 - 2026-06-28
+
+### Added
+
+- `HTTPCachePolicy.staleWhileRevalidate` for serving stale cached responses immediately while a background refresh updates storage.
+- Background cache refresh scheduling with validator reuse and per-key refresh coalescing.
+- Playground proof bundles that package request inspection, traces, responses, cassettes, contract reports, and output into copyable Markdown artifacts.
+- Activity-tab browsing for persisted proof bundles.
+- `CometOpenAPIPlugin`, a SwiftPM command plugin for package-root OpenAPI generation.
+
+### Changed
+
+- Stale-while-revalidate tracing reuses the existing cache event vocabulary so the patch release stays source-compatible with exhaustive client switches.
+
+### Fixed
+
+- Kept the cache refresh policy patch-safe by avoiding new public enum cases in `HTTPCachePolicy.Strategy` and `RequestCacheTraceEvent`.
 
 ## 0.4.0 - 2026-06-28
 
