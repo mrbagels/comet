@@ -87,7 +87,7 @@ jobs:
 
   ios-playground:
     runs-on: macos-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
 
     steps:
       - name: Check out repository
