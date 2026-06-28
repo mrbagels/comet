@@ -2,6 +2,12 @@
 
 This roadmap captures the selected product direction after the public-readiness pass. It is intentionally broader than a single release plan: listing an item here means it is in scope for exploration and sequencing, not that it must ship immediately.
 
+## Release Cut Status
+
+The V2 foundation is complete in the `0.2.0` release cut. It includes the public-readiness work from the `0.1.x` patch line plus structured request traces, auth refresh and safe replay, streaming and progress primitives, resilient WebSocket sessions, and the expanded playground diagnostics surface.
+
+V3 and later should focus on larger systems that benefit from the V2 foundation: caching and revalidation, server-side live transports, distributed trace propagation, mock-server workflows, contract testing, and generated clients.
+
 ## Product Direction
 
 Comet should become a highly ergonomic Swift networking foundation with first-class debugging, testing, replay, realtime, and generated-client workflows. The package should stay small at the core, but the surrounding ecosystem should make production networking less repetitive, safer by default, and easier to understand.
@@ -253,6 +259,8 @@ Dependencies:
 
 Add first-class streaming APIs.
 
+Status: initial V2 streaming surface completed for the `0.2.0` release cut with raw stream events, line streams, SSE parsing, `HTTPStreamingTransport`, and URLSession-backed response streaming.
+
 Technical shape:
 
 - Introduce streaming transport capabilities without bloating basic `HTTPTransport`.
@@ -274,6 +282,8 @@ Dependencies:
 ### A2. Upload And Download Progress
 
 Support file transfers and progress reporting.
+
+Status: initial V2 transfer progress primitives completed for the `0.2.0` release cut with `TransferProgress`, `HTTPProgressTransport`, and progress-aware `HTTPClient.sendRaw`.
 
 Technical shape:
 
@@ -317,6 +327,8 @@ Dependencies:
 ### A4. Authentication System
 
 Provide robust token refresh and 401 replay workflows.
+
+Status: V2 authentication foundation completed for the `0.2.0` release cut with `AuthenticationCoordinator`, refresh de-duplication, `AuthenticationMiddleware`, and retry-safety-aware 401 replay.
 
 Technical shape:
 
@@ -362,6 +374,8 @@ Dependencies:
 
 Replace loose activity events with request-level traces.
 
+Status: V2 structured trace foundation completed for the `0.2.0` release cut with `HTTPClient.traces`, `RequestTrace`, ordered attempts, retry delays, durations, byte counts, metadata, and final outcomes.
+
 Technical shape:
 
 - Introduce `RequestTrace` with request metadata, attempts, timings, middleware effects, retry history, bytes, and result.
@@ -385,6 +399,8 @@ Dependencies:
 
 Add reconnection, keepalive, and `AsyncSequence` message consumption.
 
+Status: V2 resilient WebSocket foundation completed for the `0.2.0` release cut with `WebSocketSession`, lifecycle events, message streams, and bounded reconnect attempts.
+
 Technical shape:
 
 - Add `WebSocketSession` over low-level `WebSocketConnection`.
@@ -406,7 +422,7 @@ Dependencies:
 
 Turn requests/cassettes into local contract testing workflows.
 
-Status: initial playground cassette replay verification completed in the `0.1.x` patch line.
+Status: initial playground cassette replay verification completed for the `0.2.0` release cut.
 
 Technical shape:
 
@@ -454,7 +470,7 @@ Dependencies:
 
 Evolve the example app into an interactive documentation and verification surface.
 
-Status: initial request inspector, structured activity detail, copy-cURL, failure gallery, response viewer, socket monitor, cassette viewer, and trace timeline flows completed in the `0.1.x` patch line.
+Status: initial request inspector, structured activity detail, copy-cURL, failure gallery, response viewer, socket monitor, cassette viewer, and trace timeline flows completed for the `0.2.0` release cut.
 
 Technical shape:
 
@@ -473,11 +489,13 @@ Dependencies:
 
 - Strongly depends on M2, M3, M9, M10, A6, and A7.
 
-## Proposed Release Slices
+## Release Slices
 
 ### Slice 1: Debugging And Safety Foundation
 
 Goal: make existing request/response behavior safer and easier to inspect.
+
+Status: completed in the V2 foundation.
 
 Includes:
 
@@ -498,6 +516,8 @@ Why first:
 
 Goal: make Comet easier to understand and evaluate.
 
+Status: completed in the V2 foundation.
+
 Includes:
 
 - M8 DocC tutorials
@@ -513,6 +533,8 @@ Why second:
 
 Goal: improve common production API workflows.
 
+Status: completed in the V2 foundation.
+
 Includes:
 
 - M1 typed API error decoding
@@ -527,6 +549,8 @@ Why third:
 
 Goal: make request behavior first-class and inspectable.
 
+Status: completed in the V2 foundation.
+
 Includes:
 
 - A6 structured request traces
@@ -539,6 +563,8 @@ Why fourth:
 ### Slice 5: Streaming And Transfers
 
 Goal: expand Comet beyond simple request/response.
+
+Status: completed in the V2 foundation.
 
 Includes:
 
@@ -553,6 +579,8 @@ Why fifth:
 
 Goal: support fast, resilient read workflows.
 
+Status: V3 candidate.
+
 Includes:
 
 - A3 caching and revalidation
@@ -564,6 +592,8 @@ Why sixth:
 ### Slice 7: Resilient WebSockets
 
 Goal: make realtime support production-oriented.
+
+Status: completed in the V2 foundation.
 
 Includes:
 
@@ -577,6 +607,8 @@ Why seventh:
 ### Slice 8: Contract Testing And Generated Clients
 
 Goal: support larger teams and backend-contract workflows.
+
+Status: V3 candidate.
 
 Includes:
 
@@ -601,12 +633,19 @@ Why last:
 10. Typed API error decoding. Initial request-level and call-site decoding completed in the `0.1.x` patch line.
 11. API stability gate policy. Initial CI gate completed in the `0.1.x` patch line.
 12. Playground request inspector. Initial prepared-request inspector and copy-cURL flow completed in the `0.1.x` patch line.
+13. Structured request traces. Initial `HTTPClient.traces` surface completed in the V2 foundation.
+14. Auth refresh and safe replay. Initial `AuthenticationCoordinator` and `AuthenticationMiddleware` surface completed in the V2 foundation.
+15. Streaming, Server-Sent Events, and transfer progress. Initial transport protocols and client APIs completed in the V2 foundation.
+16. Resilient WebSocket sessions. Initial lifecycle events, message streams, and bounded reconnects completed in the V2 foundation.
 
-## Open Design Questions
+## Resolved V2 Design Questions
 
-- Should typed errors live on `APIRequest`, in `RequestOptions`, or in a separate protocol?
-- Should streaming extend `HTTPTransport`, or should Comet introduce a separate streaming transport protocol?
-- Should traces replace `NetworkEvent`, wrap it, or live beside it?
-- How much auth policy should Comet own versus leaving auth fully middleware-based?
+- Typed errors live on a companion request protocol, `APIRequestWithErrorResponse`, with `ErrorResponseSerializer`.
+- Streaming uses focused transport capability protocols instead of expanding the base `HTTPTransport`.
+- Traces live beside `NetworkEvent` so lightweight activity consumers remain simple.
+- Auth refresh lives in `AuthenticationCoordinator` plus middleware, which keeps request replay policy explicit.
+
+## Remaining Open Design Questions
+
 - Should OpenAPI generation be a SwiftPM plugin, standalone CLI, or both?
 - Should the playground remain iOS-only, or should it eventually become a macOS or web documentation companion too?

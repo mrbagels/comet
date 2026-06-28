@@ -23,7 +23,12 @@ What exists today:
 - runtime logging middleware
 - in-flight deduplication
 - request activity stream
+- structured request trace stream
+- response streaming, line streams, and Server-Sent Events
+- transfer progress primitives
+- authentication refresh and safe replay middleware
 - mock WebSocket sessions for tests and demos
+- resilient WebSocket session wrapper
 - test utilities and TCA integration
 - DocC workflow tutorials for core package usage
 
@@ -169,16 +174,38 @@ Delivered:
 
 ### Phase 7: Public Documentation
 
-In progress.
+Completed.
 
 Delivered:
 
 - authenticated JSON tutorial
 - retries and activity tutorial
+- request tracing tutorial
+- streaming and progress tutorial
 - typed API errors tutorial
 - testing and cassettes tutorial
 - WebSockets tutorial
 - TCA integration tutorial
+
+### Phase 8: V2 Foundation Extensions
+
+Completed.
+
+Delivered:
+
+- typed API errors
+- request metadata and richer diagnostics
+- shared redaction policy
+- safer cURL output
+- cassette recording and replay hardening
+- playground failure gallery, response viewer, socket monitor, cassette viewer, and trace timeline
+- `HTTPClient.traces`
+- `AuthenticationCoordinator` and `AuthenticationMiddleware`
+- response streaming, line streams, and Server-Sent Events
+- transfer progress primitives
+- `WebSocketConnection.messages()`
+- `WebSocketSession`
+- API stability gate in CI
 
 ---
 
@@ -233,9 +260,9 @@ The generated playground app currently covers:
 
 ## Recommended Final Sweep
 
-Yes, one more final overall sweep is still worth doing, but it should be a short polish pass rather than another redesign.
+Completed for the V2 release cut.
 
-Recommended scope:
+Completed scope:
 
 1. Public API naming review
 2. Quick-start usage examples in docs
@@ -243,7 +270,7 @@ Recommended scope:
 4. Lightweight server-side story review
 5. CI automation and repeatable commands
 
-### What That Sweep Should Look For
+### Sweep Criteria
 
 - awkward names before wider adoption
 - anything that feels too hidden or too clever in the public API
@@ -251,23 +278,22 @@ Recommended scope:
 - any remaining docs/code drift
 - any platform or package integration surprises
 
-### What That Sweep Should Not Become
+### What That Sweep Did Not Become
 
 - a new architecture pass
 - broad new feature work
 - server-side transport expansion
-- cache/tracing/SSE design work
+- cache and distributed trace propagation design work
 
 ---
 
-## Recommended Near-Term Follow-Up
+## Remaining After V2
 
-If we keep tightening before real project adoption, the highest-value follow-ups are:
+The highest-value follow-ups now belong to V3 or later:
 
 - add a fresh-client integration smoke check outside this repository
-- add richer DocC walkthroughs for cassette and WebSocket flows
 - evaluate whether WebSocket activity should have a first-class event surface
-- add a small “server-side direction” note once the future transport choice is made
+- add a small "server-side direction" note once the future transport choice is made
 
 ---
 
@@ -276,13 +302,11 @@ If we keep tightening before real project adoption, the highest-value follow-ups
 These remain intentionally out of the MVP:
 
 - server-side live transport implementation
-- distributed tracing
+- distributed trace propagation
 - caching
 - ETag support
 - mock server
 - reachability
-- streaming APIs
-- upload/download APIs
 - higher-level TCA domain helpers
 
 They should only be added after the current API is used in real projects and proves stable.

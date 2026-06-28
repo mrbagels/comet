@@ -19,6 +19,8 @@ The shipped live transports today are ``URLSessionTransport`` and ``URLSessionWe
 
 - <doc:AuthenticatedJSON>
 - <doc:RetriesAndActivity>
+- <doc:RequestTracing>
+- <doc:StreamingAndProgress>
 - <doc:TypedErrors>
 - <doc:TestingAndCassettes>
 - <doc:WebSockets>

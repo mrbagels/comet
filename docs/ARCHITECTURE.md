@@ -113,11 +113,9 @@ The current MVP includes:
 
 Deferred for later:
 
-- SSE and streaming response APIs
-- upload/download progress APIs
 - caching and stale-while-revalidate
 - ETag handling
-- distributed tracing
+- distributed trace propagation
 - mock server
 - reachability
 - batch requests
@@ -653,8 +651,8 @@ The project is generated from `project.yml` with XcodeGen.
 - server-side Swift support currently means the core abstractions are transport-replaceable, not that a Vapor/AsyncHTTPClient transport ships today
 - repeated headers are preserved inside Comet but combined at `Foundation` boundaries
 - activity events cover request lifecycle, not decode lifecycle
-- WebSocket activity is currently demo-driven rather than part of `NetworkEvent`
-- distributed tracing and caching are still future work
+- WebSocket session activity is modeled through `WebSocketSessionEvent`, not `NetworkEvent`
+- distributed trace propagation and caching remain V3-or-later work
 
 ---
 
@@ -665,5 +663,4 @@ When Comet grows beyond this MVP, the highest-value next additions are likely:
 - a server-side live transport
 - distributed tracing/context propagation
 - caching primitives
-- SSE and streaming response APIs
 - targeted docs and examples for real app integration

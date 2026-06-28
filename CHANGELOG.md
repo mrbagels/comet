@@ -2,11 +2,15 @@
 
 All notable changes to Comet are documented here.
 
-Comet is still pre-1.0. The `0.1.x` line is the public-prep patch line while
-the larger structure and API refactor continues. `0.2.0` is reserved for the
-completed v2 foundation.
+Comet is still pre-1.0. The `0.2.0` release cut contains the completed V2
+foundation. Larger systems such as caching, code generation, and server-side
+live transports remain future minor-version work.
 
 ## Unreleased
+
+No changes yet.
+
+## 0.2.0 - Unreleased
 
 ### Added
 
@@ -89,12 +93,6 @@ completed v2 foundation.
 ### Security
 
 - Cassette recording now redacts sensitive HTTP headers by default and supports request/response body redaction hooks.
-
-## 0.2.0 - Unreleased
-
-### Planned
-
-- Continue the larger v2 restructuring around typed errors, structured traces, richer diagnostics, generated-client workflows, and the playground diagnostics lab.
 
 ## 0.1.0 - 2026-04-01
 

@@ -16,15 +16,15 @@
   <a href="LICENSE"><img src="https://img.shields.io/github/license/mrbagels/comet" alt="License"></a>
 </p>
 
-Comet turns API endpoints into Swift types. It ships with a `URLSession`-backed live client, middleware for production behavior, deterministic testing transports, cassette recording and replay, request activity events, and WebSocket support.
+Comet turns API endpoints into Swift types. It ships with a `URLSession`-backed live client, middleware for production behavior, deterministic testing transports, cassette recording and replay, request activity and trace streams, response streaming, transfer progress hooks, and resilient WebSocket sessions.
 
-The current `0.1.x` line is the public-prep patch line. The broader structure and API refactor will continue through patch releases until the completed v2 foundation becomes `0.2.0`.
+The latest published release is `0.1.5`. The `next` branch now carries the completed V2 foundation slated for `0.2.0`; larger systems such as caching, server-side live transports, generated clients, and mock-server workflows remain future minor-version work.
 
 ## At A Glance
 
 | Surface | What It Provides |
 | --- | --- |
-| `Comet` | Typed HTTP requests, WebSocket sessions, serializers, middleware, retry, deduplication, and activity events |
+| `Comet` | Typed HTTP requests, WebSocket sessions, serializers, middleware, retry, deduplication, activity events, traces, streaming, and progress primitives |
 | `CometTesting` | Mock transports, cassette recording, replay transports, and mock WebSocket sessions |
 | `CometTCA` | Lightweight Composable Architecture helpers for request effects |
 | `CometPlayground` | iPhone-first verification app for HTTP, replay, activity, and realtime flows |
@@ -338,7 +338,7 @@ The full walkthrough lives in [Examples/CometPlayground/README.md](Examples/Come
 
 ## Documentation
 
-The DocC catalog includes workflow articles for authenticated JSON requests, retries and activity, typed API errors, testing and cassettes, WebSockets, and TCA integration.
+The DocC catalog includes workflow articles for authenticated JSON requests, retries and activity, request tracing, streaming and progress, typed API errors, testing and cassettes, WebSockets, and TCA integration.
 
 ## Verification
 
