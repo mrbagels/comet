@@ -65,5 +65,8 @@ The shipped live transports today are ``URLSessionTransport`` and ``URLSessionWe
 - ``CURLCommandBodyFormatting``
 - ``CURLCommandOptions``
 - ``NetworkEvent``
+- ``RequestTrace``
+- ``RequestTraceAttempt``
+- ``RequestTraceResult``
 - ``NetworkActivityBufferingPolicy``
 - ``RedactionPolicy``

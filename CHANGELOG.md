@@ -16,6 +16,7 @@ completed v2 foundation.
 - `WebSocketConnection.messages()` for consuming socket frames as an `AsyncThrowingStream`.
 - Playground trace timeline panels group request and socket activity by demo.
 - Playground cassette replay verification checks exported mock cassettes with `ReplayTransport`.
+- `HTTPClient.traces` emits completed `RequestTrace` values with attempts, retry delays, timings, bytes, metadata, and final outcomes.
 
 ## 0.1.5 - 2026-06-28
 

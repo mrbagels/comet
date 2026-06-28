@@ -7,17 +7,20 @@ public struct HTTPClient: Sendable {
   private let transport: any HTTPTransport
   private let deduplicator: RequestDeduplicator
   private let broadcaster: EventBroadcaster<NetworkEvent>
+  private let traceBroadcaster: EventBroadcaster<RequestTrace>
 
   private init(
     configuration: ClientConfiguration,
     transport: any HTTPTransport,
     deduplicator: RequestDeduplicator,
-    broadcaster: EventBroadcaster<NetworkEvent>
+    broadcaster: EventBroadcaster<NetworkEvent>,
+    traceBroadcaster: EventBroadcaster<RequestTrace>
   ) {
     self.configuration = configuration
     self.transport = transport
     self.deduplicator = deduplicator
     self.broadcaster = broadcaster
+    self.traceBroadcaster = traceBroadcaster
   }
 
   /// Creates a client backed by a concrete live transport.
@@ -29,7 +32,10 @@ public struct HTTPClient: Sendable {
       configuration: configuration,
       transport: transport,
       deduplicator: RequestDeduplicator(),
-      broadcaster: EventBroadcaster(bufferingPolicy: configuration.activityBufferingPolicy.asyncStreamPolicy)
+      broadcaster: EventBroadcaster(bufferingPolicy: configuration.activityBufferingPolicy.asyncStreamPolicy),
+      traceBroadcaster: EventBroadcaster(
+        bufferingPolicy: configuration.activityBufferingPolicy.asyncStreamPolicy(for: RequestTrace.self)
+      )
     )
   }
 
@@ -44,6 +50,11 @@ public struct HTTPClient: Sendable {
   /// Streams request lifecycle events emitted by this client.
   public var activity: AsyncStream<NetworkEvent> {
     self.broadcaster.stream()
+  }
+
+  /// Streams completed request traces emitted by this client.
+  public var traces: AsyncStream<RequestTrace> {
+    self.traceBroadcaster.stream()
   }
 
   /// Resolves a typed request into the transport-ready request that will be sent.
@@ -152,11 +163,27 @@ public struct HTTPClient: Sendable {
       startTime: self.configuration.now(),
       randomDouble: self.configuration.randomDouble
     )
+    let traceRecorder = RequestTraceRecorder(
+      id: requestID,
+      metadata: request.metadata,
+      method: request.method,
+      url: request.url
+    )
     let chain = MiddlewareChain(
       middleware: self.configuration.middleware + options.middleware,
       sleep: self.configuration.sleep,
       onRetry: { id, attempt, delay in
+        await traceRecorder.recordRetry(afterAttempt: attempt, delay: delay)
         self.broadcaster.emit(.requestRetried(id: id, attempt: attempt, delay: delay, metadata: request.metadata))
+      },
+      now: self.configuration.now,
+      onAttempt: { _, attempt, preparedRequest, result, duration in
+        await traceRecorder.recordAttempt(
+          number: attempt,
+          request: preparedRequest,
+          result: result,
+          duration: duration
+        )
       }
     )
 
@@ -169,17 +196,111 @@ public struct HTTPClient: Sendable {
       )
       let duration = context.startTime.duration(to: self.configuration.now())
       self.broadcaster.emit(.requestCompleted(id: requestID, statusCode: response.statusCode, duration: duration, metadata: request.metadata))
+      self.traceBroadcaster.emit(
+        await traceRecorder.makeTrace(
+          duration: duration,
+          result: .success(statusCode: response.statusCode, responseBytes: response.data.count)
+        )
+      )
       return response
     } catch {
       let networkError = NetworkError.from(error)
       let duration = context.startTime.duration(to: self.configuration.now())
       self.broadcaster.emit(.requestFailed(id: requestID, error: networkError, duration: duration, metadata: request.metadata))
+      self.traceBroadcaster.emit(
+        await traceRecorder.makeTrace(
+          duration: duration,
+          result: .failure(networkError)
+        )
+      )
       throw networkError
     }
   }
 
   private static func httpError(from response: RawResponse) -> NetworkError {
     .http(statusCode: response.statusCode, body: response.data, headers: response.headers)
+  }
+}
+
+private actor RequestTraceRecorder {
+  let id: UUID
+  let metadata: RequestMetadata
+  let method: HTTPMethod
+  let url: URL
+  private var attempts: [RequestTraceAttempt] = []
+  private var pendingRetryDelays: [Int: Duration] = [:]
+
+  init(
+    id: UUID,
+    metadata: RequestMetadata,
+    method: HTTPMethod,
+    url: URL
+  ) {
+    self.id = id
+    self.metadata = metadata
+    self.method = method
+    self.url = url
+  }
+
+  func recordAttempt(
+    number: Int,
+    request: PreparedRequest,
+    result: Result<RawResponse, NetworkError>,
+    duration: Duration
+  ) {
+    let responseStatusCode: Int?
+    let responseBytes: Int?
+    let error: NetworkError?
+
+    switch result {
+    case .success(let response):
+      responseStatusCode = response.statusCode
+      responseBytes = response.data.count
+      error = nil
+    case .failure(let networkError):
+      responseStatusCode = nil
+      responseBytes = nil
+      error = networkError
+    }
+
+    self.attempts.append(
+      RequestTraceAttempt(
+        number: number,
+        method: request.method,
+        url: request.url,
+        requestBytes: request.body?.count ?? 0,
+        responseStatusCode: responseStatusCode,
+        responseBytes: responseBytes,
+        error: error,
+        duration: duration,
+        retryDelay: self.pendingRetryDelays[number]
+      )
+    )
+    self.pendingRetryDelays[number] = nil
+  }
+
+  func recordRetry(afterAttempt attempt: Int, delay: Duration) {
+    guard let index = self.attempts.lastIndex(where: { $0.number == attempt }) else {
+      self.pendingRetryDelays[attempt] = delay
+      return
+    }
+
+    self.attempts[index].retryDelay = delay
+  }
+
+  func makeTrace(
+    duration: Duration,
+    result: RequestTraceResult
+  ) -> RequestTrace {
+    RequestTrace(
+      id: self.id,
+      metadata: self.metadata,
+      method: self.method,
+      url: self.url,
+      attempts: self.attempts,
+      duration: duration,
+      result: result
+    )
   }
 }
 

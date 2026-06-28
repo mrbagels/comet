@@ -7,6 +7,12 @@ public enum NetworkActivityBufferingPolicy: Sendable, Equatable {
   case bufferingOldest(Int)
 
   var asyncStreamPolicy: AsyncStream<NetworkEvent>.Continuation.BufferingPolicy {
+    self.asyncStreamPolicy(for: NetworkEvent.self)
+  }
+
+  func asyncStreamPolicy<Event: Sendable>(
+    for eventType: Event.Type
+  ) -> AsyncStream<Event>.Continuation.BufferingPolicy {
     switch self {
     case .unbounded:
       .unbounded

@@ -551,6 +551,53 @@ private func durationMilliseconds(_ duration: Duration) -> Int64 {
   #expect(completedMetadata.displayName == "RetryProof")
 }
 
+@Test func requestTraceRecordsAttemptsRetriesAndResult() async throws {
+  let transportState = SequenceTransportState(results: [
+    .failure(.timeout),
+    .success(RawResponse(data: Data("ok".utf8), statusCode: 200))
+  ])
+  let client = HTTPClient.live(
+    configuration: ClientConfiguration(
+      baseURL: URL(string: "https://example.com")!,
+      middleware: [
+        RetryMiddleware(
+          maxAttempts: 2,
+          backoff: .constant(.seconds(1)),
+          jitter: 0
+        )
+      ],
+      sleep: { _ in }
+    ),
+    transport: SequenceTransport(state: transportState)
+  )
+  var traces = client.traces.makeAsyncIterator()
+  let request = TestRequest(
+    path: "trace",
+    method: .get,
+    responseSerializer: .string(),
+    options: RequestOptions(metadata: RequestMetadata(name: "TraceProof", tags: ["traces"]))
+  )
+
+  let response = try await client.send(request)
+  let trace = try #require(await traces.next())
+
+  #expect(response == "ok")
+  #expect(trace.metadata.displayName == "TraceProof")
+  #expect(trace.method == .get)
+  #expect(trace.url.absoluteString == "https://example.com/trace")
+  #expect(trace.attempts.count == 2)
+  #expect(trace.attempts[0].number == 1)
+  #expect(trace.attempts[0].error?.isTimeoutError == true)
+  #expect(trace.attempts[0].retryDelay == .seconds(1))
+  #expect(trace.attempts[1].number == 2)
+  #expect(trace.attempts[1].responseStatusCode == 200)
+  #expect(trace.attempts[1].responseBytes == 2)
+  #expect(trace.statusCode == 200)
+  #expect(trace.responseBytes == 2)
+  #expect(trace.error == nil)
+  #expect(trace.diagnosticSummary.contains("TraceProof"))
+}
+
 @Test func networkEventExposesDiagnosticProperties() {
   let id = UUID()
   let url = URL(string: "https://example.com/todos/1")!
