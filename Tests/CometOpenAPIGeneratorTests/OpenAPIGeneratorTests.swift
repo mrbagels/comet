@@ -519,6 +519,291 @@ import CometOpenAPIGenerator
   #expect(output.contains("public typealias Response = AdminUser"))
 }
 
+@Test func openAPIGeneratorResolvesReusableComponentsAndTypedErrorResponses() throws {
+  let output = try OpenAPIGenerator().generate(
+    jsonString: """
+    {
+      "openapi": "3.1.0",
+      "components": {
+        "parameters": {
+          "PetID": {
+            "name": "petId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" }
+          },
+          "RequestID": {
+            "name": "X-Request-ID",
+            "in": "header",
+            "schema": { "type": "string" }
+          }
+        },
+        "requestBodies": {
+          "CreatePetBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CreatePet" }
+              }
+            }
+          }
+        },
+        "responses": {
+          "PetResponse": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Pet" }
+              }
+            }
+          },
+          "ValidationError": {
+            "description": "Invalid",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/APIError" }
+              }
+            }
+          }
+        },
+        "schemas": {
+          "APIError": {
+            "type": "object",
+            "required": ["message"],
+            "properties": {
+              "message": { "type": "string" }
+            }
+          },
+          "CreatePet": {
+            "type": "object",
+            "required": ["name"],
+            "properties": {
+              "name": { "type": "string" }
+            }
+          },
+          "Pet": {
+            "type": "object",
+            "required": ["id", "name"],
+            "properties": {
+              "id": { "type": "integer" },
+              "name": { "type": "string" }
+            }
+          }
+        }
+      },
+      "paths": {
+        "/pets/{petId}": {
+          "parameters": [
+            { "$ref": "#/components/parameters/PetID" }
+          ],
+          "put": {
+            "operationId": "replacePet",
+            "parameters": [
+              { "$ref": "#/components/parameters/RequestID" }
+            ],
+            "requestBody": { "$ref": "#/components/requestBodies/CreatePetBody" },
+            "responses": {
+              "200": { "$ref": "#/components/responses/PetResponse" },
+              "422": { "$ref": "#/components/responses/ValidationError" }
+            }
+          }
+        }
+      }
+    }
+    """
+  )
+
+  #expect(output.contains("public struct ReplacePetRequest: APIRequestWithErrorResponse"))
+  #expect(output.contains("public typealias Response = Pet"))
+  #expect(output.contains("public typealias ErrorResponse = APIError"))
+  #expect(output.contains("public let petId: Int"))
+  #expect(output.contains("public let xRequestId: String?"))
+  #expect(output.contains("public let bodyPayload: CreatePet"))
+  #expect(output.contains(#""pets" / self.petId"#))
+  #expect(output.contains(#"headers[HTTPField.Name("X-Request-ID")!] = String(describing: xRequestId)"#))
+  #expect(output.contains("public let responseSerializer: ResponseSerializer<Pet> = .json(Pet.self)"))
+  #expect(output.contains("public let errorResponseSerializer: ErrorResponseSerializer<APIError> = .json(APIError.self)"))
+}
+
+@Test func openAPIGeneratorCreatesFormURLEncodedRequests() throws {
+  let output = try OpenAPIGenerator().generate(
+    jsonString: """
+    {
+      "openapi": "3.1.0",
+      "paths": {
+        "/oauth/token": {
+          "post": {
+            "operationId": "createToken",
+            "requestBody": {
+              "required": true,
+              "content": {
+                "application/x-www-form-urlencoded": {
+                  "schema": {
+                    "type": "object",
+                    "required": ["grant_type", "username"],
+                    "properties": {
+                      "grant_type": { "type": "string" },
+                      "username": { "type": "string" },
+                      "remember_me": { "type": "boolean" }
+                    }
+                  }
+                }
+              }
+            },
+            "responses": {
+              "200": {
+                "description": "OK",
+                "content": {
+                  "text/plain": {
+                    "schema": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    """
+  )
+
+  #expect(output.contains("public struct CreateTokenRequest: APIRequest"))
+  #expect(output.contains("public let grantType: String"))
+  #expect(output.contains("public let username: String"))
+  #expect(output.contains("public let rememberMe: Bool?"))
+  #expect(output.contains("grantType: String"))
+  #expect(output.contains("rememberMe: Bool? = nil"))
+  #expect(output.contains(#"items.append(QueryItem("grant_type", self.grantType))"#))
+  #expect(output.contains(#"if let rememberMe = self.rememberMe"#))
+  #expect(output.contains(#"items.append(QueryItem("remember_me", rememberMe))"#))
+  #expect(output.contains(".formURLEncoded(items)"))
+  #expect(output.contains("public typealias Response = String"))
+}
+
+@Test func openAPIGeneratorCreatesTextRequestsAndStringErrorResponses() throws {
+  let output = try OpenAPIGenerator().generate(
+    jsonString: """
+    {
+      "openapi": "3.1.0",
+      "paths": {
+        "/messages": {
+          "post": {
+            "operationId": "sendMessage",
+            "requestBody": {
+              "content": {
+                "text/plain": {
+                  "schema": { "type": "string" }
+                }
+              }
+            },
+            "responses": {
+              "202": { "description": "Accepted" },
+              "400": {
+                "description": "Invalid",
+                "content": {
+                  "text/plain": {
+                    "schema": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    """
+  )
+
+  #expect(output.contains("public struct SendMessageRequest: APIRequestWithErrorResponse"))
+  #expect(output.contains("public typealias Response = EmptyResponse"))
+  #expect(output.contains("public typealias ErrorResponse = String"))
+  #expect(output.contains("public let bodyText: String?"))
+  #expect(output.contains("bodyText: String? = nil"))
+  #expect(output.contains("guard let bodyText = self.bodyText else { return .none }"))
+  #expect(output.contains("return .text(bodyText)"))
+  #expect(output.contains("public let responseSerializer: ResponseSerializer<EmptyResponse> = .empty"))
+  #expect(output.contains("public let errorResponseSerializer: ErrorResponseSerializer<String> = .string()"))
+}
+
+@Test func openAPIGeneratorCreatesFreeFormDictionariesAndUnionModels() throws {
+  let output = try OpenAPIGenerator().generate(
+    jsonString: """
+    {
+      "openapi": "3.1.0",
+      "components": {
+        "schemas": {
+          "Cat": {
+            "type": "object",
+            "required": ["meows"],
+            "properties": {
+              "meows": { "type": "boolean" }
+            }
+          },
+          "Dog": {
+            "type": "object",
+            "required": ["barks"],
+            "properties": {
+              "barks": { "type": "boolean" }
+            }
+          },
+          "FreeForm": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "PetEvent": {
+            "oneOf": [
+              { "$ref": "#/components/schemas/Cat" },
+              { "$ref": "#/components/schemas/Dog" }
+            ]
+          },
+          "SearchValue": {
+            "anyOf": [
+              { "type": "string" },
+              { "type": "integer" }
+            ]
+          }
+        }
+      },
+      "paths": {
+        "/events/{eventId}": {
+          "get": {
+            "operationId": "getEvent",
+            "parameters": [
+              {
+                "name": "eventId",
+                "in": "path",
+                "required": true,
+                "schema": { "type": "string" }
+              }
+            ],
+            "responses": {
+              "200": {
+                "description": "OK",
+                "content": {
+                  "application/json": {
+                    "schema": { "$ref": "#/components/schemas/PetEvent" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    """
+  )
+
+  #expect(output.contains("public enum CometOpenAPIJSONValue: Codable, Sendable, Equatable"))
+  #expect(output.contains("public typealias FreeForm = [String: CometOpenAPIJSONValue]"))
+  #expect(output.contains("public enum PetEvent: Codable, Sendable"))
+  #expect(output.contains("case cat(Cat)"))
+  #expect(output.contains("case dog(Dog)"))
+  #expect(output.contains("public enum SearchValue: Codable, Sendable"))
+  #expect(output.contains("case string(String)"))
+  #expect(output.contains("case int(Int)"))
+  #expect(output.contains("public typealias Response = PetEvent"))
+}
+
 @Test func openAPIGeneratorInheritsAndOverridesPathItemParameters() throws {
   let output = try OpenAPIGenerator().generate(
     jsonString: """
@@ -660,41 +945,6 @@ import CometOpenAPIGenerator
 }
 
 @Test func openAPIGeneratorRejectsUnsupportedAdditionalPropertiesShapes() throws {
-  #expect(throws: OpenAPIGeneratorError.self) {
-    _ = try OpenAPIGenerator().generate(
-      jsonString: """
-      {
-        "openapi": "3.1.0",
-        "components": {
-          "schemas": {
-            "FreeForm": {
-              "type": "object",
-              "additionalProperties": true
-            }
-          }
-        },
-        "paths": {
-          "/free-form": {
-            "get": {
-              "operationId": "getFreeForm",
-              "responses": {
-                "200": {
-                  "description": "OK",
-                  "content": {
-                    "application/json": {
-                      "schema": { "$ref": "#/components/schemas/FreeForm" }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-      """
-    )
-  }
-
   #expect(throws: OpenAPIGeneratorError.self) {
     _ = try OpenAPIGenerator().generate(
       jsonString: """
