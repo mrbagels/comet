@@ -142,8 +142,24 @@ public struct HTTPClient: Sendable {
   /// Executes a prepared request directly, applying middleware, retries, and optional deduplication.
   public func sendPrepared(
     _ request: PreparedRequest,
+    options: RequestOptions = .init()
+  ) async throws(NetworkError) -> RawResponse {
+    try await self.sendPreparedInternal(request, options: options, progress: nil)
+  }
+
+  /// Executes a prepared request directly while receiving transfer progress from capable transports.
+  public func sendPrepared(
+    _ request: PreparedRequest,
     options: RequestOptions = .init(),
-    progress: (@Sendable (TransferProgress) async -> Void)? = nil
+    progress: @escaping @Sendable (TransferProgress) async -> Void
+  ) async throws(NetworkError) -> RawResponse {
+    try await self.sendPreparedInternal(request, options: options, progress: progress)
+  }
+
+  private func sendPreparedInternal(
+    _ request: PreparedRequest,
+    options: RequestOptions,
+    progress: (@Sendable (TransferProgress) async -> Void)?
   ) async throws(NetworkError) -> RawResponse {
     if let key = options.deduplicationKey {
       return try await self.deduplicator.deduplicate(key: key) {
