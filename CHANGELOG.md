@@ -8,6 +8,8 @@ completed v2 foundation.
 
 ## Unreleased
 
+## 0.1.5 - 2026-06-28
+
 ### Added
 
 - Typed API error decoding with `ErrorResponseSerializer`, `APIRequestWithErrorResponse`, `APIClientError`, and `HTTPClient.sendWithTypedErrors`.

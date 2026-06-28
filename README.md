@@ -41,7 +41,7 @@ The shipped live HTTP and WebSocket transports are `URLSession`-backed. Server-s
 ## Install
 
 ```swift
-.package(url: "https://github.com/mrbagels/comet.git", from: "0.1.4")
+.package(url: "https://github.com/mrbagels/comet.git", from: "0.1.5")
 ```
 
 Import the target you need:
@@ -311,7 +311,7 @@ GitHub Actions runs the Swift package suite, secret scanning, public API break g
 Check for public API changes against the latest patch release:
 
 ```sh
-swift package diagnose-api-breaking-changes v0.1.4
+swift package diagnose-api-breaking-changes v0.1.5
 ```
 
 ## Branching
