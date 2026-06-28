@@ -13,6 +13,21 @@ request effect helper now returns `Effect<Action>` instead of the underscored
 The `0.4.1` patch release adds stale-while-revalidate caching, proof bundle
 exports in the playground, and a SwiftPM OpenAPI command plugin while preserving
 the `0.4.0` public API contract.
+The `0.4.2` patch release expands OpenAPI schema model generation with nested
+inline object structs and component `$ref` aliases while preserving the `0.4.x`
+public API contract.
+
+## 0.4.2 - 2026-06-28
+
+### Added
+
+- OpenAPI component schemas can now alias local component `$ref`s.
+- Component object properties with inline object schemas now generate nested Swift structs.
+- Arrays whose items are inline object schemas now generate nested `Item` structs.
+
+### Fixed
+
+- Local schema `$ref` lookup now preserves raw OpenAPI component keys before generating Swift type names, so references such as `#/components/schemas/pet-alias` resolve correctly.
 
 ## 0.4.1 - 2026-06-28
 
