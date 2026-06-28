@@ -18,7 +18,7 @@
 
 Comet turns API endpoints into Swift types. It ships with a `URLSession`-backed live client, middleware for production behavior, opt-in response caching, deterministic testing and contract transports, cassette recording and replay, OpenAPI request generation, request activity and trace streams, response streaming, transfer progress hooks, and resilient WebSocket sessions.
 
-The latest published release is `0.2.0`, the completed V2 foundation. The `next` branch is carrying the `0.2.x` patch train toward `0.3.0`, including cache, trace, contract-testing, generated-client, and server-direction work.
+The latest published release is `0.3.0`, the completed V3 foundation. It adds cache-aware reads, contract testing, mock-server scenarios, JSON OpenAPI request generation, trace propagation, reachability hints, and a documented server-side support boundary.
 
 ## At A Glance
 
@@ -42,7 +42,7 @@ The shipped live HTTP and WebSocket transports are `URLSession`-backed. Server-s
 ## Install
 
 ```swift
-.package(url: "https://github.com/mrbagels/comet.git", from: "0.2.0")
+.package(url: "https://github.com/mrbagels/comet.git", from: "0.3.0")
 ```
 
 Import the target you need:
@@ -516,10 +516,10 @@ xcodebuild test -project CometPlayground.xcodeproj -scheme CometPlaygroundApp -d
 
 GitHub Actions runs the Swift package suite, secret scanning, public API break gating, and the iOS example smoke tests on every push to `next` and `master`.
 
-Check for public API changes against the latest patch release:
+Check for public API changes against the latest release:
 
 ```sh
-swift package diagnose-api-breaking-changes v0.2.0
+swift package diagnose-api-breaking-changes v0.3.0
 ```
 
 Run a fresh external client smoke check:
@@ -552,7 +552,7 @@ SVG brand assets live in [Resources/Brand](Resources/Brand). The README uses the
 - `docs/technical/SERVER_TRANSPORT_DECISION.md`: server transport support decision
 - `docs/IMPLEMENTATION_PLAN.md`: implementation plan and rollout notes
 - `docs/PRODUCT_ROADMAP.md`: product roadmap and feature planning
-- `docs/RELEASE_PLAN_0_3.md`: release plan from `0.2.x` to `0.3.0`
+- `docs/RELEASE_PLAN_0_3.md`: completed release plan from `0.2.x` to `0.3.0`
 
 ## What To Open First
 

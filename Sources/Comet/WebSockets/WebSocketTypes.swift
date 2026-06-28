@@ -315,6 +315,11 @@ public actor WebSocketSession {
     var reconnectAttempts = 0
 
     while !Task.isCancelled {
+      guard !self.isClosed else {
+        continuation.finish()
+        return
+      }
+
       do {
         let connection = try await self.connectFresh()
         continuation.yield(.connected(selectedSubprotocol: connection.selectedSubprotocol))

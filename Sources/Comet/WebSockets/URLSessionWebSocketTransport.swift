@@ -194,9 +194,11 @@ private final class URLSessionWebSocketConnectionBox: NSObject, URLSessionWebSoc
     didCloseWith closeCode: URLSessionWebSocketTask.CloseCode,
     reason: Data?
   ) {
+    let closeFrame = WebSocketCloseFrame(code: WebSocketCloseCode(closeCode), reason: reason)
     self.withLock {
-      self.closeFrame = WebSocketCloseFrame(code: WebSocketCloseCode(closeCode), reason: reason)
+      self.closeFrame = closeFrame
     }
+    self.resolveOpen(with: .failure(NetworkError.webSocketClosed(code: closeFrame.code, reason: closeFrame.reason)))
   }
 
   func urlSession(

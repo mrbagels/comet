@@ -313,7 +313,7 @@ Dependencies:
 Add cache helpers around HTTP semantics.
 
 Status: cache core, HTTP revalidation, persistent cache storage, and playground
-cache lab coverage are implemented in `Unreleased` with memory and file-backed
+cache lab coverage shipped in `0.3.0` with memory and file-backed
 stores, namespace configuration, size pruning, corrupted-entry cleanup,
 request-level policies, freshness parsing, validators, conditional requests,
 `304` merging, stale-if-error fallback, cache trace events, and deterministic
@@ -365,7 +365,7 @@ Dependencies:
 
 Generate Comet request types from API specs.
 
-Status: initial V3 generator MVP implemented in `Unreleased` with a dependency-free JSON OpenAPI core target, `comet-openapi-generate` executable, request generation for path/query/header parameters, JSON bodies, operation metadata, success serializers, typed error-response hooks, and snapshot tests.
+Status: initial V3 generator MVP shipped in `0.3.0` with a dependency-free JSON OpenAPI core target, `comet-openapi-generate` executable, request generation for path/query/header parameters, JSON bodies, operation metadata, success serializers, typed error-response hooks, and snapshot tests.
 
 Technical shape:
 
@@ -437,7 +437,7 @@ Dependencies:
 
 Turn requests/cassettes into local contract testing workflows.
 
-Status: V3 contract foundation implemented in `Unreleased` with strict request expectations, contract transports, JSON reports, cassette-to-contract conversion, a `MockServer` facade, focused package tests, and a playground contract-server scenario.
+Status: V3 contract foundation shipped in `0.3.0` with strict request expectations, contract transports, JSON reports, cassette-to-contract conversion, a `MockServer` facade, focused package tests, and a playground contract-server scenario.
 
 Technical shape:
 
@@ -485,7 +485,7 @@ Dependencies:
 
 Evolve the example app into an interactive documentation and verification surface.
 
-Status: initial request inspector, structured activity detail, copy-cURL, failure gallery, response viewer, socket monitor, cassette viewer, and trace timeline flows completed for the `0.2.0` release cut. V3 cache and contract demos are implemented in `Unreleased`.
+Status: initial request inspector, structured activity detail, copy-cURL, failure gallery, response viewer, socket monitor, cassette viewer, and trace timeline flows completed for the `0.2.0` release cut. V3 cache and contract demos shipped in `0.3.0`.
 
 Technical shape:
 
@@ -594,7 +594,7 @@ Why fifth:
 
 Goal: support fast, resilient read workflows.
 
-Status: V3 cache foundation implemented in `Unreleased`; stale-while-revalidate remains future work.
+Status: V3 cache foundation shipped in `0.3.0`; stale-while-revalidate remains future work.
 
 Includes:
 
@@ -623,7 +623,7 @@ Why seventh:
 
 Goal: support larger teams and backend-contract workflows.
 
-Status: V3 foundation implemented in `Unreleased` with contract testing, mock-server scenarios, and JSON OpenAPI request generation.
+Status: V3 foundation shipped in `0.3.0` with contract testing, mock-server scenarios, and JSON OpenAPI request generation.
 
 Includes:
 

@@ -1,13 +1,13 @@
 # Comet 0.3.0 Release Plan
 
-This plan turns the post-`0.2.0` V3 roadmap into a bundled release train. Early
-work landed as patch-ready slices, but the remaining V3 items are now batched
-locally and should ship through one final commit, push, CI, and release flow.
+This plan captured the post-`0.2.0` V3 roadmap and the bundled release train
+that shipped as `0.3.0`. It remains as release history for the cache, contract,
+generator, trace-propagation, and server-direction work.
 
 ## North Star
 
-`0.3.0` should make Comet feel like a production networking workflow platform,
-not only a typed request executor. The completed release should give users:
+`0.3.0` makes Comet feel more like a production networking workflow platform,
+not only a typed request executor. The completed release gives users:
 
 - cache-aware reads with HTTP revalidation semantics
 - deterministic contract testing over the transport and cassette model
@@ -37,7 +37,7 @@ not only a typed request executor. The completed release should give users:
 Purpose: make the release train explicit and reduce friction before larger
 features start landing.
 
-Status: started in `Unreleased` with plan artifacts, a fresh-client smoke
+Status: completed in `0.3.0` with plan artifacts, a fresh-client smoke
 script, and a direct `HTTPTypes` dependency for the playground test target.
 
 Deliverables:
@@ -53,7 +53,7 @@ Deliverables:
 Acceptance:
 
 - `swift test --disable-xctest`
-- `.github/scripts/check-api-breaking-changes.sh v0.2.0`
+- `.github/scripts/check-api-breaking-changes.sh v0.3.0`
 - iOS playground smoke tests when project files change
 - docs typography and stale-wording scans
 
@@ -62,7 +62,7 @@ Acceptance:
 Purpose: make Comet traces useful across process boundaries before cache and
 contract systems add more diagnostic surface.
 
-Status: implemented in `Unreleased` with W3C trace context parsing, propagation
+Status: completed in `0.3.0` with W3C trace context parsing, propagation
 middleware, trace IDs on completed request traces, DocC examples, and a mock
 playground proof that echoes the outbound `traceparent` header.
 
@@ -79,7 +79,7 @@ Acceptance:
 
 - Unit tests for parse, render, invalid input, middleware injection, and
   redaction behavior.
-- API-diff gate passes against `v0.2.0`.
+- API-diff gate passes against the latest release tag.
 - Playground trace timeline still passes smoke tests.
 
 ### 0.2.3: Cache Core
@@ -87,7 +87,7 @@ Acceptance:
 Purpose: establish the smallest cache system that can serve real app reads
 without taking on full persistence or revalidation yet.
 
-Status: implemented in `Unreleased` with opt-in cache policy controls, cache
+Status: completed in `0.3.0` with opt-in cache policy controls, cache
 keys, cached response values, a memory cache store, cache middleware, cache
 trace events, README and DocC coverage, and tests for safe-method caching and
 unsafe-method bypass.
@@ -113,7 +113,7 @@ Acceptance:
 Purpose: make cached reads respect HTTP validators and standard freshness
 metadata.
 
-Status: implemented in `Unreleased` with typed cache metadata, conditional
+Status: completed in `0.3.0` with typed cache metadata, conditional
 request headers, `304 Not Modified` merge behavior, explicit cache-only,
 network-only, return-cache-else-load, reload-ignoring-cache, and revalidate
 policies, plus trace coverage for stale and revalidation decisions.
@@ -141,7 +141,7 @@ Acceptance:
 Purpose: make the cache useful beyond a single process and make the behavior
 inspectable.
 
-Status: implemented in `Unreleased` with a file-backed store, namespace
+Status: completed in `0.3.0` with a file-backed store, namespace
 configuration, size pruning, corrupted-entry cleanup, stale-if-error fallback,
 and a deterministic playground cache lab covering first load, fresh hit, stale
 revalidation, offline stale fallback, and clear cache.
@@ -168,7 +168,7 @@ Acceptance:
 Purpose: turn the existing mock and cassette tools into a strict request/response
 contract workflow.
 
-Status: implemented in `Unreleased` with strict expectations, contract
+Status: completed in `0.3.0` with strict expectations, contract
 transports, JSON reports, cassette conversion, and focused tests.
 
 Deliverables:
@@ -194,7 +194,7 @@ Acceptance:
 Purpose: provide a higher-level workflow for app demos and UI tests that need a
 local backend shape without a real backend.
 
-Status: implemented in `Unreleased` with a transport-level `MockServer` facade
+Status: completed in `0.3.0` with a transport-level `MockServer` facade
 over contract expectations and a deterministic playground contract-server demo.
 
 Deliverables:
@@ -218,7 +218,7 @@ Acceptance:
 Purpose: prove generated Comet clients without trying to cover every OpenAPI
 feature in one pass.
 
-Status: implemented in `Unreleased` with a dependency-free JSON OpenAPI
+Status: completed in `0.3.0` with a dependency-free JSON OpenAPI
 generator core, `comet-openapi-generate` executable, request generation for
 parameters, JSON bodies, metadata, success serializers, typed error hooks, and
 snapshot tests.
@@ -250,7 +250,7 @@ Acceptance:
 Purpose: close the remaining V3 roadmap items enough to either ship them in
 `0.3.0` or explicitly defer them with evidence.
 
-Status: implemented in `Unreleased` with a server transport decision record,
+Status: completed in `0.3.0` with a server transport decision record,
 transport-agnostic compatibility notes, reachability hint primitives, and a
 small `CometTCA` request-state helper.
 
@@ -286,7 +286,7 @@ Deliverables:
 - DocC navigation update for all new tutorials.
 - Changelog rollup for the `0.3.0` release.
 - Playground smoke tests covering the new diagnostic surfaces.
-- API diff reviewed against `v0.2.0` and latest `0.2.x` patch tag.
+- API diff reviewed against `v0.2.0`, patch tags, and the final `v0.3.0` tag.
 - GitHub Release notes.
 
 Acceptance:

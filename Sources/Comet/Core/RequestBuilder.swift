@@ -40,13 +40,13 @@ enum RequestBuilder {
     }
 
     if request.options.absoluteURL == nil {
-      var segments = components.path
+      var segments = components.percentEncodedPath
         .split(separator: "/")
         .map(String.init)
         .filter { !$0.isEmpty }
 
       if let apiVersion = request.options.apiVersion, !apiVersion.isEmpty {
-        segments.append(apiVersion)
+        segments.append(Self.percentEncodedPathSegment(apiVersion))
       }
 
       let requestPath = request.path.rawValue
@@ -69,5 +69,10 @@ enum RequestBuilder {
       throw .invalidRequest("Unable to create a final URL for request \(request.path.rawValue).")
     }
     return url
+  }
+
+  private static func percentEncodedPathSegment(_ segment: String) -> String {
+    let allowed = CharacterSet.urlPathAllowed.subtracting(CharacterSet(charactersIn: "/"))
+    return segment.addingPercentEncoding(withAllowedCharacters: allowed) ?? segment
   }
 }

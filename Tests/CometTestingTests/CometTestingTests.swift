@@ -275,6 +275,90 @@ import CometTesting
   }
 }
 
+@Test func replayTransportRejectsInvalidResponseBodyBase64() async {
+  let cassette = HTTPCassette(
+    exchanges: [
+      RecordedExchange(
+        request: RecordedRequest(
+          method: "GET",
+          url: "https://example.com/items",
+          timeoutMilliseconds: 1_000
+        ),
+        duration: .milliseconds(1),
+        outcome: .success(
+          RecordedResponse(
+            statusCode: 200,
+            bodyBase64: "not base64"
+          )
+        )
+      )
+    ]
+  )
+  let transport = ReplayTransport(cassette: cassette)
+
+  await #expect(throws: NetworkError.self) {
+    _ = try await transport.send(
+      PreparedRequest(
+        url: URL(string: "https://example.com/items")!,
+        method: .get,
+        timeout: .seconds(1)
+      )
+    )
+  }
+}
+
+@Test func recordedRequestsWithInvalidBodyBase64DoNotMatchOrRebuild() throws {
+  let recorded = RecordedRequest(
+    method: "POST",
+    url: "https://example.com/items",
+    bodyBase64: "not base64",
+    timeoutMilliseconds: 1_000
+  )
+  let request = PreparedRequest(
+    url: URL(string: "https://example.com/items")!,
+    method: .post,
+    timeout: .seconds(1)
+  )
+
+  #expect(!recorded.matches(request))
+  #expect(throws: NetworkError.self) {
+    _ = try recorded.makePreparedRequest()
+  }
+}
+
+@Test func recordedNetworkErrorsRejectInvalidBodyBase64() async {
+  let cassette = HTTPCassette(
+    exchanges: [
+      RecordedExchange(
+        request: RecordedRequest(
+          method: "GET",
+          url: "https://example.com/failing",
+          timeoutMilliseconds: 1_000
+        ),
+        duration: .milliseconds(1),
+        outcome: .failure(
+          RecordedNetworkError(
+            kind: .http,
+            statusCode: 500,
+            bodyBase64: "not base64"
+          )
+        )
+      )
+    ]
+  )
+  let transport = ReplayTransport(cassette: cassette)
+
+  await #expect(throws: NetworkError.self) {
+    _ = try await transport.send(
+      PreparedRequest(
+        url: URL(string: "https://example.com/failing")!,
+        method: .get,
+        timeout: .seconds(1)
+      )
+    )
+  }
+}
+
 @Test func mockTransportRoutesCanMatchMethodAndQuery() async throws {
   let transport = MockTransport.routes([
     .init(method: .get, path: "/items", query: "page=2"):
@@ -464,6 +548,32 @@ import CometTesting
   try await transport.verifyComplete()
 }
 
+@Test func cassetteContractsRejectInvalidRecordedFailureBodies() throws {
+  let cassette = HTTPCassette(
+    exchanges: [
+      RecordedExchange(
+        request: RecordedRequest(
+          method: "GET",
+          url: "https://example.com/items/1",
+          timeoutMilliseconds: 1_000
+        ),
+        duration: .milliseconds(10),
+        outcome: .failure(
+          RecordedNetworkError(
+            kind: .http,
+            statusCode: 500,
+            bodyBase64: "not-base64"
+          )
+        )
+      )
+    ]
+  )
+
+  #expect(throws: NetworkError.self) {
+    _ = try cassette.contractExpectations()
+  }
+}
+
 @Test func mockServerWrapsContractsAndExportsReports() async throws {
   let server = MockServer(
     expectations: [
@@ -492,4 +602,33 @@ import CometTesting
 
   #expect(report.passed)
   #expect(String(decoding: encoded, as: UTF8.self).contains(#""expectationID" : "scenario-step""#))
+}
+
+@Test func mockServerLatencyHonorsCancellation() async throws {
+  let server = MockServer(
+    expectations: [
+      ContractExpectation(
+        id: "slow",
+        method: .get,
+        path: "/slow",
+        outcome: .response(RawResponse(data: Data("slow".utf8), statusCode: 200))
+      )
+    ],
+    latency: .seconds(60)
+  )
+
+  let task = Task {
+    try await server.send(
+      PreparedRequest(
+        url: URL(string: "https://example.com/slow")!,
+        method: .get,
+        timeout: .seconds(1)
+      )
+    )
+  }
+  task.cancel()
+
+  await #expect(throws: NetworkError.self) {
+    _ = try await task.value
+  }
 }

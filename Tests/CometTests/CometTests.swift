@@ -381,6 +381,20 @@ private func durationMilliseconds(_ duration: Duration) -> Int64 {
   #expect(prepared.url.absoluteString == "https://cdn.example.com/files/test?hello=world")
 }
 
+@Test func requestBuilderEncodesBasePathAndAPIVersionWithoutDoubleEncodingRequestPath() throws {
+  let configuration = ClientConfiguration.default(baseURL: URL(string: "https://api.example.com/root%20path/root%2Fencoded")!)
+  let request = TestRequest(
+    path: "has space" / "already%encoded",
+    method: .get,
+    responseSerializer: .data,
+    options: RequestOptions(apiVersion: "v 1")
+  )
+
+  let prepared = try RequestBuilder.build(request, configuration: configuration)
+
+  #expect(prepared.url.absoluteString == "https://api.example.com/root%20path/root%2Fencoded/v%201/has%20space/already%25encoded")
+}
+
 @Test func httpClientCanPrepareRequestsForInspection() throws {
   let client = HTTPClient.live(
     configuration: .default(baseURL: URL(string: "https://api.example.com")!),
@@ -1353,6 +1367,144 @@ private func durationMilliseconds(_ duration: Duration) -> Int64 {
   #expect(stored.data == Data("cached".utf8))
 }
 
+@Test func cacheOnlyDoesNotServeNoStoreOrNoCacheEntries() async throws {
+  let noStoreKey = HTTPCacheKey(method: .get, url: URL(string: "https://example.com/no-store")!)
+  let noCacheKey = HTTPCacheKey(method: .get, url: URL(string: "https://example.com/no-cache")!)
+  var noStoreHeaders = HTTPFields()
+  noStoreHeaders[HTTPField.Name("Cache-Control")!] = "no-store"
+  var noCacheHeaders = HTTPFields()
+  noCacheHeaders[HTTPField.Name("Cache-Control")!] = "no-cache"
+  let store = MemoryHTTPCacheStore(
+    responses: [
+      noStoreKey: CachedHTTPResponse(
+        data: Data("no-store".utf8),
+        statusCode: 200,
+        headers: noStoreHeaders
+      ),
+      noCacheKey: CachedHTTPResponse(
+        data: Data("no-cache".utf8),
+        statusCode: 200,
+        headers: noCacheHeaders
+      )
+    ]
+  )
+  let transportState = CacheCountingTransportState()
+  let client = HTTPClient.live(
+    configuration: ClientConfiguration(
+      baseURL: URL(string: "https://example.com")!,
+      middleware: [CacheMiddleware(store: store)]
+    ),
+    transport: CacheCountingTransport(state: transportState)
+  )
+
+  await #expect(throws: NetworkError.self) {
+    _ = try await client.send(
+      TestRequest(
+        path: "no-store",
+        method: .get,
+        responseSerializer: .string(),
+        options: RequestOptions(cachePolicy: .cacheOnly)
+      )
+    )
+  }
+  await #expect(throws: NetworkError.self) {
+    _ = try await client.send(
+      TestRequest(
+        path: "no-cache",
+        method: .get,
+        responseSerializer: .string(),
+        options: RequestOptions(cachePolicy: .cacheOnly)
+      )
+    )
+  }
+
+  #expect(await transportState.count() == 0)
+  #expect(await store.cachedResponse(for: noStoreKey) == nil)
+  #expect(await store.cachedResponse(for: noCacheKey) != nil)
+}
+
+@Test func cacheMiddlewareDoesNotUseNoStoreEntryForStaleIfError() async throws {
+  let key = HTTPCacheKey(method: .get, url: URL(string: "https://example.com/cache")!)
+  var cachedHeaders = HTTPFields()
+  cachedHeaders[HTTPField.Name("Cache-Control")!] = "no-store"
+  let store = MemoryHTTPCacheStore(
+    responses: [
+      key: CachedHTTPResponse(
+        data: Data("cached".utf8),
+        statusCode: 200,
+        headers: cachedHeaders,
+        storedAt: Date(timeIntervalSince1970: 0)
+      )
+    ]
+  )
+  let transportState = SequenceTransportState(results: [.failure(.timeout)])
+  let client = HTTPClient.live(
+    configuration: ClientConfiguration(
+      baseURL: URL(string: "https://example.com")!,
+      middleware: [
+        CacheMiddleware(
+          store: store,
+          now: { Date(timeIntervalSince1970: 10) }
+        )
+      ]
+    ),
+    transport: SequenceTransport(state: transportState)
+  )
+  let request = TestRequest(
+    path: "cache",
+    method: .get,
+    responseSerializer: .string(),
+    options: RequestOptions(
+      cachePolicy: HTTPCachePolicy(
+        strategy: .returnCacheElseLoad,
+        allowsStaleIfError: true
+      )
+    )
+  )
+
+  await #expect(throws: NetworkError.self) {
+    _ = try await client.send(request)
+  }
+
+  #expect(await transportState.count() == 1)
+  #expect(await store.cachedResponse(for: key) == nil)
+}
+
+@Test func cacheMiddlewareEvictsExistingEntryWhenResponseBecomesNoStore() async throws {
+  let key = HTTPCacheKey(method: .get, url: URL(string: "https://example.com/cache")!)
+  let store = MemoryHTTPCacheStore(
+    responses: [
+      key: CachedHTTPResponse(data: Data("old".utf8), statusCode: 200)
+    ]
+  )
+  var headers = HTTPFields()
+  headers[HTTPField.Name("Cache-Control")!] = "no-store"
+  let transport = SequenceTransport(
+    state: SequenceTransportState(results: [
+      .success(RawResponse(data: Data("new".utf8), statusCode: 200, headers: headers))
+    ])
+  )
+  let client = HTTPClient.live(
+    configuration: .init(
+      baseURL: URL(string: "https://example.com")!,
+      middleware: [CacheMiddleware(store: store)]
+    ),
+    transport: transport
+  )
+
+  let response: String = try await client.send(
+    TestRequest(
+      path: "cache",
+      method: .get,
+      responseSerializer: .string(),
+      options: RequestOptions(cachePolicy: .reloadIgnoringCache)
+    )
+  )
+
+  #expect(response == "new")
+  #expect(await store.cachedResponse(for: key) == nil)
+}
+
 @Test func cacheMiddlewareServesStaleResponseWhenNetworkFailsIfPolicyAllows() async throws {
   let key = HTTPCacheKey(method: .get, url: URL(string: "https://example.com/cache")!)
   var cachedHeaders = HTTPFields()
@@ -1501,6 +1653,48 @@ private func durationMilliseconds(_ duration: Duration) -> Int64 {
 
   #expect(await store.cachedResponse(for: key) == nil)
   #expect(await store.count() == 0)
+}
+
+@Test func fileHTTPCacheStoreRemovesMismatchedEntriesWhenRead() async throws {
+  let directory = FileManager.default.temporaryDirectory
+    .appendingPathComponent("CometFileCacheTests-\(UUID().uuidString)", isDirectory: true)
+  defer { try? FileManager.default.removeItem(at: directory) }
+
+  let configuration = FileHTTPCacheStoreConfiguration(
+    directoryURL: directory,
+    namespace: "unit",
+    maximumSizeBytes: 10_000
+  )
+  let store = FileHTTPCacheStore(configuration: configuration)
+  let key = HTTPCacheKey(method: .get, url: URL(string: "https://example.com/cache")!)
+
+  await store.store(CachedHTTPResponse(data: Data("cached".utf8), statusCode: 200), for: key)
+  let files = try FileManager.default.contentsOfDirectory(
+    at: configuration.resolvedDirectoryURL,
+    includingPropertiesForKeys: nil
+  )
+  let file = try #require(files.first)
+  let data = try Data(contentsOf: file)
+  var object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+  object["url"] = "https://example.com/different"
+  let tamperedData = try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys])
+  try tamperedData.write(to: file)
+
+  #expect(await store.cachedResponse(for: key) == nil)
+  #expect(await store.count() == 0)
+}
+
+@Test func fileHTTPCacheStoreSanitizesTraversalNamespaces() {
+  let directory = FileManager.default.temporaryDirectory
+    .appendingPathComponent("CometFileCacheTests-\(UUID().uuidString)", isDirectory: true)
+
+  let dot = FileHTTPCacheStoreConfiguration(directoryURL: directory, namespace: ".")
+  let dotDot = FileHTTPCacheStoreConfiguration(directoryURL: directory, namespace: "..")
+
+  #expect(dot.resolvedDirectoryURL.lastPathComponent == "default")
+  #expect(dotDot.resolvedDirectoryURL.lastPathComponent == "default")
+  #expect(dot.resolvedDirectoryURL.deletingLastPathComponent().standardizedFileURL == directory.standardizedFileURL)
+  #expect(dotDot.resolvedDirectoryURL.deletingLastPathComponent().standardizedFileURL == directory.standardizedFileURL)
 }
 
 @Test func httpClientStreamsResponseLines() async throws {
@@ -2067,6 +2261,25 @@ private func durationMilliseconds(_ duration: Duration) -> Int64 {
   #expect(first == 2)
   #expect(second == 3)
   #expect(third == nil)
+}
+
+@Test func activityBufferingPolicyClampsNegativeLimits() async {
+  let newestBroadcaster = EventBroadcaster<Int>(
+    bufferingPolicy: NetworkActivityBufferingPolicy.bufferingNewest(-5).asyncStreamPolicy(for: Int.self)
+  )
+  let oldestBroadcaster = EventBroadcaster<Int>(
+    bufferingPolicy: NetworkActivityBufferingPolicy.bufferingOldest(-5).asyncStreamPolicy(for: Int.self)
+  )
+  var newest = newestBroadcaster.stream().makeAsyncIterator()
+  var oldest = oldestBroadcaster.stream().makeAsyncIterator()
+
+  newestBroadcaster.emit(1)
+  oldestBroadcaster.emit(1)
+  newestBroadcaster.finish()
+  oldestBroadcaster.finish()
+
+  #expect(await newest.next() == nil)
+  #expect(await oldest.next() == nil)
 }
 
 @Test func staticReachabilityHintProviderReturnsConfiguredSnapshot() async {

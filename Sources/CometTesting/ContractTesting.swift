@@ -555,7 +555,11 @@ public actor MockServer: HTTPTransport {
 
   public func send(_ request: PreparedRequest) async throws(NetworkError) -> RawResponse {
     if let latency {
-      try? await Task.sleep(for: latency)
+      do {
+        try await Task.sleep(for: latency)
+      } catch {
+        throw NetworkError.from(error)
+      }
     }
     return try await self.transport.send(request)
   }
@@ -579,7 +583,7 @@ private extension ContractOutcome {
     case .success(let response):
       self = .response(try response.makeRawResponse())
     case .failure(let error):
-      self = .failure(error.networkError)
+      self = .failure(try error.makeNetworkError())
     }
   }
 }

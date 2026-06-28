@@ -86,7 +86,8 @@ public struct RecordedExchange: Codable, Sendable, Hashable {
     case .success(let response):
       return try response.makeRawResponse()
     case .failure(let error):
-      throw error.networkError
+      let networkError = try error.makeNetworkError()
+      throw networkError
     }
   }
 }
@@ -210,7 +211,10 @@ public struct RecordedRequest: Codable, Sendable, Hashable {
 
   /// Returns whether the recorded request matches a prepared request for replay.
   public func matches(_ request: PreparedRequest) -> Bool {
-    self.method == request.method.rawValue
+    if self.bodyBase64 != nil && self.bodyData == nil {
+      return false
+    }
+    return self.method == request.method.rawValue
       && self.url == request.url.absoluteString
       && (self.bodyWasRedacted || self.bodyData == request.body)
   }
@@ -226,9 +230,17 @@ public struct RecordedRequest: Codable, Sendable, Hashable {
       url: url,
       method: method,
       headers: HTTPFields(recordedHeaders: self.headers),
-      body: self.bodyData,
+      body: self.decodedBodyData(),
       timeout: .milliseconds(self.timeoutMilliseconds)
     )
+  }
+
+  private func decodedBodyData() throws(NetworkError) -> Data? {
+    guard let bodyBase64 else { return nil }
+    guard let data = Data(base64Encoded: bodyBase64) else {
+      throw .invalidRequest("Cassette contains invalid request body base64.")
+    }
+    return data
   }
 }
 
@@ -297,10 +309,17 @@ public struct RecordedResponse: Codable, Sendable, Hashable {
   /// Reconstructs the raw response represented by this snapshot.
   public func makeRawResponse() throws(NetworkError) -> RawResponse {
     try RawResponse(
-      data: self.bodyData,
+      data: self.decodedBodyData(),
       statusCode: self.statusCode,
       headers: HTTPFields(recordedHeaders: self.headers)
     )
+  }
+
+  private func decodedBodyData() throws(NetworkError) -> Data {
+    guard let data = Data(base64Encoded: self.bodyBase64) else {
+      throw .invalidRequest("Cassette contains invalid response body base64.")
+    }
+    return data
   }
 }
 
@@ -396,6 +415,12 @@ public struct RecordedNetworkError: Codable, Sendable, Hashable {
 
   /// Reconstructs the runtime ``NetworkError`` represented by this snapshot.
   public var networkError: NetworkError {
+    (try? self.makeNetworkError())
+      ?? .invalidRequest("Cassette contains an invalid recorded network error.")
+  }
+
+  /// Reconstructs the runtime ``NetworkError`` represented by this snapshot.
+  public func makeNetworkError() throws(NetworkError) -> NetworkError {
     switch self.kind {
     case .invalidRequest:
       return .invalidRequest(self.message ?? "Recorded invalid request")
@@ -404,13 +429,16 @@ public struct RecordedNetworkError: Codable, Sendable, Hashable {
     case .http:
       return .http(
         statusCode: self.statusCode ?? 0,
-        body: self.bodyData ?? Data(),
-        headers: (try? HTTPFields(recordedHeaders: self.headers)) ?? .init()
+        body: try self.decodedBodyData() ?? Data(),
+        headers: try HTTPFields(recordedHeaders: self.headers)
       )
     case .webSocketClosed:
       return .webSocketClosed(
-        code: WebSocketCloseCode(rawValue: UInt16(self.statusCode ?? Int(WebSocketCloseCode.normalClosure.rawValue))),
-        reason: self.bodyData
+        code: WebSocketCloseCode(
+          rawValue: UInt16(exactly: self.statusCode ?? Int(WebSocketCloseCode.normalClosure.rawValue))
+            ?? WebSocketCloseCode.normalClosure.rawValue
+        ),
+        reason: try self.decodedBodyData()
       )
     case .decoding:
       return .decoding(
@@ -435,6 +463,14 @@ public struct RecordedNetworkError: Codable, Sendable, Hashable {
         )
       )
     }
+  }
+
+  private func decodedBodyData() throws(NetworkError) -> Data? {
+    guard let bodyBase64 else { return nil }
+    guard let data = Data(base64Encoded: bodyBase64) else {
+      throw .invalidRequest("Cassette contains invalid error body base64.")
+    }
+    return data
   }
 }
 

@@ -335,6 +335,12 @@ public struct CacheMiddleware: ResponseProvidingMiddleware {
     guard let cached = await self.store.cachedResponse(for: key) else { return request }
 
     let metadata = cached.cacheMetadata
+    if metadata.cacheControl.noStore {
+      await self.store.removeCachedResponse(for: key)
+      await context.recordCacheEvent(.init(kind: .miss, key: key, policy: policy, reason: .noStore))
+      return request
+    }
+
     let isFresh = metadata.isFresh(at: self.now())
     guard policy.strategy == .revalidate || !isFresh else {
       return request
@@ -395,6 +401,18 @@ public struct CacheMiddleware: ResponseProvidingMiddleware {
 
     if let cached = await self.store.cachedResponse(for: key) {
       let metadata = cached.cacheMetadata
+      if metadata.cacheControl.noStore {
+        await self.store.removeCachedResponse(for: key)
+        await context.recordCacheEvent(.init(kind: .miss, key: key, policy: policy, reason: .noStore))
+        guard policy.strategy != .cacheOnly else {
+          throw .middleware("Cached response for \(key) is marked no-store.")
+        }
+        return nil
+      }
+      if metadata.cacheControl.noCache && policy.strategy == .cacheOnly {
+        await context.recordCacheEvent(.init(kind: .miss, key: key, policy: policy, reason: .stale))
+        throw .middleware("Cached response for \(key) requires revalidation.")
+      }
       if policy.strategy != .cacheOnly && !metadata.isFresh(at: self.now()) {
         await self.state.markCached(requestID: context.requestID, cached: cached)
         await context.recordCacheEvent(.init(kind: .stale, key: key, policy: policy, reason: .stale))
@@ -458,6 +476,7 @@ public struct CacheMiddleware: ResponseProvidingMiddleware {
     }
     let metadata = HTTPCacheMetadata(headers: response.headers, storedAt: self.now())
     guard !metadata.cacheControl.noStore else {
+      await self.store.removeCachedResponse(for: key)
       await context.recordCacheEvent(.init(kind: .skippedStore, key: key, policy: policy, reason: .noStore))
       return .proceed(result)
     }

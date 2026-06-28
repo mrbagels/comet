@@ -36,11 +36,13 @@ public struct FileHTTPCacheStoreConfiguration: Sendable, Hashable {
     guard !trimmed.isEmpty else { return "default" }
 
     let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_."))
-    return String(
+    let sanitized = String(
       trimmed.unicodeScalars.map { scalar in
         allowed.contains(scalar) ? Character(scalar) : "-"
       }
     )
+    guard sanitized != "." && sanitized != ".." else { return "default" }
+    return sanitized
   }
 }
 
@@ -71,7 +73,10 @@ public actor FileHTTPCacheStore: HTTPCacheStore {
     do {
       let data = try Data(contentsOf: url)
       let entry = try FileCachedHTTPResponse.jsonDecoder().decode(FileCachedHTTPResponse.self, from: data)
-      guard entry.matches(key) else { return nil }
+      guard entry.matches(key) else {
+        try? FileManager.default.removeItem(at: url)
+        return nil
+      }
       return try entry.cachedResponse()
     } catch {
       try? FileManager.default.removeItem(at: url)

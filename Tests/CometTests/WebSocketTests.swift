@@ -100,6 +100,24 @@ private actor ReconnectingSocketState {
   }
 }
 
+private actor SleepGate {
+  private var waiters: [CheckedContinuation<Void, Never>] = []
+
+  func sleep() async {
+    await withCheckedContinuation { continuation in
+      self.waiters.append(continuation)
+    }
+  }
+
+  func resumeAll() {
+    let waiters = self.waiters
+    self.waiters = []
+    for waiter in waiters {
+      waiter.resume()
+    }
+  }
+}
+
 private struct ReconnectingWebSocketTransport: WebSocketTransport, Sendable {
   let state: ReconnectingSocketState
 
@@ -230,6 +248,45 @@ private struct ReconnectingWebSocketTransport: WebSocketTransport, Sendable {
   }
 
   #expect(await state.connectCount() == 2)
+}
+
+@Test func webSocketSessionCloseDuringReconnectDelayStopsEventStream() async throws {
+  let state = ReconnectingSocketState()
+  let sleepGate = SleepGate()
+  let client = WebSocketClient.live(transport: ReconnectingWebSocketTransport(state: state))
+  let session = client.session(
+    for: WebSocketRequest(url: URL(string: "wss://example.com/socket")!),
+    configuration: WebSocketSessionConfiguration(
+      maximumReconnectAttempts: 1,
+      reconnectDelay: { _ in .seconds(1) },
+      sleep: { _ in await sleepGate.sleep() }
+    )
+  )
+  var iterator = session.events().makeAsyncIterator()
+
+  guard case .connected? = try await iterator.next() else {
+    Issue.record("Expected the session to connect.")
+    return
+  }
+  guard case .message(.text("first"))? = try await iterator.next() else {
+    Issue.record("Expected the first message.")
+    return
+  }
+  guard case .disconnected? = try await iterator.next() else {
+    Issue.record("Expected a disconnect after the first mocked session closes.")
+    return
+  }
+  guard case .reconnecting? = try await iterator.next() else {
+    Issue.record("Expected the session to wait before reconnecting.")
+    return
+  }
+
+  try await session.close()
+  await sleepGate.resumeAll()
+
+  let next = try await iterator.next()
+  #expect(next == nil)
+  #expect(await state.connectCount() == 1)
 }
 
 @Test func webSocketSessionSendsThroughCurrentConnection() async throws {

@@ -17,9 +17,9 @@ public enum NetworkActivityBufferingPolicy: Sendable, Equatable {
     case .unbounded:
       .unbounded
     case .bufferingNewest(let limit):
-      .bufferingNewest(limit)
+      .bufferingNewest(Swift.max(0, limit))
     case .bufferingOldest(let limit):
-      .bufferingOldest(limit)
+      .bufferingOldest(Swift.max(0, limit))
     }
   }
 }

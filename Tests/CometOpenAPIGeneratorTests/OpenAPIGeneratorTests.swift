@@ -188,3 +188,134 @@ import CometOpenAPIGenerator
     )
   }
 }
+
+@Test func openAPIGeneratorRejectsDuplicateGeneratedTypeNames() throws {
+  #expect(throws: OpenAPIGeneratorError.self) {
+    _ = try OpenAPIGenerator().generate(
+      jsonString: """
+      {
+        "openapi": "3.1.0",
+        "paths": {
+          "/pets": {
+            "get": {
+              "operationId": "listPets",
+              "responses": {
+                "204": { "description": "No Content" }
+              }
+            }
+          },
+          "/animals": {
+            "get": {
+              "operationId": "listPets",
+              "responses": {
+                "204": { "description": "No Content" }
+              }
+            }
+          }
+        }
+      }
+      """
+    )
+  }
+}
+
+@Test func openAPIGeneratorRejectsDuplicateSwiftParameterNames() throws {
+  #expect(throws: OpenAPIGeneratorError.self) {
+    _ = try OpenAPIGenerator().generate(
+      jsonString: """
+      {
+        "openapi": "3.1.0",
+        "paths": {
+          "/search": {
+            "get": {
+              "operationId": "search",
+              "parameters": [
+                {
+                  "name": "user-id",
+                  "in": "query",
+                  "schema": { "type": "string" }
+                },
+                {
+                  "name": "user_id",
+                  "in": "query",
+                  "schema": { "type": "string" }
+                }
+              ],
+              "responses": {
+                "204": { "description": "No Content" }
+              }
+            }
+          }
+        }
+      }
+      """
+    )
+  }
+}
+
+@Test func openAPIGeneratorRejectsInvalidHeaderNames() throws {
+  #expect(throws: OpenAPIGeneratorError.self) {
+    _ = try OpenAPIGenerator().generate(
+      jsonString: """
+      {
+        "openapi": "3.1.0",
+        "paths": {
+          "/search": {
+            "get": {
+              "operationId": "search",
+              "parameters": [
+                {
+                  "name": "Bad Header",
+                  "in": "header",
+                  "schema": { "type": "string" }
+                }
+              ],
+              "responses": {
+                "204": { "description": "No Content" }
+              }
+            }
+          }
+        }
+      }
+      """
+    )
+  }
+}
+
+@Test func openAPIGeneratorEscapesKeywordsAndPrefixesDigitIdentifiers() throws {
+  let output = try OpenAPIGenerator().generate(
+    jsonString: """
+    {
+      "openapi": "3.1.0",
+      "paths": {
+        "/tokens/{self}": {
+          "get": {
+            "operationId": "3dSecure",
+            "parameters": [
+              {
+                "name": "self",
+                "in": "path",
+                "required": true,
+                "schema": { "type": "string" }
+              },
+              {
+                "name": "123-sort",
+                "in": "query",
+                "schema": { "type": "string" }
+              }
+            ],
+            "responses": {
+              "204": { "description": "No Content" }
+            }
+          }
+        }
+      }
+    }
+    """
+  )
+
+  #expect(output.contains("public struct Generated3DSecureRequest: APIRequest"))
+  #expect(output.contains("public let selfValue: String"))
+  #expect(output.contains("public let value123Sort: String?"))
+  #expect(output.contains(#""tokens" / self.selfValue"#))
+}
