@@ -7,7 +7,10 @@ struct TodoRequest: APIRequest {
   let path: Path = "todos" / 1
   let method: HTTPMethod = .get
   let responseSerializer: ResponseSerializer<DemoTodo> = .json(DemoTodo.self)
-  let options = RequestOptions(apiVersion: nil)
+  let options = RequestOptions(
+    apiVersion: nil,
+    metadata: RequestMetadata(name: "TodoDemo", tags: ["requests", "json"])
+  )
 }
 
 struct TextDemoRequest: APIRequest {
@@ -18,7 +21,8 @@ struct TextDemoRequest: APIRequest {
   let responseSerializer: ResponseSerializer<String> = .string()
   let options = RequestOptions(
     apiVersion: nil,
-    absoluteURL: URL(string: "https://example.com")!
+    absoluteURL: URL(string: "https://example.com")!,
+    metadata: RequestMetadata(name: "TextDemo", tags: ["requests", "text"])
   )
 }
 
@@ -30,7 +34,8 @@ struct EmptyDemoRequest: APIRequest {
   let responseSerializer: ResponseSerializer<EmptyResponse> = .empty
   let options = RequestOptions(
     apiVersion: nil,
-    absoluteURL: URL(string: "https://httpbin.org/status/204")!
+    absoluteURL: URL(string: "https://httpbin.org/status/204")!,
+    metadata: RequestMetadata(name: "EmptyDemo", tags: ["transport", "empty"])
   )
 }
 
@@ -40,7 +45,10 @@ struct RawTodoRequest: APIRequest {
   let path: Path = "todos" / 1
   let method: HTTPMethod = .get
   let responseSerializer: ResponseSerializer<DemoTodo> = .json(DemoTodo.self)
-  let options = RequestOptions(apiVersion: nil)
+  let options = RequestOptions(
+    apiVersion: nil,
+    metadata: RequestMetadata(name: "RawTodoDemo", tags: ["transport", "raw"])
+  )
 }
 
 struct TimeoutDemoRequest: APIRequest {

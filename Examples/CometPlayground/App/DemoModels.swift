@@ -74,6 +74,14 @@ struct DemoActivityEntry: Hashable, Identifiable, Sendable {
   }
 }
 
+struct DemoTraceTimeline: Hashable, Sendable {
+  let title: String
+  let summary: String
+  let fields: [DemoInspectorField]
+  let events: [DemoActivityEntry]
+  let rawValue: String
+}
+
 struct DemoRequestInspection: Hashable, Sendable {
   let title: String
   let requestType: String

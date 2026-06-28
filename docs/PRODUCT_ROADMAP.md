@@ -452,7 +452,7 @@ Dependencies:
 
 Evolve the example app into an interactive documentation and verification surface.
 
-Status: initial request inspector, structured activity detail, copy-cURL, and failure gallery flows completed in the `0.1.x` patch line.
+Status: initial request inspector, structured activity detail, copy-cURL, failure gallery, response viewer, socket monitor, cassette viewer, and trace timeline flows completed in the `0.1.x` patch line.
 
 Technical shape:
 

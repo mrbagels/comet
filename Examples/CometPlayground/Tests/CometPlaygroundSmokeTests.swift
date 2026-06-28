@@ -19,6 +19,12 @@ final class CometPlaygroundSmokeTests: XCTestCase {
     for _ in 0..<20 where model.activityLog.count < DemoCatalog.Demo.allCases.count {
       await Task.yield()
     }
+    for _ in 0..<50 {
+      if model.traceTimeline(for: .rateLimited)?.events.contains(where: { $0.kind == .retried }) == true {
+        break
+      }
+      await Task.yield()
+    }
 
     XCTAssertEqual(model.completedChecks, DemoCatalog.Demo.allCases.count)
     XCTAssertTrue(model.state(for: .json).output.contains("Mock transport says hello"))
@@ -49,6 +55,13 @@ final class CometPlaygroundSmokeTests: XCTestCase {
       "2"
     )
     XCTAssertTrue(model.state(for: .timeout).cassette?.json.contains("\"timeout\"") == true)
+    let rateLimitTrace = model.traceTimeline(for: .rateLimited)
+    XCTAssertEqual(rateLimitTrace?.fields.first { $0.label == "Correlation" }?.value.count, 8)
+    XCTAssertEqual(rateLimitTrace?.events.map(\.kind), [.started, .retried, .completed])
+    XCTAssertTrue(rateLimitTrace?.rawValue.contains("RateLimitDemo") == true)
+    let socketTrace = model.traceTimeline(for: .webSocket)
+    XCTAssertEqual(socketTrace?.events.count, 2)
+    XCTAssertTrue(socketTrace?.events.allSatisfy { $0.kind == .socket } == true)
     XCTAssertGreaterThanOrEqual(model.activityLog.count, DemoCatalog.Demo.allCases.count)
     XCTAssertTrue(model.activityLog.contains { $0.kind == .failed })
     XCTAssertTrue(model.activityLog.contains { $0.kind == .retried })

@@ -22,6 +22,7 @@ struct DemoDetailScreen: View {
         header
         summaryPanel
         requestInspectorPanel
+        traceTimelinePanel
         responseViewerPanel
         socketMonitorPanel
         cassetteViewerPanel
@@ -191,6 +192,66 @@ struct DemoDetailScreen: View {
     }
   }
 
+  private var traceTimelinePanel: some View {
+    GlassPanel(tint: ThemeColor.ocean) {
+      SectionEyebrow(text: "Trace Timeline")
+
+      if let timeline = model.traceTimeline(for: demo) {
+        VStack(alignment: .leading, spacing: 8) {
+          Text(timeline.title)
+            .font(.system(.headline, design: .rounded).weight(.semibold))
+            .foregroundStyle(ThemeColor.ink)
+
+          Text(timeline.summary)
+            .font(.system(.body))
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+
+        InspectorFieldList(fields: timeline.fields)
+
+        VStack(alignment: .leading, spacing: 12) {
+          SectionEyebrow(text: "Events")
+
+          ForEach(timeline.events) { event in
+            VStack(alignment: .leading, spacing: 8) {
+              Label(event.title, systemImage: event.kind.symbolName)
+                .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                .foregroundStyle(event.kind.accent)
+
+              Text(event.detail)
+                .font(.system(.body))
+                .foregroundStyle(ThemeColor.ink)
+                .fixedSize(horizontal: false, vertical: true)
+
+              InspectorFieldList(fields: event.fields)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(12)
+            .background(
+              RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.white.opacity(0.56))
+            )
+            .overlay(
+              RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(ThemeColor.fallbackStroke, lineWidth: 1)
+            )
+          }
+        }
+
+        VStack(alignment: .leading, spacing: 10) {
+          SectionEyebrow(text: "Trace Snapshot")
+          OutputConsole(value: timeline.rawValue)
+        }
+      } else {
+        Text("Run the demo to inspect the ordered request or socket activity for this scenario.")
+          .font(.system(.body))
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
   @ViewBuilder
   private var socketMonitorPanel: some View {
     if demo.category == .realtime || state.socket != nil {
@@ -346,6 +407,38 @@ private extension DemoSocketFrame.Direction {
       "arrow.down.backward.circle"
     case .close:
       "xmark.circle"
+    }
+  }
+}
+
+private extension DemoActivityEntry.Kind {
+  var accent: Color {
+    switch self {
+    case .started:
+      ThemeColor.ocean
+    case .completed:
+      ThemeColor.mint
+    case .failed:
+      ThemeColor.ruby
+    case .retried:
+      ThemeColor.plum
+    case .socket:
+      ThemeColor.ruby
+    }
+  }
+
+  var symbolName: String {
+    switch self {
+    case .started:
+      "play.circle"
+    case .completed:
+      "checkmark.circle"
+    case .failed:
+      "exclamationmark.triangle"
+    case .retried:
+      "arrow.clockwise.circle"
+    case .socket:
+      "dot.radiowaves.left.and.right"
     }
   }
 }

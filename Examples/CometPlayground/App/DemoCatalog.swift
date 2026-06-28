@@ -303,6 +303,33 @@ final class DemoCatalog {
         ]
       }
     }
+
+    var traceMetadataName: String? {
+      switch self {
+      case .json:
+        "TodoDemo"
+      case .text:
+        "TextDemo"
+      case .empty:
+        "EmptyDemo"
+      case .raw:
+        "RawTodoDemo"
+      case .timeout:
+        "TimeoutDemo"
+      case .unauthorized:
+        "UnauthorizedDemo"
+      case .rateLimited:
+        "RateLimitDemo"
+      case .serverError:
+        "ServerErrorDemo"
+      case .malformedJSON:
+        "MalformedJSONDemo"
+      case .cancelled:
+        "CancelledDemo"
+      case .webSocket, .webSocketClose:
+        nil
+      }
+    }
   }
 
   enum ClientMode: String, CaseIterable, Identifiable {
@@ -431,6 +458,14 @@ final class DemoCatalog {
         transport: "MockWebSocketTransport"
       )
     }
+  }
+
+  func traceTimeline(for demo: Demo) -> DemoTraceTimeline? {
+    Self.traceTimeline(
+      for: demo,
+      mode: self.mode,
+      entries: Self.traceEntries(for: demo, activityLog: self.activityLog)
+    )
   }
 
   func run(_ demo: Demo) async {
@@ -717,6 +752,7 @@ final class DemoCatalog {
       if demo == .webSocket {
         self.recordSocketEvent(
           "failed socket",
+          demo: demo,
           details: [
             self.mode.rawValue,
             error.localizedDescription
@@ -1047,6 +1083,7 @@ final class DemoCatalog {
 
     self.recordSocketEvent(
       "started socket",
+      demo: .webSocket,
       details: [
         self.mode.rawValue,
         request.url.absoluteString
@@ -1065,6 +1102,7 @@ final class DemoCatalog {
 
     self.recordSocketEvent(
       "completed socket",
+      demo: .webSocket,
       details: [
         self.mode.rawValue,
         request.url.host() ?? request.url.absoluteString,
@@ -1093,6 +1131,7 @@ final class DemoCatalog {
 
     self.recordSocketEvent(
       "started close scenario",
+      demo: .webSocketClose,
       details: [
         self.mode.rawValue,
         request.url.absoluteString
@@ -1115,6 +1154,7 @@ final class DemoCatalog {
 
       self.recordSocketEvent(
         "closed socket",
+        demo: .webSocketClose,
         details: [
           "code \(code.rawValue)",
           String(data: reason ?? Data(), encoding: .utf8) ?? "no reason"
@@ -1130,9 +1170,9 @@ final class DemoCatalog {
     }
   }
 
-  private func recordSocketEvent(_ title: String, details: [String]) {
+  private func recordSocketEvent(_ title: String, demo: Demo, details: [String]) {
     self.activityLog.insert(
-      Self.socketActivityEntry(title: title, details: details),
+      Self.socketActivityEntry(title: title, demo: demo, details: details),
       at: 0
     )
   }
@@ -1305,6 +1345,95 @@ final class DemoCatalog {
     )
   }
 
+  private static func traceEntries(
+    for demo: Demo,
+    activityLog: [DemoActivityEntry]
+  ) -> [DemoActivityEntry] {
+    let matchingEntries = activityLog.filter { entry in
+      if let metadataName = demo.traceMetadataName {
+        return Self.fieldValue("Metadata", in: entry) == metadataName
+      }
+
+      return Self.fieldValue("Demo", in: entry) == demo.title
+    }
+
+    if demo.traceMetadataName != nil {
+      guard let latestRequestID = matchingEntries.compactMap({ Self.fieldValue("Request ID", in: $0) }).first else {
+        return []
+      }
+
+      return Array(
+        matchingEntries
+          .filter { Self.fieldValue("Request ID", in: $0) == latestRequestID }
+          .reversed()
+      )
+    }
+
+    let latestSessionEntries = Self.latestSocketSessionEntries(for: demo, entries: matchingEntries)
+    return Array(latestSessionEntries.reversed())
+  }
+
+  private static func latestSocketSessionEntries(
+    for demo: Demo,
+    entries: [DemoActivityEntry]
+  ) -> [DemoActivityEntry] {
+    let startTitle = switch demo {
+    case .webSocket:
+      "started socket"
+    case .webSocketClose:
+      "started close scenario"
+    default:
+      ""
+    }
+    var sessionEntries: [DemoActivityEntry] = []
+
+    for entry in entries {
+      sessionEntries.append(entry)
+      if entry.title == startTitle {
+        break
+      }
+    }
+
+    return sessionEntries
+  }
+
+  private static func traceTimeline(
+    for demo: Demo,
+    mode: ClientMode,
+    entries: [DemoActivityEntry]
+  ) -> DemoTraceTimeline? {
+    guard !entries.isEmpty else { return nil }
+
+    let requestIDs = Set(entries.compactMap { Self.fieldValue("Request ID", in: $0) })
+      .sorted()
+    let kinds = entries.map(\.kind.rawValue).joined(separator: " -> ")
+    let correlation = requestIDs.isEmpty
+      ? "Socket markers"
+      : requestIDs.joined(separator: ", ")
+    let fields = [
+      DemoInspectorField(label: "Demo", value: demo.title),
+      DemoInspectorField(label: "Mode", value: mode.title),
+      DemoInspectorField(label: "Events", value: "\(entries.count)"),
+      DemoInspectorField(label: "Correlation", value: correlation),
+      DemoInspectorField(label: "Path", value: kinds)
+    ]
+    let title = "\(demo.title) trace"
+    let summary = "Ordered activity events captured for the latest matching demo run."
+    let eventLines = entries.map { entry in
+      "[\(entry.kind.rawValue)] \(entry.rawValue)"
+    }
+    let rawValue = ([title, summary] + fields.map { "\($0.label): \($0.value)" } + [""] + eventLines)
+      .joined(separator: "\n")
+
+    return DemoTraceTimeline(
+      title: title,
+      summary: summary,
+      fields: fields,
+      events: entries,
+      rawValue: rawValue
+    )
+  }
+
   private static func cassetteOutcomeLabel(for exchange: RecordedExchange) -> String {
     switch exchange.outcome {
     case .success(let response):
@@ -1410,10 +1539,15 @@ final class DemoCatalog {
     }
   }
 
-  private static func socketActivityEntry(title: String, details: [String]) -> DemoActivityEntry {
-    let fields = details.enumerated().map { index, value in
-      DemoInspectorField(label: "Detail \(index + 1)", value: value)
-    }
+  private static func socketActivityEntry(
+    title: String,
+    demo: Demo,
+    details: [String]
+  ) -> DemoActivityEntry {
+    let fields = [DemoInspectorField(label: "Demo", value: demo.title)]
+      + details.enumerated().map { index, value in
+        DemoInspectorField(label: "Detail \(index + 1)", value: value)
+      }
     let rawValue = ([title] + details).joined(separator: " • ")
     return DemoActivityEntry(
       kind: .socket,
@@ -1422,6 +1556,10 @@ final class DemoCatalog {
       fields: fields,
       rawValue: rawValue
     )
+  }
+
+  private static func fieldValue(_ label: String, in entry: DemoActivityEntry) -> String? {
+    entry.fields.first { $0.label == label }?.value
   }
 
   private static func headerFields(from headers: HTTPFields) -> [DemoInspectorField] {
