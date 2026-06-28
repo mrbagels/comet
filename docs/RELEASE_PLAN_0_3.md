@@ -213,15 +213,15 @@ Acceptance:
 - Scenario failures produce contract reports.
 - If a real HTTP listener is deferred, the docs state the boundary clearly.
 
-### 0.2.8: OpenAPI Generator MVP
+### 0.2.8: OpenAPI Generator
 
 Purpose: prove generated Comet clients without trying to cover every OpenAPI
 feature in one pass.
 
 Status: completed in `0.3.0` with a dependency-free JSON OpenAPI
 generator core, `comet-openapi-generate` executable, request generation for
-parameters, JSON bodies, metadata, success serializers, typed error hooks, and
-snapshot tests.
+parameters, component schema models, local schema `$ref`s, JSON bodies,
+metadata, typed success serializers, typed error hooks, and snapshot tests.
 
 Deliverables:
 
@@ -315,9 +315,9 @@ Acceptance:
   protection and app-level encryption decisions.
 - `MockServer` remains transport-level for `0.3.0`; a real local HTTP listener
   is deferred.
-- OpenAPI generation is JSON-first and dependency-free for the MVP. YAML,
-  deeper JSON Schema traversal, and formatting integration can be revisited
-  after the CLI proves useful.
+- OpenAPI generation is JSON-first and dependency-free. YAML input, full JSON
+  Schema coverage, formatting integration, and a SwiftPM command plugin can be
+  revisited after the CLI proves useful.
 - Server-side live transports are deferred for `0.3.0`; see
   [Server Transport Decision](technical/SERVER_TRANSPORT_DECISION.md).
 
@@ -336,7 +336,8 @@ change, also run the iOS playground smoke tests through XcodeBuildMCP or:
 ```sh
 cd Examples/CometPlayground
 xcodegen generate
-xcodebuild test -project CometPlayground.xcodeproj -scheme CometPlaygroundApp -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=latest' SWIFT_ENABLE_EXPLICIT_MODULES=NO
+SIMULATOR_ID="$(../../.github/scripts/select-ios-simulator.sh)"
+xcodebuild test -project CometPlayground.xcodeproj -scheme CometPlaygroundApp -destination "platform=iOS Simulator,id=$SIMULATOR_ID" SWIFT_ENABLE_EXPLICIT_MODULES=NO
 ```
 
 Docs patches should additionally run:

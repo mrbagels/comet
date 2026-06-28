@@ -365,7 +365,7 @@ Dependencies:
 
 Generate Comet request types from API specs.
 
-Status: initial V3 generator MVP shipped in `0.3.0` with a dependency-free JSON OpenAPI core target, `comet-openapi-generate` executable, request generation for path/query/header parameters, JSON bodies, operation metadata, success serializers, typed error-response hooks, and snapshot tests.
+Status: V3 generator shipped in `0.3.0` and expanded with a dependency-free JSON OpenAPI core target, `comet-openapi-generate` executable, request generation for path/query/header parameters, component schema models, local schema `$ref`s, JSON bodies, operation metadata, typed success serializers, typed error-response hooks, and snapshot tests.
 
 Technical shape:
 

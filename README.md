@@ -460,7 +460,7 @@ Generate Comet request types from JSON OpenAPI 3.x documents:
 swift run comet-openapi-generate --input openapi.json --output GeneratedAPI.swift
 ```
 
-The MVP supports path, query, and header parameters, JSON request bodies, success serializers, operation metadata, and typed error-response hooks. Unsupported features fail with diagnostics instead of silently generating partial behavior.
+The generator supports path, query, and header parameters, component schema models, local schema `$ref`s, JSON request bodies, typed JSON success serializers, operation metadata, and typed error-response hooks. Unsupported features fail with diagnostics instead of silently generating partial behavior.
 
 ### Reachability Hints
 
@@ -511,7 +511,8 @@ xcodegen generate
 Run the example smoke tests:
 
 ```sh
-xcodebuild test -project CometPlayground.xcodeproj -scheme CometPlaygroundApp -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=latest' SWIFT_ENABLE_EXPLICIT_MODULES=NO
+SIMULATOR_ID="$(../../.github/scripts/select-ios-simulator.sh)"
+xcodebuild test -project CometPlayground.xcodeproj -scheme CometPlaygroundApp -destination "platform=iOS Simulator,id=$SIMULATOR_ID" SWIFT_ENABLE_EXPLICIT_MODULES=NO
 ```
 
 GitHub Actions runs the Swift package suite, secret scanning, public API break gating, and the iOS example smoke tests on every push to `next` and `master`.
@@ -519,7 +520,7 @@ GitHub Actions runs the Swift package suite, secret scanning, public API break g
 Check for public API changes against the latest release:
 
 ```sh
-swift package diagnose-api-breaking-changes v0.3.0
+.github/scripts/check-api-breaking-changes.sh v0.3.0
 ```
 
 Run a fresh external client smoke check:
@@ -547,6 +548,7 @@ SVG brand assets live in [Resources/Brand](Resources/Brand). The README uses the
 - `Sources/CometOpenAPIGenerator/`: JSON OpenAPI generator core
 - `Resources/Brand/`: SVG logo and icon files for docs, README, and app assets
 - `.github/scripts/fresh-client-smoke.sh`: external package integration smoke check
+- `.github/scripts/select-ios-simulator.sh`: local and CI iPhone simulator selection
 - `.github/workflows/ci.yml`: package and iOS smoke test automation
 - `docs/ARCHITECTURE.md`: architecture notes
 - `docs/technical/SERVER_TRANSPORT_DECISION.md`: server transport support decision

@@ -21,6 +21,11 @@ for try await event in client.stream(StreamEvents()) {
 
 ``URLSessionTransport`` supports true response streaming. Other transports can opt in with ``HTTPStreamingTransport``. Buffered transports fall back to one response event and one byte event.
 
+Streaming requests run middleware preparation and terminal cleanup. Response
+providers can satisfy a stream before the transport is opened, so fresh cached
+responses from ``CacheMiddleware`` can stream from the cache. Live streaming
+does not buffer the response body for response-mutating middleware.
+
 ## Lines And SSE
 
 Use line streams for newline-delimited protocols.

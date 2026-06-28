@@ -87,6 +87,23 @@ var options: RequestOptions {
 }
 ```
 
+Freshness is conservative by default. Cached responses must declare explicit
+freshness with `Cache-Control` or `Expires`, include validators for
+revalidation, or use a policy-level default freshness lifetime. `Age`,
+`s-maxage`, `must-revalidate`, `stale-if-error`, shared-cache `private`, and
+`Vary` headers are honored when deciding whether an entry can be reused.
+
+```swift
+var options: RequestOptions {
+  RequestOptions(
+    cachePolicy: HTTPCachePolicy(
+      strategy: .returnCacheElseLoad,
+      defaultFreshnessLifetime: .seconds(30)
+    )
+  )
+}
+```
+
 ## Inspect Cache Decisions
 
 Completed ``RequestTrace`` values include cache events for hits, misses, bypasses, stale entries, revalidation attempts, stale fallbacks, `304` updates, stores, and skipped stores.

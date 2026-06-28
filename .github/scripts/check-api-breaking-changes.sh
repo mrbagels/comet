@@ -15,6 +15,25 @@ swift package diagnose-api-breaking-changes "$base_tag" > "$output_file" 2>&1
 status=$?
 set -e
 
+filtered_output_file="${output_file}.filtered"
+awk '
+  /^warning: .*found [0-9]+ file\(s\) which are unhandled; explicitly declare them as resources or exclude from the target$/ {
+    warning = $0
+    if ((getline pathline) > 0) {
+      if (pathline ~ /\.docc$/) {
+        next
+      }
+      print warning
+      print pathline
+      next
+    }
+    print warning
+    next
+  }
+  { print }
+' "$output_file" > "$filtered_output_file"
+mv "$filtered_output_file" "$output_file"
+
 cat "$output_file"
 
 {

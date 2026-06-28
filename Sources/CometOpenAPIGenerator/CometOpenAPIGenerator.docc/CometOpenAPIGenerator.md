@@ -20,12 +20,13 @@ Or call the generator core directly:
 let source = try OpenAPIGenerator().generate(data: openAPIData)
 ```
 
-The MVP supports:
+The generator supports:
 
 - OpenAPI 3.0 and 3.1 JSON documents
 - path, query, and header parameters
+- component schema structs, string enums, aliases, arrays, and local schema `$ref`s
 - JSON request bodies
-- success response serializers
+- typed JSON success response serializers
 - typed error response hooks using `APIRequestWithErrorResponse`
 - request metadata populated from `operationId`
 
