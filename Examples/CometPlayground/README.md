@@ -25,7 +25,7 @@ The app is organized as a modern iPhone-native demo:
 
 - `Home`: quick launch, mode switching, and session summary
 - `Proofs`: category-driven HTTP and realtime scenarios with detail pages
-- `Activity`: filtered structured request history plus socket session markers and detail fields
+- `Activity`: filtered structured request history, saved SQLiteData history, socket session markers, and detail fields
 - `Socket Monitor`: realtime frame, endpoint, transport, subprotocol, and close-code inspection
 - `Demo detail`: focused output, request inspector, trace timeline, response viewer, cassette viewer, verification, and rerun controls
 
@@ -116,6 +116,8 @@ Each scenario in the UI shows the exact Comet API surface it is proving. The dem
 - `PreparedRequest.curlCommand`
 - `RecordingTransport`
 - `HTTPCassette`
+- `CometSQLiteData`
+- `@FetchAll`
 
 ## Useful Files
 
@@ -124,6 +126,7 @@ Each scenario in the UI shows the exact Comet API surface it is proving. The dem
 - [App/HomeTab.swift](App/HomeTab.swift): landing experience and launch actions
 - [App/ProofsTab.swift](App/ProofsTab.swift): proof navigation and category flows
 - [App/ActivityTab.swift](App/ActivityTab.swift): event stream and filtering
+- [App/Schema.swift](App/Schema.swift): SQLiteData database bootstrap
 - [App/DemoDetailScreen.swift](App/DemoDetailScreen.swift): focused scenario detail screen
 - [App/PlaygroundStyle.swift](App/PlaygroundStyle.swift): shared liquid glass styling and UI primitives
 - [App/DemoRequests.swift](App/DemoRequests.swift): request definitions

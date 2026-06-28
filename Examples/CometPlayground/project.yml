@@ -36,9 +36,21 @@ targets:
       - package: CometPackage
         product: Comet
       - package: CometPackage
+        product: CometSQLiteData
+      - package: CometPackage
+        product: CometTCA
+      - package: CometPackage
         product: CometTesting
       - package: CometPackage
+        product: ComposableArchitecture
+      - package: CometPackage
+        product: Dependencies
+      - package: CometPackage
+        product: GRDB
+      - package: CometPackage
         product: HTTPTypes
+      - package: CometPackage
+        product: IssueReporting
   CometPlaygroundTests:
     type: bundle.unit-test
     platform: iOS
@@ -60,6 +72,14 @@ targets:
       - package: CometPackage
         product: Comet
       - package: CometPackage
+        product: CometTCA
+      - package: CometPackage
         product: CometTesting
       - package: CometPackage
+        product: ComposableArchitecture
+      - package: CometPackage
+        product: Dependencies
+      - package: CometPackage
         product: HTTPTypes
+      - package: CometPackage
+        product: IssueReporting

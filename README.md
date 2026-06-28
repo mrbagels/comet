@@ -482,23 +482,20 @@ Use this to inform UI or retry choices, but keep transport errors as the source 
 
 `CometSQLiteData` is a separate product for apps that already use SQLiteData or want persisted diagnostics without pulling TCA into the graph.
 
-Register the Comet migrations inside your app-owned database bootstrap:
+Create a migrated database during app bootstrap:
 
 ```swift
 import CometSQLiteData
 import Dependencies
-import SQLiteData
 
 extension DependencyValues {
   mutating func bootstrapDatabase() throws {
-    let database = try SQLiteData.defaultDatabase()
-    var migrator = DatabaseMigrator()
-    CometSQLiteDataSchema.registerMigrations(&migrator)
-    try migrator.migrate(database)
-    defaultDatabase = database
+    defaultDatabase = try CometSQLiteDataSchema.defaultDatabase()
   }
 }
 ```
+
+If you already own the SQLiteData migrator, call `CometSQLiteDataSchema.registerMigrations(&migrator)` instead.
 
 Then record activity events or artifacts from the configured database:
 

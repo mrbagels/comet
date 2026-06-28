@@ -12,7 +12,7 @@ let package = Package(
   products: [
     .library(name: "Comet", targets: ["Comet"]),
     .library(name: "CometOpenAPIGenerator", targets: ["CometOpenAPIGenerator"]),
-    .library(name: "CometSQLiteData", targets: ["CometSQLiteData"]),
+    .library(name: "CometSQLiteData", type: .static, targets: ["CometSQLiteData"]),
     .library(name: "CometTCA", targets: ["CometTCA"]),
     .library(name: "CometTesting", targets: ["CometTesting"]),
     .executable(name: "comet-openapi-generate", targets: ["CometOpenAPIGenerate"]),
@@ -23,6 +23,8 @@ let package = Package(
     .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.9.2"),
     .package(url: "https://github.com/pointfreeco/swift-composable-architecture", from: "1.20.0"),
     .package(url: "https://github.com/pointfreeco/sqlite-data", from: "1.6.6"),
+    .package(url: "https://github.com/groue/GRDB.swift", from: "7.11.1"),
+    .package(url: "https://github.com/pointfreeco/swift-structured-queries", from: "0.32.0"),
   ],
   targets: [
     .target(
@@ -44,7 +46,12 @@ let package = Package(
       dependencies: [
         "Comet",
         .product(name: "Dependencies", package: "swift-dependencies"),
+        .product(name: "GRDB", package: "GRDB.swift"),
         .product(name: "SQLiteData", package: "sqlite-data"),
+        .product(name: "StructuredQueries", package: "swift-structured-queries"),
+        .product(name: "StructuredQueriesCore", package: "swift-structured-queries"),
+        .product(name: "StructuredQueriesSQLite", package: "swift-structured-queries"),
+        .product(name: "StructuredQueriesSQLiteCore", package: "swift-structured-queries"),
       ]
     ),
     .target(

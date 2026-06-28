@@ -2,7 +2,10 @@ import Foundation
 import HTTPTypes
 import Observation
 import Comet
+import CometSQLiteData
 import CometTesting
+import Dependencies
+import IssueReporting
 
 private struct DemoCassetteReplayVerification: Sendable {
   let status: String
@@ -474,6 +477,7 @@ final class DemoCatalog {
   private var socketClient: WebSocketClient
   private let activityObserver = ActivityObserver()
   private var activeRunCount = 0
+  @ObservationIgnored @Dependency(\.defaultDatabase) private var database
   @ObservationIgnored private var isRestoringMode = false
 
   init() {
@@ -1580,21 +1584,33 @@ final class DemoCatalog {
   }
 
   private func recordSocketEvent(_ title: String, demo: Demo, details: [String]) {
-    self.activityLog.insert(
-      Self.socketActivityEntry(title: title, demo: demo, details: details),
-      at: 0
-    )
+    let entry = Self.socketActivityEntry(title: title, demo: demo, details: details)
+    self.activityLog.insert(entry, at: 0)
+    self.persist(entry, source: "webSocket")
   }
 
   private func subscribeToActivity() {
     let stream = self.client.activity
+    let store = CometSQLiteDataStore(database: self.database)
     self.activityObserver.task = Task { [weak self] in
       for await event in stream {
         guard !Task.isCancelled else { return }
         guard let self else { return }
+        _ = await withErrorReporting {
+          try await store.record(event: event)
+        }
         await MainActor.run {
           self.activityLog.insert(Self.activityEntry(for: event), at: 0)
         }
+      }
+    }
+  }
+
+  private func persist(_ entry: DemoActivityEntry, source: String) {
+    let store = CometSQLiteDataStore(database: self.database)
+    Task {
+      await withErrorReporting {
+        try await store.insert(Self.activityRecord(for: entry, source: source))
       }
     }
   }
@@ -1996,6 +2012,20 @@ final class DemoCatalog {
       detail: details.joined(separator: " • "),
       fields: fields,
       rawValue: rawValue
+    )
+  }
+
+  private static func activityRecord(
+    for entry: DemoActivityEntry,
+    source: String
+  ) -> CometActivityEventRecord {
+    CometActivityEventRecord(
+      id: entry.id,
+      source: source,
+      kind: entry.kind.rawValue,
+      title: entry.title,
+      detail: entry.detail,
+      rawValue: entry.rawValue
     )
   }
 

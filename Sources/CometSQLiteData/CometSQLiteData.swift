@@ -1,10 +1,23 @@
 import Comet
 import Dependencies
 import Foundation
-import SQLiteData
+import GRDB
+@_exported import SQLiteData
+@_exported import StructuredQueries
+@_exported import StructuredQueriesSQLite
 
 /// SQLiteData schema and migrations for persisting Comet diagnostics.
 public enum CometSQLiteDataSchema {
+  /// Creates the default SQLiteData database and runs the Comet persistence migrations.
+  public static func defaultDatabase(eraseDatabaseOnSchemaChange: Bool = false) throws -> any DatabaseWriter {
+    let database = try SQLiteData.defaultDatabase()
+    var migrator = DatabaseMigrator()
+    migrator.eraseDatabaseOnSchemaChange = eraseDatabaseOnSchemaChange
+    Self.registerMigrations(&migrator)
+    try migrator.migrate(database)
+    return database
+  }
+
   /// Registers the Comet persistence tables with an existing app migrator.
   public static func registerMigrations(_ migrator: inout DatabaseMigrator) {
     migrator.registerMigration("Create Comet activity and artifact tables") { db in
@@ -84,7 +97,7 @@ public enum CometSQLiteDataSchema {
 
 /// Persisted Comet diagnostic event suitable for SwiftUI observation with SQLiteData.
 @Table("cometActivityEvents")
-public struct CometActivityEventRecord: Equatable, Identifiable, Sendable {
+public struct CometActivityEventRecord: Equatable, Hashable, Identifiable, Sendable {
   public let id: UUID
   public var requestID: UUID?
   public var source: String
@@ -217,7 +230,7 @@ public struct CometActivityEventRecord: Equatable, Identifiable, Sendable {
 
 /// Persisted Comet artifact such as cassette JSON, contract reports, or generated schemas.
 @Table("cometArtifacts")
-public struct CometArtifactRecord: Equatable, Identifiable, Sendable {
+public struct CometArtifactRecord: Equatable, Hashable, Identifiable, Sendable {
   public let id: UUID
   public var kind: String
   public var name: String
@@ -247,7 +260,7 @@ public struct CometArtifactRecord: Equatable, Identifiable, Sendable {
 
 /// Convenience wrapper around a SQLiteData database configured with ``CometSQLiteDataSchema``.
 public struct CometSQLiteDataStore {
-  public var database: any DatabaseWriter
+  public let database: any DatabaseWriter
 
   public init(database: any DatabaseWriter) {
     self.database = database
@@ -313,6 +326,8 @@ public struct CometSQLiteDataStore {
     }
   }
 }
+
+extension CometSQLiteDataStore: @unchecked Sendable {}
 
 private extension Duration {
   var cometMilliseconds: Double {

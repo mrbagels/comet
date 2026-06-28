@@ -1,10 +1,11 @@
+import Dependencies
 import XCTest
 @testable import CometPlaygroundApp
 
 final class CometPlaygroundSmokeTests: XCTestCase {
   @MainActor
   func testCatalogStartsInMockMode() {
-    let model = DemoCatalog()
+    let model = makeCatalog()
 
     XCTAssertEqual(model.mode, .mock)
     XCTAssertEqual(model.completedChecks, 0)
@@ -12,7 +13,7 @@ final class CometPlaygroundSmokeTests: XCTestCase {
 
   @MainActor
   func testMockProofRunsEveryDemo() async {
-    let model = DemoCatalog()
+    let model = makeCatalog()
 
     await model.runMockProof()
 
@@ -108,7 +109,7 @@ final class CometPlaygroundSmokeTests: XCTestCase {
 
   @MainActor
   func testRequestInspectorUsesPreparedRequests() {
-    let model = DemoCatalog()
+    let model = makeCatalog()
 
     let unauthorized = model.requestInspection(for: .unauthorized)
     XCTAssertEqual(unauthorized.method, "GET")
@@ -134,5 +135,14 @@ final class CometPlaygroundSmokeTests: XCTestCase {
     XCTAssertEqual(socketClose.transport, "MockWebSocketTransport")
     XCTAssertEqual(socketClose.method, "GET")
     XCTAssertFalse(socketClose.hasCurlCommand)
+  }
+
+  @MainActor
+  private func makeCatalog() -> DemoCatalog {
+    withDependencies {
+      try! $0.bootstrapDatabase()
+    } operation: {
+      DemoCatalog()
+    }
   }
 }

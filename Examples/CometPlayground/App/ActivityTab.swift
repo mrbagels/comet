@@ -1,3 +1,6 @@
+import CometSQLiteData
+import Dependencies
+import IssueReporting
 import SwiftUI
 
 private enum ActivityFilter: String, CaseIterable, Identifiable {
@@ -40,10 +43,17 @@ private enum ActivityFilter: String, CaseIterable, Identifiable {
       false
     }
   }
+
+  func contains(_ record: CometActivityEventRecord) -> Bool {
+    self.contains(record.activityEntry.kind)
+  }
 }
 
 struct ActivityTab: View {
   let model: DemoCatalog
+  @Dependency(\.defaultDatabase) private var database
+  @FetchAll(CometActivityEventRecord.order { $0.occurredAt.desc() }.limit(50), animation: .default)
+  private var persistedEvents
   @State private var filter: ActivityFilter = .all
   @State private var searchText = ""
 
@@ -74,9 +84,28 @@ struct ActivityTab: View {
             }
           }
         }
+
+        Section("Saved History") {
+          if filteredPersistedEvents.isEmpty {
+            ContentUnavailableView(
+              "No Saved Events",
+              systemImage: "externaldrive",
+              description: Text("Persisted activity appears here after the first run.")
+            )
+          } else {
+            ForEach(filteredPersistedEvents) { record in
+              NavigationLink(value: record) {
+                PersistedActivityEventRow(record: record)
+              }
+            }
+          }
+        }
       }
       .navigationDestination(for: DemoActivityEntry.self) { event in
         ActivityDetailScreen(event: event)
+      }
+      .navigationDestination(for: CometActivityEventRecord.self) { record in
+        ActivityDetailScreen(event: record.activityEntry)
       }
       .searchable(text: $searchText, prompt: "Search events")
       .scrollContentBackground(.hidden)
@@ -97,6 +126,13 @@ struct ActivityTab: View {
             Label("Clear session", systemImage: "trash")
           }
           .disabled(model.isRunning)
+
+          Button(role: .destructive) {
+            Task { await clearSavedHistoryButtonTapped() }
+          } label: {
+            Label("Clear saved history", systemImage: "externaldrive.badge.xmark")
+          }
+          .disabled(model.isRunning || persistedEvents.isEmpty)
         }
       }
     }
@@ -111,6 +147,21 @@ struct ActivityTab: View {
       let matchesFilter = filter.contains(event.kind)
       let matchesSearch = searchText.isEmpty || event.searchableText.localizedStandardContains(searchText)
       return matchesFilter && matchesSearch
+    }
+  }
+
+  private var filteredPersistedEvents: [CometActivityEventRecord] {
+    persistedEvents.filter { record in
+      let event = record.activityEntry
+      let matchesFilter = filter.contains(record)
+      let matchesSearch = searchText.isEmpty || event.searchableText.localizedStandardContains(searchText)
+      return matchesFilter && matchesSearch
+    }
+  }
+
+  private func clearSavedHistoryButtonTapped() async {
+    await withErrorReporting {
+      try await CometSQLiteDataStore(database: database).deleteActivity()
     }
   }
 }
@@ -188,6 +239,37 @@ private struct ActivityEventRow: View {
   }
 }
 
+private struct PersistedActivityEventRow: View {
+  let record: CometActivityEventRecord
+
+  var body: some View {
+    let event = record.activityEntry
+    HStack(alignment: .top, spacing: 14) {
+      Image(systemName: event.kind.symbolName)
+        .font(.system(size: 17, weight: .semibold))
+        .foregroundStyle(event.kind.accent)
+        .frame(width: 38, height: 38)
+        .background(event.kind.accent.opacity(0.12), in: .rect(cornerRadius: 14))
+
+      VStack(alignment: .leading, spacing: 6) {
+        Text(event.title)
+          .font(.system(.headline, design: .rounded).weight(.semibold))
+          .foregroundStyle(ThemeColor.ink)
+
+        Text(event.detail)
+          .font(.system(.subheadline))
+          .foregroundStyle(.secondary)
+          .lineLimit(2)
+
+        Text(record.occurredAt.formatted(date: .abbreviated, time: .standard))
+          .font(.system(.caption, design: .monospaced))
+          .foregroundStyle(.tertiary)
+      }
+    }
+    .padding(.vertical, 4)
+  }
+}
+
 private struct ActivityDetailScreen: View {
   let event: DemoActivityEntry
 
@@ -225,5 +307,58 @@ private struct ActivityDetailScreen: View {
     .background(PlaygroundBackdrop())
     .navigationTitle("Event Detail")
     .navigationBarTitleDisplayMode(.inline)
+  }
+}
+
+private extension CometActivityEventRecord {
+  var activityEntry: DemoActivityEntry {
+    var fields = [
+      DemoInspectorField(label: "Source", value: self.source),
+      DemoInspectorField(label: "Stored", value: self.occurredAt.formatted(date: .abbreviated, time: .standard))
+    ]
+
+    if let requestID {
+      fields.append(DemoInspectorField(label: "Request ID", value: String(requestID.uuidString.prefix(8))))
+    }
+    if let method {
+      fields.append(DemoInspectorField(label: "Method", value: method))
+    }
+    if let url {
+      fields.append(DemoInspectorField(label: "URL", value: url))
+    }
+    if let statusCode {
+      fields.append(DemoInspectorField(label: "Status", value: "\(statusCode)"))
+    }
+    if let durationMilliseconds {
+      fields.append(
+        DemoInspectorField(
+          label: "Duration",
+          value: "\(durationMilliseconds.formatted(.number.precision(.fractionLength(0...2))))ms"
+        )
+      )
+    }
+    if let retryAttempt {
+      fields.append(DemoInspectorField(label: "Attempt", value: "\(retryAttempt)"))
+    }
+    if let retryDelayMilliseconds {
+      fields.append(
+        DemoInspectorField(
+          label: "Delay",
+          value: "\(retryDelayMilliseconds.formatted(.number.precision(.fractionLength(0...2))))ms"
+        )
+      )
+    }
+    if let errorSummary {
+      fields.append(DemoInspectorField(label: "Error", value: errorSummary))
+    }
+
+    return DemoActivityEntry(
+      id: self.id,
+      kind: DemoActivityEntry.Kind(rawValue: self.kind) ?? .socket,
+      title: self.title,
+      detail: self.detail,
+      fields: fields,
+      rawValue: self.rawValue
+    )
   }
 }
