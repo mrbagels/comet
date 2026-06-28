@@ -352,20 +352,103 @@ public struct HTTPClient: Sendable {
         await traceRecorder.recordCacheEvent(event)
       }
     )
+    let backgroundTraceRecorders = RequestTraceRecorderRegistry()
     let chain = MiddlewareChain(
       middleware: self.configuration.middleware + options.middleware,
       sleep: self.configuration.sleep,
-      onRetry: { id, attempt, delay in
-        await traceRecorder.recordRetry(afterAttempt: attempt, delay: delay)
-        self.broadcaster.emit(.requestRetried(id: id, attempt: attempt, delay: delay, metadata: request.metadata))
+      makeRequestID: self.configuration.makeRequestID,
+      onRetry: { id, attempt, delay, preparedRequest in
+        if id == requestID {
+          await traceRecorder.recordRetry(afterAttempt: attempt, delay: delay)
+        } else {
+          await backgroundTraceRecorders.recordRetry(
+            requestID: id,
+            afterAttempt: attempt,
+            delay: delay
+          )
+        }
+        self.broadcaster.emit(
+          .requestRetried(
+            id: id,
+            attempt: attempt,
+            delay: delay,
+            metadata: preparedRequest.metadata
+          )
+        )
       },
       now: self.configuration.now,
-      onAttempt: { _, attempt, preparedRequest, result, duration in
-        await traceRecorder.recordAttempt(
-          number: attempt,
-          request: preparedRequest,
-          result: result,
-          duration: duration
+      onAttempt: { id, attempt, preparedRequest, result, duration in
+        if id == requestID {
+          await traceRecorder.recordAttempt(
+            number: attempt,
+            request: preparedRequest,
+            result: result,
+            duration: duration
+          )
+        } else {
+          await backgroundTraceRecorders.recordAttempt(
+            requestID: id,
+            number: attempt,
+            request: preparedRequest,
+            result: result,
+            duration: duration
+          )
+        }
+      },
+      onBackgroundRefreshStarted: { id, preparedRequest in
+        await backgroundTraceRecorders.start(
+          requestID: id,
+          request: preparedRequest
+        )
+        self.broadcaster.emit(
+          .requestStarted(
+            id: id,
+            method: preparedRequest.method,
+            url: preparedRequest.url,
+            metadata: preparedRequest.metadata
+          )
+        )
+      },
+      onBackgroundRefreshCompleted: { id, preparedRequest, result, duration in
+        switch result {
+        case .success(let response):
+          self.broadcaster.emit(
+            .requestCompleted(
+              id: id,
+              statusCode: response.statusCode,
+              duration: duration,
+              metadata: preparedRequest.metadata
+            )
+          )
+          if let trace = await backgroundTraceRecorders.finish(
+            requestID: id,
+            duration: duration,
+            result: .success(statusCode: response.statusCode, responseBytes: response.data.count)
+          ) {
+            self.traceBroadcaster.emit(trace)
+          }
+        case .failure(let error):
+          self.broadcaster.emit(
+            .requestFailed(
+              id: id,
+              error: error,
+              duration: duration,
+              metadata: preparedRequest.metadata
+            )
+          )
+          if let trace = await backgroundTraceRecorders.finish(
+            requestID: id,
+            duration: duration,
+            result: .failure(error)
+          ) {
+            self.traceBroadcaster.emit(trace)
+          }
+        }
+      },
+      onBackgroundCacheEvent: { id, event in
+        await backgroundTraceRecorders.recordCacheEvent(
+          requestID: id,
+          event: event
         )
       }
     )
@@ -733,6 +816,58 @@ private extension String {
   func trimmingTrailingCarriageReturn() -> String {
     guard self.last == "\r" else { return self }
     return String(self.dropLast())
+  }
+}
+
+private actor RequestTraceRecorderRegistry {
+  private var recorders: [UUID: RequestTraceRecorder] = [:]
+
+  func start(requestID: UUID, request: PreparedRequest) {
+    self.recorders[requestID] = RequestTraceRecorder(
+      id: requestID,
+      metadata: request.metadata,
+      method: request.method,
+      url: request.url,
+      traceContext: request.metadata.traceContext
+    )
+  }
+
+  func recordAttempt(
+    requestID: UUID,
+    number: Int,
+    request: PreparedRequest,
+    result: Result<RawResponse, NetworkError>,
+    duration: Duration
+  ) async {
+    await self.recorders[requestID]?.recordAttempt(
+      number: number,
+      request: request,
+      result: result,
+      duration: duration
+    )
+  }
+
+  func recordRetry(
+    requestID: UUID,
+    afterAttempt attempt: Int,
+    delay: Duration
+  ) async {
+    await self.recorders[requestID]?.recordRetry(afterAttempt: attempt, delay: delay)
+  }
+
+  func recordCacheEvent(requestID: UUID, event: RequestCacheTraceEvent) async {
+    await self.recorders[requestID]?.recordCacheEvent(event)
+  }
+
+  func finish(
+    requestID: UUID,
+    duration: Duration,
+    result: RequestTraceResult
+  ) async -> RequestTrace? {
+    guard let recorder = self.recorders.removeValue(forKey: requestID) else {
+      return nil
+    }
+    return await recorder.makeTrace(duration: duration, result: result)
   }
 }
 

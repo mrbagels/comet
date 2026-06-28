@@ -122,7 +122,8 @@ public struct MiddlewareContext: Sendable {
 
   func backgroundRefresh(
     requestID: UUID,
-    startTime: ContinuousClock.Instant
+    startTime: ContinuousClock.Instant,
+    recordCacheEvent: @escaping @Sendable (RequestCacheTraceEvent) async -> Void = { _ in }
   ) -> Self {
     Self(
       requestID: requestID,
@@ -130,7 +131,7 @@ public struct MiddlewareContext: Sendable {
       startTime: startTime,
       cachePolicy: self.cachePolicy,
       randomDouble: self.randomDouble,
-      recordCacheEvent: { _ in }
+      recordCacheEvent: recordCacheEvent
     )
   }
 }

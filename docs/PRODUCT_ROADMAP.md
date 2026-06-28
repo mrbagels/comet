@@ -320,7 +320,9 @@ request-level policies, freshness parsing, validators, conditional requests,
 demo coverage for first load, fresh hit, stale revalidation, offline fallback,
 and clear cache. Stale-while-revalidate shipped in `0.4.1` with foreground
 stale hits, background refresh scheduling, validator reuse, and per-key refresh
-coalescing.
+coalescing. The next patch line adds completed traces and request lifecycle
+activity for background refreshes so asynchronous cache updates and failures are
+observable separately from the foreground stale hit.
 
 Technical shape:
 
@@ -596,7 +598,9 @@ Why fifth:
 
 Goal: support fast, resilient read workflows.
 
-Status: V3 cache foundation shipped in `0.3.0`; stale-while-revalidate shipped in `0.4.1`.
+Status: V3 cache foundation shipped in `0.3.0`; stale-while-revalidate shipped
+in `0.4.1`; background refresh activity and trace observability are completed
+for the next patch line.
 
 Includes:
 

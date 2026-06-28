@@ -25,6 +25,7 @@ public API contract.
 - OpenAPI request generation now covers JSON bodies without schemas, plain-text bodies, and form URL-encoded bodies.
 - OpenAPI error responses now generate typed JSON, string, or raw data serializers from the declared response content.
 - OpenAPI schema generation now covers free-form `additionalProperties` dictionaries through `CometOpenAPIJSONValue` and `oneOf` or `anyOf` union enums.
+- Stale-while-revalidate background refreshes now emit request lifecycle activity and completed `RequestTrace` values for refresh successes and failures.
 
 ### Changed
 

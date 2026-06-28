@@ -101,9 +101,10 @@ var options: RequestOptions {
 The foreground request records stale, hit, refresh, and skipped-store cache
 events. The background refresh uses validators when the cached entry has an
 `ETag` or `Last-Modified`, merges `304 Not Modified` responses into the stored
-entry, and coalesces concurrent refreshes for the same cache key. Entries marked
-`no-store`, `no-cache`, `must-revalidate`, or shared-cache `proxy-revalidate`
-fall back to synchronous revalidation instead of serving stale data.
+entry, emits its own lifecycle activity and completed trace, and coalesces
+concurrent refreshes for the same cache key. Entries marked `no-store`,
+`no-cache`, `must-revalidate`, or shared-cache `proxy-revalidate` fall back to
+synchronous revalidation instead of serving stale data.
 
 Freshness is conservative by default. Cached responses must declare explicit
 freshness with `Cache-Control` or `Expires`, include validators for
@@ -124,7 +125,7 @@ var options: RequestOptions {
 
 ## Inspect Cache Decisions
 
-Completed ``RequestTrace`` values include cache events for hits, misses, bypasses, stale entries, revalidation attempts, stale-while-revalidate refresh scheduling, stale fallbacks, `304` updates, stores, and skipped stores.
+Completed ``RequestTrace`` values include cache events for hits, misses, bypasses, stale entries, revalidation attempts, stale-while-revalidate refresh scheduling, stale fallbacks, `304` updates, stores, and skipped stores. Stale-while-revalidate background refreshes emit a separate completed trace with the refresh attempt result and any cache update events.
 
 ```swift
 for await trace in client.traces {

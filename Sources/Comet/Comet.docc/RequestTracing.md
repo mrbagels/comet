@@ -12,7 +12,7 @@ let task = Task {
 }
 ```
 
-Each ``RequestTrace`` contains the request metadata, URL, method, total duration, final result, and ordered ``RequestTraceAttempt`` values. Retry middleware records retry delays on the attempt that triggered the retry.
+Each ``RequestTrace`` contains the request metadata, URL, method, total duration, final result, and ordered ``RequestTraceAttempt`` values. Retry middleware records retry delays on the attempt that triggered the retry. Stale-while-revalidate background refreshes emit their own completed traces so foreground stale hits and asynchronous cache updates can be inspected separately.
 
 ```swift
 for attempt in trace.attempts {

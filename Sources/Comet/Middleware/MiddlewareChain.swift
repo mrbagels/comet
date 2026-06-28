@@ -8,22 +8,34 @@ struct MiddlewareChain: Sendable {
 
   let middleware: [any Middleware]
   let sleep: @Sendable (Duration) async throws -> Void
-  let onRetry: @Sendable (UUID, Int, Duration) async -> Void
+  let makeRequestID: @Sendable () -> UUID
+  let onRetry: @Sendable (UUID, Int, Duration, PreparedRequest) async -> Void
   let now: @Sendable () -> ContinuousClock.Instant
   let onAttempt: @Sendable (UUID, Int, PreparedRequest, Result<RawResponse, NetworkError>, Duration) async -> Void
+  let onBackgroundRefreshStarted: @Sendable (UUID, PreparedRequest) async -> Void
+  let onBackgroundRefreshCompleted: @Sendable (UUID, PreparedRequest, Result<RawResponse, NetworkError>, Duration) async -> Void
+  let onBackgroundCacheEvent: @Sendable (UUID, RequestCacheTraceEvent) async -> Void
 
   init(
     middleware: [any Middleware],
     sleep: @escaping @Sendable (Duration) async throws -> Void,
-    onRetry: @escaping @Sendable (UUID, Int, Duration) async -> Void,
+    makeRequestID: @escaping @Sendable () -> UUID = UUID.init,
+    onRetry: @escaping @Sendable (UUID, Int, Duration, PreparedRequest) async -> Void,
     now: @escaping @Sendable () -> ContinuousClock.Instant,
-    onAttempt: @escaping @Sendable (UUID, Int, PreparedRequest, Result<RawResponse, NetworkError>, Duration) async -> Void = { _, _, _, _, _ in }
+    onAttempt: @escaping @Sendable (UUID, Int, PreparedRequest, Result<RawResponse, NetworkError>, Duration) async -> Void = { _, _, _, _, _ in },
+    onBackgroundRefreshStarted: @escaping @Sendable (UUID, PreparedRequest) async -> Void = { _, _ in },
+    onBackgroundRefreshCompleted: @escaping @Sendable (UUID, PreparedRequest, Result<RawResponse, NetworkError>, Duration) async -> Void = { _, _, _, _ in },
+    onBackgroundCacheEvent: @escaping @Sendable (UUID, RequestCacheTraceEvent) async -> Void = { _, _ in }
   ) {
     self.middleware = middleware
     self.sleep = sleep
+    self.makeRequestID = makeRequestID
     self.onRetry = onRetry
     self.now = now
     self.onAttempt = onAttempt
+    self.onBackgroundRefreshStarted = onBackgroundRefreshStarted
+    self.onBackgroundRefreshCompleted = onBackgroundRefreshCompleted
+    self.onBackgroundCacheEvent = onBackgroundCacheEvent
   }
 
   func execute(
@@ -109,7 +121,7 @@ struct MiddlewareChain: Sendable {
               throw NetworkError.from(error)
             }
           }
-          await self.onRetry(currentContext.requestID, currentContext.attempt + 1, delay)
+          await self.onRetry(currentContext.requestID, currentContext.attempt + 1, delay, currentRequest)
           currentRequest = retryRequest
           currentContext = currentContext.nextAttempt()
           continue
@@ -158,9 +170,13 @@ struct MiddlewareChain: Sendable {
       return
     }
 
+    let refreshRequestID = self.makeRequestID()
     let refreshContext = context.backgroundRefresh(
-      requestID: UUID(),
-      startTime: self.now()
+      requestID: refreshRequestID,
+      startTime: self.now(),
+      recordCacheEvent: { event in
+        await self.onBackgroundCacheEvent(refreshRequestID, event)
+      }
     )
     guard let refreshRequest = await refreshProvider.backgroundRefreshRequest(
       for: request,
@@ -170,6 +186,7 @@ struct MiddlewareChain: Sendable {
       return
     }
 
+    await self.onBackgroundRefreshStarted(refreshRequestID, refreshRequest)
     Task {
       await self.executeBackgroundRefresh(
         refreshRequest,
@@ -191,11 +208,20 @@ struct MiddlewareChain: Sendable {
     do {
       while true {
         let initialResult: Result<RawResponse, NetworkError>
+        let attemptStartedAt = self.now()
         do {
           initialResult = .success(try await perform(currentRequest))
         } catch {
           initialResult = .failure(.from(error))
         }
+        let attemptDuration = attemptStartedAt.duration(to: self.now())
+        await self.onAttempt(
+          currentContext.requestID,
+          currentContext.attempt + 1,
+          currentRequest,
+          initialResult,
+          attemptDuration
+        )
 
         var currentResult = initialResult
         var retry: (PreparedRequest, Duration)?
@@ -229,6 +255,7 @@ struct MiddlewareChain: Sendable {
               throw NetworkError.from(error)
             }
           }
+          await self.onRetry(currentContext.requestID, currentContext.attempt + 1, delay, currentRequest)
           currentRequest = retryRequest
           currentContext = currentContext.nextAttempt()
           continue
@@ -236,6 +263,13 @@ struct MiddlewareChain: Sendable {
 
         didFinish = true
         await self.finish(result: currentResult, request: currentRequest, context: currentContext)
+        let duration = context.startTime.duration(to: self.now())
+        await self.onBackgroundRefreshCompleted(
+          context.requestID,
+          currentRequest,
+          currentResult,
+          duration
+        )
         return
       }
     } catch {
@@ -243,6 +277,13 @@ struct MiddlewareChain: Sendable {
       if !didFinish {
         await self.finish(result: .failure(networkError), request: currentRequest, context: currentContext)
       }
+      let duration = context.startTime.duration(to: self.now())
+      await self.onBackgroundRefreshCompleted(
+        context.requestID,
+        currentRequest,
+        .failure(networkError),
+        duration
+      )
     }
   }
 

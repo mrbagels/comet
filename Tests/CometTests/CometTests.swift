@@ -1805,6 +1805,7 @@ private func waitUntil(
     transport: transport
   )
   var traces = client.traces.makeAsyncIterator()
+  var activity = client.activity.makeAsyncIterator()
   let request = TestRequest(
     path: "cache",
     method: .get,
@@ -1814,8 +1815,17 @@ private func waitUntil(
 
   let response = try await client.send(request)
   let trace = try #require(await traces.next())
+  let foregroundStarted = try #require(await activity.next())
+  let refreshStarted = try #require(await activity.next())
+  let foregroundCompleted = try #require(await activity.next())
 
   #expect(response == "cached")
+  #expect(foregroundStarted.kind == .started)
+  #expect(refreshStarted.kind == .started)
+  #expect(foregroundCompleted.kind == .completed)
+  #expect(trace.id == foregroundStarted.id)
+  #expect(refreshStarted.id != foregroundStarted.id)
+  #expect(foregroundCompleted.id == foregroundStarted.id)
   #expect(trace.cacheEvents.map(\.kind) == [.stale, .hit, .revalidate, .skippedStore])
   #expect(trace.cacheEvents[2].reason == .stale)
 
@@ -1838,10 +1848,82 @@ private func waitUntil(
   await waitUntil {
     await store.cachedResponse(for: key)?.data == Data("refreshed".utf8)
   }
+  let refreshCompleted = try #require(await activity.next())
+  let refreshTrace = try #require(await traces.next())
 
   let refreshed = try #require(await store.cachedResponse(for: key))
   #expect(refreshed.data == Data("refreshed".utf8))
   #expect(refreshed.headers[HTTPField.Name("ETag")!] == #""v2""#)
+  #expect(refreshCompleted.kind == .completed)
+  #expect(refreshCompleted.id == refreshStarted.id)
+  #expect(refreshTrace.id == refreshStarted.id)
+  #expect(refreshTrace.attempts.count == 1)
+  #expect(refreshTrace.attempts.first?.responseStatusCode == 200)
+  #expect(refreshTrace.statusCode == 200)
+  #expect(refreshTrace.responseBytes == Data("refreshed".utf8).count)
+  #expect(refreshTrace.cacheEvents.map(\.kind) == [.store])
+  #expect(refreshTrace.cacheEvents.first?.reason == .replaced)
+}
+
+@Test func cacheMiddlewareEmitsTraceWhenBackgroundRefreshFails() async throws {
+  let key = HTTPCacheKey(method: .get, url: URL(string: "https://example.com/cache")!)
+  var cachedHeaders = cacheControlHeaders("max-age=0")
+  cachedHeaders[HTTPField.Name("ETag")!] = #""v1""#
+  let store = MemoryHTTPCacheStore(
+    responses: [
+      key: CachedHTTPResponse(
+        data: Data("cached".utf8),
+        statusCode: 200,
+        headers: cachedHeaders,
+        storedAt: Date(timeIntervalSince1970: 0)
+      )
+    ]
+  )
+  let transport = WaitingTransport()
+  let client = HTTPClient.live(
+    configuration: ClientConfiguration(
+      baseURL: URL(string: "https://example.com")!,
+      middleware: [
+        CacheMiddleware(
+          store: store,
+          now: { Date(timeIntervalSince1970: 10) }
+        )
+      ]
+    ),
+    transport: transport
+  )
+  var traces = client.traces.makeAsyncIterator()
+  var activity = client.activity.makeAsyncIterator()
+  let request = TestRequest(
+    path: "cache",
+    method: .get,
+    responseSerializer: .string(),
+    options: RequestOptions(cachePolicy: .staleWhileRevalidate)
+  )
+
+  let response = try await client.send(request)
+  _ = try #require(await traces.next())
+  _ = try #require(await activity.next())
+  let refreshStarted = try #require(await activity.next())
+  _ = try #require(await activity.next())
+
+  #expect(response == "cached")
+  await waitUntil { await transport.count() == 1 }
+  await transport.resolveAll(with: .failure(.timeout))
+
+  let refreshFailed = try #require(await activity.next())
+  let refreshTrace = try #require(await traces.next())
+  let stored = try #require(await store.cachedResponse(for: key))
+
+  #expect(refreshFailed.kind == .failed)
+  #expect(refreshFailed.id == refreshStarted.id)
+  #expect(refreshFailed.error?.isTimeoutError == true)
+  #expect(refreshTrace.id == refreshStarted.id)
+  #expect(refreshTrace.error?.isTimeoutError == true)
+  #expect(refreshTrace.attempts.count == 1)
+  #expect(refreshTrace.attempts.first?.error?.isTimeoutError == true)
+  #expect(refreshTrace.cacheEvents.isEmpty)
+  #expect(stored.data == Data("cached".utf8))
 }
 
 @Test func cacheMiddlewareCoalescesConcurrentStaleWhileRevalidateRefreshes() async throws {

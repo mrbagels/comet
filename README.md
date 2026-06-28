@@ -221,6 +221,11 @@ immediately while a background refresh updates the store, `.cacheOnly` for
 offline reads, `.networkOnly` to avoid reading or writing the cache, or
 `.reloadIgnoringCache` to fetch and store a replacement.
 
+Stale-while-revalidate foreground requests record the stale hit and refresh
+scheduling decision on their completed `RequestTrace`. The background refresh
+emits its own lifecycle activity and completed trace so cache updates and
+refresh failures are observable without adding cache-specific event cases.
+
 `staleWhileRevalidate` respects HTTP cache guardrails: entries marked
 `no-store`, `no-cache`, `must-revalidate`, or shared-cache `proxy-revalidate`
 fall back to synchronous revalidation instead of serving stale data.

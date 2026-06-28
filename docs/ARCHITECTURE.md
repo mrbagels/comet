@@ -517,6 +517,8 @@ Important behavior:
 - registration and removal are synchronous inside the broadcaster
 - events include request metadata when present
 - events represent request execution, not post-decode business success
+- stale-while-revalidate background refreshes emit their own started, completed,
+  failed, and retried lifecycle events under the refresh request ID
 
 The broadcaster is currently a small lock-backed reference type rather than an actor. That keeps subscription setup simple and avoids registration races.
 
@@ -649,7 +651,6 @@ The project is generated from `project.yml` with XcodeGen.
 - activity events cover request lifecycle, not decode lifecycle
 - WebSocket session activity is modeled through `WebSocketSessionEvent`, not `NetworkEvent`
 - server-side live transports are deferred for `0.3.0`; see [Server Transport Decision](technical/SERVER_TRANSPORT_DECISION.md)
-- stale-while-revalidate refreshes update cache storage in the background but do not currently emit their own public `NetworkEvent` or completed `RequestTrace`
 
 ---
 
