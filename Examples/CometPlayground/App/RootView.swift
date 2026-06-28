@@ -3,6 +3,7 @@ import SwiftUI
 enum AppTab: Hashable {
   case home
   case proofs
+  case tca
   case activity
 }
 
@@ -18,6 +19,10 @@ struct RootView: View {
 
       Tab("Proofs", systemImage: "checklist", value: .proofs) {
         ProofsTab(model: model)
+      }
+
+      Tab("TCA", systemImage: "point.3.connected.trianglepath.dotted", value: .tca) {
+        TCATab()
       }
 
       Tab("Activity", systemImage: "waveform.path.ecg", value: .activity) {

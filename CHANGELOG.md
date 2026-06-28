@@ -30,6 +30,8 @@ and the playground proof flows that make those systems easier to inspect.
 - `ReachabilitySnapshot`, `ReachabilityHintProvider`, and `StaticReachabilityHintProvider` for app-owned reachability hints.
 - `CometRequestState` for lightweight TCA request loading, value, and failure state.
 - `CometSQLiteData` as an optional SQLiteData-backed product for persisted activity events and generated artifacts.
+- Playground saved activity history backed by `CometSQLiteData`.
+- Playground TCA tab for a reducer-backed `CometTCA` request flow.
 - Playground contract server scenario covering strict expectation matching and clean contract reports.
 
 ### Changed

@@ -107,6 +107,15 @@ final class CometPlaygroundSmokeTests: XCTestCase {
     XCTAssertNil(UnauthorizedDemoRequest(mode: .mock).options.apiVersion)
   }
 
+  func testTCADemoStartsIdle() {
+    let state = TCADemoFeature.State()
+
+    XCTAssertEqual(state.status, .idle)
+    XCTAssertEqual(state.output, "Run the request from a TCA reducer.")
+    XCTAssertTrue(state.fields.isEmpty)
+    XCTAssertFalse(state.request.isLoading)
+  }
+
   @MainActor
   func testRequestInspectorUsesPreparedRequests() {
     let model = makeCatalog()

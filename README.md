@@ -522,6 +522,7 @@ The target stores generic artifact rows, so cassette JSON, contract reports, gen
 - deterministic contract verification with `CometTesting.MockServer`
 - deterministic socket verification with `CometTesting.MockWebSocketTransport`
 - persisted activity history through the optional `CometSQLiteData` product
+- a reducer-backed request tab through the optional `CometTCA` product
 - live transport checks through `URLSessionTransport` and `URLSessionWebSocketTransport`
 - proof, structured activity, failure-gallery, request-inspector, and detail flows showing which APIs are exercised and what output to verify
 

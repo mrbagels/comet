@@ -12,30 +12,33 @@
 		13E62EDB4744B9ABD0843112 /* DemoCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 748F11897B1DA6D7A4C336D5 /* DemoCatalog.swift */; };
 		2A856EEBD1192F76C30AB512 /* CometPlaygroundApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF6BEEB1A033C772A76749EB /* CometPlaygroundApp.swift */; };
 		2C9B8DA914613A6F5B602BFD /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 351333EDF8D667F652F02C51 /* Assets.xcassets */; };
-		2E16758F5C8CB806DD9A83BB /* CometTCA in Frameworks */ = {isa = PBXBuildFile; productRef = A0F209B1D9F8D9C520508974 /* CometTCA */; };
+		2E16758F5C8CB806DD9A83BB /* CasePathsCore in Frameworks */ = {isa = PBXBuildFile; productRef = 028C026C1F660D41E0606FCB /* CasePathsCore */; };
 		34DE2C2F1E0767442EBA8620 /* PlaygroundStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62EBA16DB17AAB51138C8CC5 /* PlaygroundStyle.swift */; };
-		3A09E0F49F8CFE228CF7771C /* IssueReporting in Frameworks */ = {isa = PBXBuildFile; productRef = 13A9BD949C1CD1AFA81600D5 /* IssueReporting */; };
-		3F49D00C57CDA40F3BF55F9A /* Dependencies in Frameworks */ = {isa = PBXBuildFile; productRef = BD90435E502B856371480C34 /* Dependencies */; };
+		3A09E0F49F8CFE228CF7771C /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = B09CC7BF42C4CA8F84C4B255 /* GRDB */; };
+		3F49D00C57CDA40F3BF55F9A /* CometTesting in Frameworks */ = {isa = PBXBuildFile; productRef = BE6CB2145708341891FA4824 /* CometTesting */; };
 		48E48C40049AF9F7D473914C /* Comet in Frameworks */ = {isa = PBXBuildFile; productRef = 5CE47540789D4107D4B0F769 /* Comet */; };
 		4930EBDFC6A9838F2385CE09 /* ActivityTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A213D6855F9A5C291C2BA3F /* ActivityTab.swift */; };
 		54DA35E68EA72E2839331C78 /* DemoClientFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57EB7885F7DED93E72382ADD /* DemoClientFactory.swift */; };
 		585996BA6F556C5D6E5330A2 /* CometTesting in Frameworks */ = {isa = PBXBuildFile; productRef = AD92DD97D6081ABA77FD5D3A /* CometTesting */; };
 		86B7424AF840F4EB8702EDA7 /* Dependencies in Frameworks */ = {isa = PBXBuildFile; productRef = 320B45521CEDBC9AB19F0A65 /* Dependencies */; };
 		9344A1203F370D14E5CAEA3E /* HTTPTypes in Frameworks */ = {isa = PBXBuildFile; productRef = 8360B47AD0976B068AFCE92E /* HTTPTypes */; };
-		9461846C6EEE84B2147C28B5 /* ComposableArchitecture in Frameworks */ = {isa = PBXBuildFile; productRef = 8103ADA5558A7C0E0A9962D2 /* ComposableArchitecture */; };
+		9461846C6EEE84B2147C28B5 /* CometTCA in Frameworks */ = {isa = PBXBuildFile; productRef = A0F209B1D9F8D9C520508974 /* CometTCA */; };
 		982681DE55CDBBEF94772D9B /* IssueReporting in Frameworks */ = {isa = PBXBuildFile; productRef = 54EFEFECD9EE8F208BFB2440 /* IssueReporting */; };
+		A2C3E15B4E76410B77DAA4E6 /* HTTPTypes in Frameworks */ = {isa = PBXBuildFile; productRef = BAAC3BD141B89DABD596AD74 /* HTTPTypes */; };
 		B8C88563A18CEB5D50FE5BBA /* DemoDetailScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E55D681423E695D37A16CD1 /* DemoDetailScreen.swift */; };
-		B9A3D13FBF50E20062BC233F /* CometTesting in Frameworks */ = {isa = PBXBuildFile; productRef = BE6CB2145708341891FA4824 /* CometTesting */; };
+		B9A3D13FBF50E20062BC233F /* CometSQLiteData in Frameworks */ = {isa = PBXBuildFile; productRef = 009F0219C0CA8962B2A870E8 /* CometSQLiteData */; };
 		C042F610DADFEB8110D7E18B /* CometTCA in Frameworks */ = {isa = PBXBuildFile; productRef = 78942C8CD295E56CEA1EC368 /* CometTCA */; };
 		C363CCD4662A1869579C1168 /* HomeTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E21FF71662C0FC6C05D3E89 /* HomeTab.swift */; };
 		C4497E87E91B22B521CF03C3 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 95AEB20667BC82052320ADFD /* LaunchScreen.storyboard */; };
-		C50C4635876183FE9D23DF51 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = B09CC7BF42C4CA8F84C4B255 /* GRDB */; };
-		C8AC4B3A21E4287F06F95C29 /* HTTPTypes in Frameworks */ = {isa = PBXBuildFile; productRef = BAAC3BD141B89DABD596AD74 /* HTTPTypes */; };
+		C50C4635876183FE9D23DF51 /* ComposableArchitecture in Frameworks */ = {isa = PBXBuildFile; productRef = 8103ADA5558A7C0E0A9962D2 /* ComposableArchitecture */; };
+		C8AC4B3A21E4287F06F95C29 /* Dependencies in Frameworks */ = {isa = PBXBuildFile; productRef = BD90435E502B856371480C34 /* Dependencies */; };
 		D22B2B28B8B967C0815FC57C /* Schema.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED657C801100D56E2EAE1548 /* Schema.swift */; };
 		E94A30612DC61EA5852415B3 /* Comet in Frameworks */ = {isa = PBXBuildFile; productRef = C194EE3AFA70C6E4AA1D3326 /* Comet */; };
 		E97B6786A8E90A60A7DF9744 /* CometPlaygroundSmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC706BC13BFE21BA5FCB3900 /* CometPlaygroundSmokeTests.swift */; };
+		EA81819EA39A5DC615B36482 /* TCATab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F6D5B61BE2916F7E67DF9AE /* TCATab.swift */; };
 		EDF0043B9D05CDF9F879B8F4 /* ProofsTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D4AA0B30B90A64123BBA3CB /* ProofsTab.swift */; };
-		EF9E4894B65421C1F6C8BACF /* CometSQLiteData in Frameworks */ = {isa = PBXBuildFile; productRef = 009F0219C0CA8962B2A870E8 /* CometSQLiteData */; };
+		EF4AA2D8FB422A3407E4DBD4 /* IssueReporting in Frameworks */ = {isa = PBXBuildFile; productRef = 13A9BD949C1CD1AFA81600D5 /* IssueReporting */; };
+		EF9E4894B65421C1F6C8BACF /* CasePaths in Frameworks */ = {isa = PBXBuildFile; productRef = 198E66B79B0DCFC331C91032 /* CasePaths */; };
 		F3E7C8497609190798B97E5E /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A72625B9D4FC59CBB5F103F /* RootView.swift */; };
 		F7CE0086EC1E659907ACAA9B /* DemoModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADBF6E8393A59166EE24D189 /* DemoModels.swift */; };
 /* End PBXBuildFile section */
@@ -56,6 +59,7 @@
 		351333EDF8D667F652F02C51 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		57EB7885F7DED93E72382ADD /* DemoClientFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoClientFactory.swift; sourceTree = "<group>"; };
 		5E21FF71662C0FC6C05D3E89 /* HomeTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeTab.swift; sourceTree = "<group>"; };
+		5F6D5B61BE2916F7E67DF9AE /* TCATab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TCATab.swift; sourceTree = "<group>"; };
 		62EBA16DB17AAB51138C8CC5 /* PlaygroundStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaygroundStyle.swift; sourceTree = "<group>"; };
 		6A72625B9D4FC59CBB5F103F /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		6D4AA0B30B90A64123BBA3CB /* ProofsTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProofsTab.swift; sourceTree = "<group>"; };
@@ -91,14 +95,16 @@
 			buildActionMask = 2147483647;
 			files = (
 				48E48C40049AF9F7D473914C /* Comet in Frameworks */,
-				EF9E4894B65421C1F6C8BACF /* CometSQLiteData in Frameworks */,
-				2E16758F5C8CB806DD9A83BB /* CometTCA in Frameworks */,
-				B9A3D13FBF50E20062BC233F /* CometTesting in Frameworks */,
-				9461846C6EEE84B2147C28B5 /* ComposableArchitecture in Frameworks */,
-				3F49D00C57CDA40F3BF55F9A /* Dependencies in Frameworks */,
-				C50C4635876183FE9D23DF51 /* GRDB in Frameworks */,
-				C8AC4B3A21E4287F06F95C29 /* HTTPTypes in Frameworks */,
-				3A09E0F49F8CFE228CF7771C /* IssueReporting in Frameworks */,
+				EF9E4894B65421C1F6C8BACF /* CasePaths in Frameworks */,
+				2E16758F5C8CB806DD9A83BB /* CasePathsCore in Frameworks */,
+				B9A3D13FBF50E20062BC233F /* CometSQLiteData in Frameworks */,
+				9461846C6EEE84B2147C28B5 /* CometTCA in Frameworks */,
+				3F49D00C57CDA40F3BF55F9A /* CometTesting in Frameworks */,
+				C50C4635876183FE9D23DF51 /* ComposableArchitecture in Frameworks */,
+				C8AC4B3A21E4287F06F95C29 /* Dependencies in Frameworks */,
+				3A09E0F49F8CFE228CF7771C /* GRDB in Frameworks */,
+				A2C3E15B4E76410B77DAA4E6 /* HTTPTypes in Frameworks */,
+				EF4AA2D8FB422A3407E4DBD4 /* IssueReporting in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -130,6 +136,7 @@
 				6D4AA0B30B90A64123BBA3CB /* ProofsTab.swift */,
 				6A72625B9D4FC59CBB5F103F /* RootView.swift */,
 				ED657C801100D56E2EAE1548 /* Schema.swift */,
+				5F6D5B61BE2916F7E67DF9AE /* TCATab.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -205,6 +212,8 @@
 			name = CometPlaygroundApp;
 			packageProductDependencies = (
 				5CE47540789D4107D4B0F769 /* Comet */,
+				198E66B79B0DCFC331C91032 /* CasePaths */,
+				028C026C1F660D41E0606FCB /* CasePathsCore */,
 				009F0219C0CA8962B2A870E8 /* CometSQLiteData */,
 				A0F209B1D9F8D9C520508974 /* CometTCA */,
 				BE6CB2145708341891FA4824 /* CometTesting */,
@@ -287,6 +296,7 @@
 				EDF0043B9D05CDF9F879B8F4 /* ProofsTab.swift in Sources */,
 				F3E7C8497609190798B97E5E /* RootView.swift in Sources */,
 				D22B2B28B8B967C0815FC57C /* Schema.swift in Sources */,
+				EA81819EA39A5DC615B36482 /* TCATab.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -554,9 +564,17 @@
 			isa = XCSwiftPackageProductDependency;
 			productName = CometSQLiteData;
 		};
+		028C026C1F660D41E0606FCB /* CasePathsCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = CasePathsCore;
+		};
 		13A9BD949C1CD1AFA81600D5 /* IssueReporting */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = IssueReporting;
+		};
+		198E66B79B0DCFC331C91032 /* CasePaths */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = CasePaths;
 		};
 		2BA2BC735CA916652B781083 /* ComposableArchitecture */ = {
 			isa = XCSwiftPackageProductDependency;

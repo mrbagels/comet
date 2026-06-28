@@ -36,6 +36,10 @@ targets:
       - package: CometPackage
         product: Comet
       - package: CometPackage
+        product: CasePaths
+      - package: CometPackage
+        product: CasePathsCore
+      - package: CometPackage
         product: CometSQLiteData
       - package: CometPackage
         product: CometTCA

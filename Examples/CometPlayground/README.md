@@ -25,6 +25,7 @@ The app is organized as a modern iPhone-native demo:
 
 - `Home`: quick launch, mode switching, and session summary
 - `Proofs`: category-driven HTTP and realtime scenarios with detail pages
+- `TCA`: reducer-backed request flow using `CometTCA`
 - `Activity`: filtered structured request history, saved SQLiteData history, socket session markers, and detail fields
 - `Socket Monitor`: realtime frame, endpoint, transport, subprotocol, and close-code inspection
 - `Demo detail`: focused output, request inspector, trace timeline, response viewer, cassette viewer, verification, and rerun controls
@@ -118,6 +119,9 @@ Each scenario in the UI shows the exact Comet API surface it is proving. The dem
 - `HTTPCassette`
 - `CometSQLiteData`
 - `@FetchAll`
+- `CometTCA`
+- `CometRequestState`
+- `Effect.request`
 
 ## Useful Files
 
@@ -125,6 +129,7 @@ Each scenario in the UI shows the exact Comet API surface it is proving. The dem
 - [App/RootView.swift](App/RootView.swift): tab shell
 - [App/HomeTab.swift](App/HomeTab.swift): landing experience and launch actions
 - [App/ProofsTab.swift](App/ProofsTab.swift): proof navigation and category flows
+- [App/TCATab.swift](App/TCATab.swift): TCA reducer-backed request flow
 - [App/ActivityTab.swift](App/ActivityTab.swift): event stream and filtering
 - [App/Schema.swift](App/Schema.swift): SQLiteData database bootstrap
 - [App/DemoDetailScreen.swift](App/DemoDetailScreen.swift): focused scenario detail screen

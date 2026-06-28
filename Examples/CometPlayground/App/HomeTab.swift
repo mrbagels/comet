@@ -148,6 +148,14 @@ struct HomeTab: View {
         }
 
         HomeShortcutButton(
+          title: "Run TCA request",
+          message: "Open the reducer-backed TodoRequest flow.",
+          symbolName: "point.3.connected.trianglepath.dotted"
+        ) {
+          selectedTab = .tca
+        }
+
+        HomeShortcutButton(
           title: "Inspect activity",
           message: model.activityLog.first?.rawValue ?? "Run any proof to populate the event stream.",
           symbolName: "waveform.path.ecg"
