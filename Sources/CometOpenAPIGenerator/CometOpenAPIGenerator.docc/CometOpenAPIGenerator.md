@@ -14,6 +14,15 @@ Use the executable from SwiftPM:
 swift run comet-openapi-generate --input openapi.yaml --output GeneratedAPI.swift
 ```
 
+Use the command plugin from a package checkout when generated sources should be
+written relative to the package root:
+
+```sh
+swift package --allow-writing-to-package-directory comet-openapi-generate \
+  --input openapi.yaml \
+  --output Sources/API/GeneratedAPI.swift
+```
+
 Or call the generator core directly:
 
 ```swift

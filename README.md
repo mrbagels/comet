@@ -27,6 +27,7 @@ The latest published release is `0.4.0`, the V3 foundation plus schema-aware Ope
 | `Comet` | Typed HTTP requests, WebSocket sessions, serializers, middleware, retry, cache, deduplication, activity events, traces, streaming, and progress primitives |
 | `CometTesting` | Mock transports, strict contracts, mock-server scenarios, cassette recording, replay transports, and mock WebSocket sessions |
 | `CometOpenAPIGenerator` | JSON and YAML OpenAPI 3.x request generator core plus the `comet-openapi-generate` executable |
+| `CometOpenAPIPlugin` | SwiftPM command plugin for package-root OpenAPI generation |
 | `CometSQLiteData` | Optional SQLiteData tables, migrations, and storage helpers for Comet activity events and generated artifacts |
 | `CometTCA` | Lightweight Composable Architecture helpers for request effects and request state |
 | `CometPlayground` | iPhone-first verification app for HTTP, cache, contracts, replay, activity, and realtime flows |
@@ -465,6 +466,14 @@ Generate Comet request types from JSON or YAML OpenAPI 3.x documents:
 
 ```sh
 swift run comet-openapi-generate --input openapi.json --output GeneratedAPI.swift
+```
+
+From a package checkout, use the SwiftPM command plugin when generated sources should be written relative to the package root:
+
+```sh
+swift package --allow-writing-to-package-directory comet-openapi-generate \
+  --input openapi.yaml \
+  --output Sources/API/GeneratedAPI.swift
 ```
 
 The generator supports path, query, and header parameters, component schema models, local schema `$ref`s, JSON request bodies, typed JSON success serializers, operation metadata, and typed error-response hooks. Unsupported features fail with diagnostics instead of silently generating partial behavior.

@@ -315,9 +315,9 @@ Acceptance:
   protection and app-level encryption decisions.
 - `MockServer` remains transport-level for `0.3.0`; a real local HTTP listener
   is deferred.
-- OpenAPI generation supports JSON directly and YAML through Yams. Full JSON
-  Schema coverage, formatting integration, and a SwiftPM command plugin can be
-  revisited after the CLI proves useful.
+- OpenAPI generation supports JSON directly and YAML through Yams. The SwiftPM
+  command plugin now covers package-root generation; full JSON Schema coverage
+  and formatting integration remain future polish.
 - Server-side live transports are deferred for `0.3.0`; see
   [Server Transport Decision](technical/SERVER_TRANSPORT_DECISION.md).
 

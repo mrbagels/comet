@@ -16,6 +16,7 @@ let package = Package(
     .library(name: "CometTCA", targets: ["CometTCA"]),
     .library(name: "CometTesting", targets: ["CometTesting"]),
     .executable(name: "comet-openapi-generate", targets: ["CometOpenAPIGenerate"]),
+    .plugin(name: "CometOpenAPIPlugin", targets: ["CometOpenAPIPlugin"]),
   ],
   dependencies: [
     .package(url: "https://github.com/jpsim/Yams.git", from: "6.2.2"),
@@ -72,6 +73,18 @@ let package = Package(
       dependencies: [
         "CometOpenAPIGenerator"
       ]
+    ),
+    .plugin(
+      name: "CometOpenAPIPlugin",
+      capability: .command(
+        intent: .custom(
+          verb: "comet-openapi-generate",
+          description: "Generate Comet request types from an OpenAPI document."
+        ),
+        permissions: [
+          .writeToPackageDirectory(reason: "Writes generated Swift sources to the requested output path.")
+        ]
+      )
     ),
     .testTarget(
       name: "CometTests",

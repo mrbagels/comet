@@ -367,11 +367,11 @@ Dependencies:
 
 Generate Comet request types from API specs.
 
-Status: V3 generator shipped in `0.3.0` and expanded with a JSON/YAML OpenAPI core target, `comet-openapi-generate` executable, request generation for path/query/header parameters, component schema models, local schema `$ref`s, JSON bodies, operation metadata, typed success serializers, typed error-response hooks, and snapshot tests.
+Status: V3 generator shipped in `0.3.0` and expanded with a JSON/YAML OpenAPI core target, `comet-openapi-generate` executable, SwiftPM command plugin, request generation for path/query/header parameters, component schema models, local schema `$ref`s, JSON bodies, operation metadata, typed success serializers, typed error-response hooks, and snapshot tests.
 
 Technical shape:
 
-- Build a SwiftPM plugin or CLI.
+- Generate from either the executable CLI or the SwiftPM command plugin.
 - Generate `APIRequest` types, paths, query items, bodies, response serializers, and operation metadata.
 - Support incremental/manual customization.
 
@@ -664,5 +664,4 @@ Why last:
 
 ## Remaining Open Design Questions
 
-- Should OpenAPI generation add a SwiftPM command plugin after the standalone CLI proves useful?
 - Should the playground remain iOS-only, or should it eventually become a macOS or web documentation companion too?
