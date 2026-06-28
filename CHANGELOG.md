@@ -5,6 +5,32 @@ All notable changes to Comet are documented here.
 Comet is still pre-1.0. The `0.2.0` release cut contains the completed V2
 foundation. The `0.3.0` release adds caching, code generation, contract testing,
 and the playground proof flows that make those systems easier to inspect.
+The `0.4.0` release expands that V3 foundation with schema-aware generation,
+YAML OpenAPI input, optional SQLiteData persistence, TCA playground coverage,
+and cache and middleware hardening. It includes a `CometTCA` API break where the
+request effect helper now returns `Effect<Action>` instead of the underscored
+`_Effect<Action>` spelling.
+
+## 0.4.0 - 2026-06-28
+
+### Added
+
+- Schema-aware OpenAPI generation for component models, local `$ref`s, typed JSON success serializers, and typed error-response hooks.
+- YAML OpenAPI input support through Yams.
+- `CometSQLiteData` as an optional SQLiteData-backed product for persisted activity events and generated artifacts.
+- Playground saved activity history backed by `CometSQLiteData`.
+- Playground TCA tab for a reducer-backed `CometTCA` request flow.
+
+### Changed
+
+- `CometTCA` request effects now use the public `Effect<Action>` return type instead of the underscored `_Effect<Action>` spelling.
+- Hardened cache, streaming, middleware, authentication, and WebSocket edge cases.
+- Improved `CometTCA` request effect ergonomics and playground SwiftUI state flow.
+- Polished API-diff and simulator smoke tooling for local and CI verification.
+
+### Fixed
+
+- Restored cache API compatibility for existing request cache policy call sites.
 
 ## 0.3.0 - 2026-06-28
 
@@ -29,9 +55,6 @@ and the playground proof flows that make those systems easier to inspect.
 - `CometOpenAPIGenerator` and `comet-openapi-generate` for dependency-free JSON OpenAPI request generation.
 - `ReachabilitySnapshot`, `ReachabilityHintProvider`, and `StaticReachabilityHintProvider` for app-owned reachability hints.
 - `CometRequestState` for lightweight TCA request loading, value, and failure state.
-- `CometSQLiteData` as an optional SQLiteData-backed product for persisted activity events and generated artifacts.
-- Playground saved activity history backed by `CometSQLiteData`.
-- Playground TCA tab for a reducer-backed `CometTCA` request flow.
 - Playground contract server scenario covering strict expectation matching and clean contract reports.
 
 ### Changed

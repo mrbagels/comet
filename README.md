@@ -18,7 +18,7 @@
 
 Comet turns API endpoints into Swift types. It ships with a `URLSession`-backed live client, middleware for production behavior, opt-in response caching, deterministic testing and contract transports, cassette recording and replay, OpenAPI request generation, request activity and trace streams, response streaming, transfer progress hooks, and resilient WebSocket sessions.
 
-The latest published release is `0.3.0`, the completed V3 foundation. It adds cache-aware reads, contract testing, mock-server scenarios, OpenAPI request generation, trace propagation, reachability hints, and a documented server-side support boundary.
+The latest published release is `0.4.0`, the V3 foundation plus schema-aware OpenAPI generation, YAML input, optional SQLiteData persistence, TCA playground coverage, and cache and middleware hardening.
 
 ## At A Glance
 
@@ -43,7 +43,7 @@ The shipped live HTTP and WebSocket transports are `URLSession`-backed. Server-s
 ## Install
 
 ```swift
-.package(url: "https://github.com/mrbagels/comet.git", from: "0.3.0")
+.package(url: "https://github.com/mrbagels/comet.git", from: "0.4.0")
 ```
 
 Import the target you need:
@@ -559,7 +559,7 @@ GitHub Actions runs the Swift package suite, secret scanning, public API break g
 Check for public API changes against the latest release:
 
 ```sh
-.github/scripts/check-api-breaking-changes.sh v0.3.0
+.github/scripts/check-api-breaking-changes.sh v0.4.0
 ```
 
 Run a fresh external client smoke check:
