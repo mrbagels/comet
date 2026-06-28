@@ -92,6 +92,23 @@ let client = HTTPClient.live(
 let user = try await client.send(GetUser(userID: 42))
 ```
 
+For refresh and 401 replay, configure the auth coordinator once:
+
+```swift
+let auth = AuthenticationCoordinator.bearer(
+  token: { await authStore.accessToken },
+  refresh: { try await authStore.refreshAccessToken() }
+)
+
+let client = HTTPClient.live(
+  configuration: ClientConfiguration(
+    baseURL: URL(string: "https://api.example.com")!,
+    middleware: [AuthenticationMiddleware(coordinator: auth)]
+  ),
+  transport: URLSessionTransport()
+)
+```
+
 ### Retries, Metadata, And Activity
 
 ```swift

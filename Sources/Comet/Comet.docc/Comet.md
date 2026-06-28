@@ -57,6 +57,9 @@ The shipped live transports today are ``URLSessionTransport`` and ``URLSessionWe
 ### Middleware And Activity
 
 - ``Middleware``
+- ``AuthenticationCredential``
+- ``AuthenticationCoordinator``
+- ``AuthenticationMiddleware``
 - ``BearerTokenMiddleware``
 - ``RetryMiddleware``
 - ``RequestRetryPolicy``

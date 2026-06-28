@@ -17,6 +17,7 @@ completed v2 foundation.
 - Playground trace timeline panels group request and socket activity by demo.
 - Playground cassette replay verification checks exported mock cassettes with `ReplayTransport`.
 - `HTTPClient.traces` emits completed `RequestTrace` values with attempts, retry delays, timings, bytes, metadata, and final outcomes.
+- `AuthenticationCoordinator` and `AuthenticationMiddleware` provide token reads, refresh de-duplication, and safe 401 replay.
 
 ## 0.1.5 - 2026-06-28
 

@@ -97,6 +97,67 @@ private struct SequenceTransport: HTTPTransport, Sendable {
   }
 }
 
+private actor AuthTestStore {
+  private var tokenValue: String?
+  private var refreshToken: String
+  private var refreshCountValue = 0
+  private let refreshDelay: Duration
+
+  init(
+    token: String?,
+    refreshToken: String,
+    refreshDelay: Duration = .zero
+  ) {
+    self.tokenValue = token
+    self.refreshToken = refreshToken
+    self.refreshDelay = refreshDelay
+  }
+
+  func token() -> String? {
+    self.tokenValue
+  }
+
+  func refresh() async -> String? {
+    self.refreshCountValue += 1
+    if self.refreshDelay > .zero {
+      try? await Task.sleep(for: self.refreshDelay)
+    }
+    self.tokenValue = self.refreshToken
+    return self.refreshToken
+  }
+
+  func refreshCount() -> Int {
+    self.refreshCountValue
+  }
+}
+
+private actor AuthTransportState {
+  private var responses: [RawResponse]
+  private var authorizationValues: [String?] = []
+
+  init(responses: [RawResponse]) {
+    self.responses = responses
+  }
+
+  func next(request: PreparedRequest) -> RawResponse {
+    self.authorizationValues.append(request.headers[.authorization])
+    precondition(!self.responses.isEmpty, "No more auth transport responses configured.")
+    return self.responses.removeFirst()
+  }
+
+  func authorizations() -> [String?] {
+    self.authorizationValues
+  }
+}
+
+private struct AuthTransport: HTTPTransport, Sendable {
+  let state: AuthTransportState
+
+  func send(_ request: PreparedRequest) async throws(NetworkError) -> RawResponse {
+    await self.state.next(request: request)
+  }
+}
+
 private final class LogSink: @unchecked Sendable {
   private let lock = NSLock()
   private var messages: [String] = []
@@ -657,6 +718,88 @@ private func durationMilliseconds(_ duration: Duration) -> Int64 {
     _ = try await client.send(request)
   }
   #expect(await transportState.count() == 1)
+}
+
+@Test func authenticationMiddlewareRefreshesAndReplaysAuthorizedSafeRequest() async throws {
+  let authStore = AuthTestStore(token: "old", refreshToken: "new")
+  let coordinator = AuthenticationCoordinator.bearer(
+    token: { await authStore.token() },
+    refresh: { await authStore.refresh() }
+  )
+  let transportState = AuthTransportState(responses: [
+    RawResponse(data: Data("unauthorized".utf8), statusCode: 401),
+    RawResponse(data: Data("ok".utf8), statusCode: 200)
+  ])
+  let client = HTTPClient.live(
+    configuration: ClientConfiguration(
+      baseURL: URL(string: "https://example.com")!,
+      middleware: [AuthenticationMiddleware(coordinator: coordinator)]
+    ),
+    transport: AuthTransport(state: transportState)
+  )
+  let request = TestRequest(
+    path: "secure",
+    method: .get,
+    responseSerializer: .string()
+  )
+
+  let response = try await client.send(request)
+
+  #expect(response == "ok")
+  #expect(await authStore.refreshCount() == 1)
+  #expect(await transportState.authorizations() == ["Bearer old", "Bearer new"])
+}
+
+@Test func authenticationCoordinatorDeduplicatesConcurrentRefreshes() async throws {
+  let authStore = AuthTestStore(
+    token: "old",
+    refreshToken: "new",
+    refreshDelay: .milliseconds(20)
+  )
+  let coordinator = AuthenticationCoordinator.bearer(
+    token: { await authStore.token() },
+    refresh: { await authStore.refresh() }
+  )
+
+  async let first = coordinator.refreshCredential()
+  async let second = coordinator.refreshCredential()
+  let credentials = try await [first, second]
+
+  #expect(credentials.map { $0?.headerValue } == ["Bearer new", "Bearer new"])
+  #expect(await authStore.refreshCount() == 1)
+}
+
+@Test func authenticationMiddlewareDoesNotReplayUnsafeWriteWithoutRetryOptIn() async {
+  let authStore = AuthTestStore(token: "old", refreshToken: "new")
+  let coordinator = AuthenticationCoordinator.bearer(
+    token: { await authStore.token() },
+    refresh: { await authStore.refresh() }
+  )
+  let transportState = AuthTransportState(responses: [
+    RawResponse(data: Data("unauthorized".utf8), statusCode: 401)
+  ])
+  let client = HTTPClient.live(
+    configuration: ClientConfiguration(
+      baseURL: URL(string: "https://example.com")!,
+      middleware: [AuthenticationMiddleware(coordinator: coordinator)]
+    ),
+    transport: AuthTransport(state: transportState)
+  )
+  let request = TestRequest(
+    path: "secure",
+    method: .post,
+    responseSerializer: .string()
+  )
+
+  do {
+    _ = try await client.send(request)
+    Issue.record("Expected the unsafe write to preserve the 401 response without auth replay.")
+  } catch let error {
+    #expect(error.statusCode == 401)
+  }
+
+  #expect(await authStore.refreshCount() == 0)
+  #expect(await transportState.authorizations() == ["Bearer old"])
 }
 
 @Test func retryMiddlewareRetriesWritesWithIdempotencyKey() async throws {

@@ -36,7 +36,7 @@ struct GetUser: APIRequest {
 
 ## Configure The Client
 
-Use ``BearerTokenMiddleware`` when an access token is available asynchronously. The middleware skips the header when the provider returns `nil`.
+Use ``BearerTokenMiddleware`` when an access token is available asynchronously and no refresh workflow is needed. The middleware skips the header when the provider returns `nil`.
 
 ```swift
 let client = HTTPClient.live(
@@ -46,6 +46,29 @@ let client = HTTPClient.live(
       BearerTokenMiddleware {
         await authStore.accessToken
       }
+    ]
+  ),
+  transport: URLSessionTransport()
+)
+```
+
+Use ``AuthenticationMiddleware`` when the app needs token refresh and safe 401 replay. The coordinator de-duplicates concurrent refreshes, and the middleware only replays requests allowed by ``RequestRetryPolicy``.
+
+```swift
+let auth = AuthenticationCoordinator.bearer(
+  token: {
+    await authStore.accessToken
+  },
+  refresh: {
+    try await authStore.refreshAccessToken()
+  }
+)
+
+let client = HTTPClient.live(
+  configuration: ClientConfiguration(
+    baseURL: URL(string: "https://api.example.com")!,
+    middleware: [
+      AuthenticationMiddleware(coordinator: auth)
     ]
   ),
   transport: URLSessionTransport()
