@@ -457,7 +457,13 @@
           <pre><code>cd Examples/CometPlayground
 xcodegen generate
 SIMULATOR_ID="$(../../.github/scripts/select-ios-simulator.sh)"
-xcodebuild test -project CometPlayground.xcodeproj -scheme CometPlaygroundApp -destination "platform=iOS Simulator,id=$SIMULATOR_ID" SWIFT_ENABLE_EXPLICIT_MODULES=NO</code></pre>
+xcodebuild test \
+  -project CometPlayground.xcodeproj \
+  -scheme CometPlaygroundApp \
+  -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
+  -skipMacroValidation \
+  -skipPackagePluginValidation \
+  SWIFT_ENABLE_EXPLICIT_MODULES=NO</code></pre>
         </div>
       </div>
     </section>

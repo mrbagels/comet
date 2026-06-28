@@ -551,7 +551,13 @@ Run the example smoke tests:
 
 ```sh
 SIMULATOR_ID="$(../../.github/scripts/select-ios-simulator.sh)"
-xcodebuild test -project CometPlayground.xcodeproj -scheme CometPlaygroundApp -destination "platform=iOS Simulator,id=$SIMULATOR_ID" SWIFT_ENABLE_EXPLICIT_MODULES=NO
+xcodebuild test \
+  -project CometPlayground.xcodeproj \
+  -scheme CometPlaygroundApp \
+  -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
+  -skipMacroValidation \
+  -skipPackagePluginValidation \
+  SWIFT_ENABLE_EXPLICIT_MODULES=NO
 ```
 
 GitHub Actions runs the Swift package suite, secret scanning, public API break gating, and the iOS example smoke tests on every push to `next` and `master`.

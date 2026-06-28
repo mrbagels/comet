@@ -145,7 +145,13 @@ iOS:
 
 ```sh
 SIMULATOR_ID="$(../../.github/scripts/select-ios-simulator.sh)"
-xcodebuild test -project CometPlayground.xcodeproj -scheme CometPlaygroundApp -destination "platform=iOS Simulator,id=$SIMULATOR_ID" SWIFT_ENABLE_EXPLICIT_MODULES=NO
+xcodebuild test \
+  -project CometPlayground.xcodeproj \
+  -scheme CometPlaygroundApp \
+  -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
+  -skipMacroValidation \
+  -skipPackagePluginValidation \
+  SWIFT_ENABLE_EXPLICIT_MODULES=NO
 ```
 
 ## Extending The Demo Lab

@@ -128,6 +128,8 @@ jobs:
             -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}" \
             -destination-timeout 60 \
             -parallel-testing-enabled NO \
+            -skipMacroValidation \
+            -skipPackagePluginValidation \
             -derivedDataPath "$PWD/.derived-data" \
             SWIFT_ENABLE_EXPLICIT_MODULES=NO \
             COMPILER_INDEX_STORE_ENABLE=NO
@@ -137,6 +139,8 @@ jobs:
             -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}" \
             -destination-timeout 60 \
             -parallel-testing-enabled NO \
+            -skipMacroValidation \
+            -skipPackagePluginValidation \
             -test-timeouts-enabled YES \
             -default-test-execution-time-allowance 120 \
             -maximum-test-execution-time-allowance 180 \
