@@ -3,10 +3,10 @@
 All notable changes to Comet are documented here.
 
 Comet is still pre-1.0. The `0.2.0` release cut contains the completed V2
-foundation. Larger systems such as caching, code generation, and server-side
-live transports remain future minor-version work.
+foundation. The `0.3.0` release adds caching, code generation, contract testing,
+and the playground proof flows that make those systems easier to inspect.
 
-## Unreleased
+## 0.3.0 - 2026-06-28
 
 ### Added
 
