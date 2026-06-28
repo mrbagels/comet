@@ -215,9 +215,14 @@ let cache = FileHTTPCacheStore(
 
 `returnCacheElseLoad` serves fresh cached responses and revalidates stale entries
 when `ETag` or `Last-Modified` validators are available. Use `.revalidate` to
-force a conditional request, `.cacheOnly` for offline reads, `.networkOnly` to
-avoid reading or writing the cache, or `.reloadIgnoringCache` to fetch and store
-a replacement.
+force a conditional request, `.staleWhileRevalidate` to return stale cached data
+immediately while a background refresh updates the store, `.cacheOnly` for
+offline reads, `.networkOnly` to avoid reading or writing the cache, or
+`.reloadIgnoringCache` to fetch and store a replacement.
+
+`staleWhileRevalidate` respects HTTP cache guardrails: entries marked
+`no-store`, `no-cache`, `must-revalidate`, or shared-cache `proxy-revalidate`
+fall back to synchronous revalidation instead of serving stale data.
 
 For offline-tolerant reads, opt in to stale fallback when the network request
 fails:

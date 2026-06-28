@@ -10,6 +10,7 @@ public struct HTTPCachePolicy: Sendable, Hashable {
     case returnCacheElseLoad
     case reloadIgnoringCache
     case revalidate
+    case staleWhileRevalidate
   }
 
   public var strategy: Strategy
@@ -54,6 +55,7 @@ public struct HTTPCachePolicy: Sendable, Hashable {
   public static let returnCacheElseLoad = Self(strategy: .returnCacheElseLoad)
   public static let reloadIgnoringCache = Self(strategy: .reloadIgnoringCache)
   public static let revalidate = Self(strategy: .revalidate)
+  public static let staleWhileRevalidate = Self(strategy: .staleWhileRevalidate)
 }
 
 /// Parsed response cache directives from `Cache-Control`.
@@ -446,6 +448,7 @@ public struct RequestCacheTraceEvent: Sendable, Hashable {
     case bypass
     case stale
     case revalidate
+    case refresh
     case update
     case store
     case skippedStore
@@ -466,6 +469,7 @@ public struct RequestCacheTraceEvent: Sendable, Hashable {
     case replaced
     case cacheHit
     case staleIfError
+    case staleWhileRevalidate
   }
 
   public let kind: Kind
@@ -487,7 +491,7 @@ public struct RequestCacheTraceEvent: Sendable, Hashable {
 }
 
 /// Adds conservative opt-in HTTP caching to an ``HTTPClient`` middleware chain.
-public struct CacheMiddleware: ResponseProvidingMiddleware {
+public struct CacheMiddleware: BackgroundRefreshingMiddleware {
   private let store: any HTTPCacheStore
   private let now: @Sendable () -> Date
   private let state = CacheMiddlewareState()
@@ -532,6 +536,11 @@ public struct CacheMiddleware: ResponseProvidingMiddleware {
       isShared: policy.isShared,
       defaultFreshnessLifetime: policy.defaultFreshnessLifetime
     )
+    if policy.strategy == .staleWhileRevalidate,
+       !isFresh,
+       self.canServeStaleWhileRevalidate(metadata, policy: policy) {
+      return request
+    }
     guard policy.strategy == .revalidate || !isFresh else {
       return request
     }
@@ -626,6 +635,23 @@ public struct CacheMiddleware: ResponseProvidingMiddleware {
         await context.recordCacheEvent(.init(kind: .miss, key: key, policy: policy, reason: .stale))
         throw .middleware("Cached response for \(key) is stale.")
       }
+      if policy.strategy == .staleWhileRevalidate,
+         !isFresh,
+         self.canServeStaleWhileRevalidate(metadata, policy: policy) {
+        let refreshRequest = self.revalidationRequest(for: request, metadata: metadata)
+        await self.state.markStaleWhileRevalidate(
+          requestID: context.requestID,
+          cached: cached,
+          refresh: CacheBackgroundRefresh(
+            key: key,
+            cachedResponse: cached,
+            request: refreshRequest
+          )
+        )
+        await context.recordCacheEvent(.init(kind: .stale, key: key, policy: policy, reason: .stale))
+        await context.recordCacheEvent(.init(kind: .hit, key: key, policy: policy, reason: .stale))
+        return cached.rawResponse
+      }
       if policy.strategy != .cacheOnly && !isFresh {
         await self.state.markCached(requestID: context.requestID, cached: cached)
         await context.recordCacheEvent(.init(kind: .stale, key: key, policy: policy, reason: .stale))
@@ -644,6 +670,28 @@ public struct CacheMiddleware: ResponseProvidingMiddleware {
 
     await context.recordCacheEvent(.init(kind: .miss, key: key, policy: policy))
     return nil
+  }
+
+  public func backgroundRefreshRequest(
+    for request: PreparedRequest,
+    context: MiddlewareContext,
+    refreshContext: MiddlewareContext
+  ) async -> PreparedRequest? {
+    guard let refresh = await self.state.takeBackgroundRefresh(
+      requestID: context.requestID,
+      refreshRequestID: refreshContext.requestID
+    ) else {
+      return nil
+    }
+    await context.recordCacheEvent(
+      .init(
+        kind: .refresh,
+        key: refresh.key,
+        policy: context.cachePolicy,
+        reason: .staleWhileRevalidate
+      )
+    )
+    return refresh.request
   }
 
   public func process(
@@ -758,15 +806,53 @@ public struct CacheMiddleware: ResponseProvidingMiddleware {
     }
     return true
   }
+
+  private func canServeStaleWhileRevalidate(
+    _ metadata: HTTPCacheMetadata,
+    policy: HTTPCachePolicy
+  ) -> Bool {
+    guard !metadata.cacheControl.noStore else { return false }
+    guard !metadata.cacheControl.noCache else { return false }
+    guard !metadata.cacheControl.mustRevalidate else { return false }
+    guard !(policy.isShared && metadata.cacheControl.proxyRevalidate) else { return false }
+    return true
+  }
+
+  private func revalidationRequest(
+    for request: PreparedRequest,
+    metadata: HTTPCacheMetadata
+  ) -> PreparedRequest {
+    var headers = request.headers
+    headers.merge(metadata.conditionalHeaders())
+    return PreparedRequest(
+      url: request.url,
+      method: request.method,
+      headers: headers,
+      body: request.body,
+      timeout: request.timeout,
+      metadata: request.metadata,
+      redactionPolicy: request.redactionPolicy,
+      retryPolicy: request.retryPolicy
+    )
+  }
+}
+
+private struct CacheBackgroundRefresh: Sendable {
+  var key: HTTPCacheKey
+  var cachedResponse: CachedHTTPResponse
+  var request: PreparedRequest
 }
 
 private struct CacheRequestState: Sendable {
   var cachedResponse: CachedHTTPResponse?
   var servedFromCache = false
+  var backgroundRefresh: CacheBackgroundRefresh?
+  var backgroundRefreshKey: HTTPCacheKey?
 }
 
 private actor CacheMiddlewareState {
   private var states: [UUID: CacheRequestState] = [:]
+  private var refreshesInFlight: Set<HTTPCacheKey> = []
 
   func markCached(requestID: UUID, cached: CachedHTTPResponse) {
     var state = self.states[requestID, default: CacheRequestState()]
@@ -780,23 +866,60 @@ private actor CacheMiddlewareState {
     self.states[requestID] = state
   }
 
+  func markStaleWhileRevalidate(
+    requestID: UUID,
+    cached: CachedHTTPResponse,
+    refresh: CacheBackgroundRefresh
+  ) {
+    var state = self.states[requestID, default: CacheRequestState()]
+    state.cachedResponse = cached
+    state.servedFromCache = true
+    state.backgroundRefresh = refresh
+    self.states[requestID] = state
+  }
+
+  func takeBackgroundRefresh(
+    requestID: UUID,
+    refreshRequestID: UUID
+  ) -> CacheBackgroundRefresh? {
+    guard let refresh = self.states[requestID]?.backgroundRefresh else {
+      return nil
+    }
+    guard self.refreshesInFlight.insert(refresh.key).inserted else {
+      return nil
+    }
+
+    var state = CacheRequestState()
+    state.cachedResponse = refresh.cachedResponse
+    state.backgroundRefreshKey = refresh.key
+    self.states[refreshRequestID] = state
+    return refresh
+  }
+
   func hasCachedResponse(requestID: UUID) -> Bool {
     self.states[requestID]?.cachedResponse != nil
   }
 
   func consume(requestID: UUID) -> CacheRequestState? {
-    self.states.removeValue(forKey: requestID)
+    let state = self.states.removeValue(forKey: requestID)
+    if let key = state?.backgroundRefreshKey {
+      self.refreshesInFlight.remove(key)
+    }
+    return state
   }
 
   func discard(requestID: UUID) {
-    self.states.removeValue(forKey: requestID)
+    let state = self.states.removeValue(forKey: requestID)
+    if let key = state?.backgroundRefreshKey {
+      self.refreshesInFlight.remove(key)
+    }
   }
 }
 
 private extension HTTPCachePolicy.Strategy {
   var shouldReadCache: Bool {
     switch self {
-    case .cacheOnly, .returnCacheElseLoad, .revalidate:
+    case .cacheOnly, .returnCacheElseLoad, .revalidate, .staleWhileRevalidate:
       true
     case .disabled, .networkOnly, .reloadIgnoringCache:
       false

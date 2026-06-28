@@ -55,6 +55,8 @@ Use the explicit strategies when the request needs a stricter contract:
 - ``HTTPCachePolicy/networkOnly`` bypasses reads and writes.
 - ``HTTPCachePolicy/revalidate`` validates a cached response even when it is
   still fresh.
+- ``HTTPCachePolicy/staleWhileRevalidate`` returns a stale cached response
+  immediately and schedules one background refresh for that cache key.
 - ``HTTPCachePolicy/reloadIgnoringCache`` bypasses reads and stores the network
   replacement.
 
@@ -87,6 +89,22 @@ var options: RequestOptions {
 }
 ```
 
+Use stale-while-revalidate when UI should keep showing the last cached value
+while Comet refreshes the store in the background:
+
+```swift
+var options: RequestOptions {
+  RequestOptions(cachePolicy: .staleWhileRevalidate)
+}
+```
+
+The foreground request records stale, hit, refresh, and skipped-store cache
+events. The background refresh uses validators when the cached entry has an
+`ETag` or `Last-Modified`, merges `304 Not Modified` responses into the stored
+entry, and coalesces concurrent refreshes for the same cache key. Entries marked
+`no-store`, `no-cache`, `must-revalidate`, or shared-cache `proxy-revalidate`
+fall back to synchronous revalidation instead of serving stale data.
+
 Freshness is conservative by default. Cached responses must declare explicit
 freshness with `Cache-Control` or `Expires`, include validators for
 revalidation, or use a policy-level default freshness lifetime. `Age`,
@@ -106,7 +124,7 @@ var options: RequestOptions {
 
 ## Inspect Cache Decisions
 
-Completed ``RequestTrace`` values include cache events for hits, misses, bypasses, stale entries, revalidation attempts, stale fallbacks, `304` updates, stores, and skipped stores.
+Completed ``RequestTrace`` values include cache events for hits, misses, bypasses, stale entries, revalidation attempts, stale-while-revalidate refresh scheduling, stale fallbacks, `304` updates, stores, and skipped stores.
 
 ```swift
 for await trace in client.traces {
@@ -118,5 +136,5 @@ for await trace in client.traces {
 
 The current cache core is intentionally conservative. It keeps cache entries in a
 configured memory or file store and supports freshness metadata, validators,
-`304 Not Modified` merging, size pruning, and stale-if-error fallback.
-Stale-while-revalidate remains a future milestone.
+`304 Not Modified` merging, size pruning, stale-if-error fallback, and
+stale-while-revalidate background refreshes.

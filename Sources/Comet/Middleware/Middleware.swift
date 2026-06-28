@@ -28,6 +28,15 @@ public protocol ResponseProvidingMiddleware: Middleware {
   ) async throws(NetworkError) -> RawResponse?
 }
 
+/// A response-providing middleware capability that can refresh a cached response after serving it.
+public protocol BackgroundRefreshingMiddleware: ResponseProvidingMiddleware {
+  func backgroundRefreshRequest(
+    for request: PreparedRequest,
+    context: MiddlewareContext,
+    refreshContext: MiddlewareContext
+  ) async -> PreparedRequest?
+}
+
 public extension Middleware {
   /// Returns the request unchanged before transport execution.
   func prepare(
@@ -108,6 +117,20 @@ public struct MiddlewareContext: Sendable {
       cachePolicy: self.cachePolicy,
       randomDouble: self.randomDouble,
       recordCacheEvent: self.recordCacheEvent
+    )
+  }
+
+  func backgroundRefresh(
+    requestID: UUID,
+    startTime: ContinuousClock.Instant
+  ) -> Self {
+    Self(
+      requestID: requestID,
+      attempt: 0,
+      startTime: startTime,
+      cachePolicy: self.cachePolicy,
+      randomDouble: self.randomDouble,
+      recordCacheEvent: { _ in }
     )
   }
 }

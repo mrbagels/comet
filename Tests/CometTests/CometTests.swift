@@ -38,10 +38,12 @@ private struct TestTransport: HTTPTransport, Sendable {
 
 private actor WaitingTransport: HTTPTransport {
   private var sendCount = 0
+  private var requests: [PreparedRequest] = []
   private var continuations: [CheckedContinuation<RawResponse, Error>] = []
 
   func send(_ request: PreparedRequest) async throws(NetworkError) -> RawResponse {
     self.sendCount += 1
+    self.requests.append(request)
     do {
       return try await withCheckedThrowingContinuation { continuation in
         self.continuations.append(continuation)
@@ -53,6 +55,11 @@ private actor WaitingTransport: HTTPTransport {
 
   func count() -> Int {
     self.sendCount
+  }
+
+  func request(at index: Int) -> PreparedRequest? {
+    guard self.requests.indices.contains(index) else { return nil }
+    return self.requests[index]
   }
 
   func resolveAll(with result: Result<RawResponse, NetworkError>) {
@@ -398,6 +405,17 @@ private func cacheControlHeaders(_ value: String) -> HTTPFields {
   var headers = HTTPFields()
   headers[HTTPField.Name("Cache-Control")!] = value
   return headers
+}
+
+private func waitUntil(
+  _ condition: @escaping @Sendable () async -> Bool
+) async {
+  for _ in 0..<50 {
+    if await condition() {
+      return
+    }
+    await Task.yield()
+  }
 }
 
 @Test func pathBuildsEncodedSegments() {
@@ -1757,6 +1775,132 @@ private func cacheControlHeaders(_ value: String) -> HTTPFields {
   #expect(trace.cacheEvents.map(\.kind) == [.stale, .revalidate, .hit])
   #expect(trace.cacheEvents[1].reason == .noValidator)
   #expect(trace.cacheEvents.last?.reason == .staleIfError)
+}
+
+@Test func cacheMiddlewareServesStaleResponseAndRefreshesInBackground() async throws {
+  let key = HTTPCacheKey(method: .get, url: URL(string: "https://example.com/cache")!)
+  var cachedHeaders = cacheControlHeaders("max-age=0")
+  cachedHeaders[HTTPField.Name("ETag")!] = #""v1""#
+  let store = MemoryHTTPCacheStore(
+    responses: [
+      key: CachedHTTPResponse(
+        data: Data("cached".utf8),
+        statusCode: 200,
+        headers: cachedHeaders,
+        storedAt: Date(timeIntervalSince1970: 0)
+      )
+    ]
+  )
+  let transport = WaitingTransport()
+  let client = HTTPClient.live(
+    configuration: ClientConfiguration(
+      baseURL: URL(string: "https://example.com")!,
+      middleware: [
+        CacheMiddleware(
+          store: store,
+          now: { Date(timeIntervalSince1970: 10) }
+        )
+      ]
+    ),
+    transport: transport
+  )
+  var traces = client.traces.makeAsyncIterator()
+  let request = TestRequest(
+    path: "cache",
+    method: .get,
+    responseSerializer: .string(),
+    options: RequestOptions(cachePolicy: .staleWhileRevalidate)
+  )
+
+  let response = try await client.send(request)
+  let trace = try #require(await traces.next())
+
+  #expect(response == "cached")
+  #expect(trace.cacheEvents.map(\.kind) == [.stale, .hit, .refresh, .skippedStore])
+  #expect(trace.cacheEvents[2].reason == .staleWhileRevalidate)
+
+  await waitUntil { await transport.count() == 1 }
+  let refreshRequest = try #require(await transport.request(at: 0))
+  #expect(refreshRequest.headers[HTTPField.Name("If-None-Match")!] == #""v1""#)
+  #expect(try #require(await store.cachedResponse(for: key)).data == Data("cached".utf8))
+
+  var refreshedHeaders = cacheControlHeaders("max-age=60")
+  refreshedHeaders[HTTPField.Name("ETag")!] = #""v2""#
+  await transport.resolveAll(
+    with: .success(
+      RawResponse(
+        data: Data("refreshed".utf8),
+        statusCode: 200,
+        headers: refreshedHeaders
+      )
+    )
+  )
+  await waitUntil {
+    await store.cachedResponse(for: key)?.data == Data("refreshed".utf8)
+  }
+
+  let refreshed = try #require(await store.cachedResponse(for: key))
+  #expect(refreshed.data == Data("refreshed".utf8))
+  #expect(refreshed.headers[HTTPField.Name("ETag")!] == #""v2""#)
+}
+
+@Test func cacheMiddlewareCoalescesConcurrentStaleWhileRevalidateRefreshes() async throws {
+  let key = HTTPCacheKey(method: .get, url: URL(string: "https://example.com/cache")!)
+  let store = MemoryHTTPCacheStore(
+    responses: [
+      key: CachedHTTPResponse(
+        data: Data("cached".utf8),
+        statusCode: 200,
+        headers: cacheControlHeaders("max-age=0"),
+        storedAt: Date(timeIntervalSince1970: 0)
+      )
+    ]
+  )
+  let transport = WaitingTransport()
+  let client = HTTPClient.live(
+    configuration: ClientConfiguration(
+      baseURL: URL(string: "https://example.com")!,
+      middleware: [
+        CacheMiddleware(
+          store: store,
+          now: { Date(timeIntervalSince1970: 10) }
+        )
+      ]
+    ),
+    transport: transport
+  )
+  let request = TestRequest(
+    path: "cache",
+    method: .get,
+    responseSerializer: .string(),
+    options: RequestOptions(cachePolicy: .staleWhileRevalidate)
+  )
+
+  let first = try await client.send(request)
+  await waitUntil { await transport.count() == 1 }
+  let second = try await client.send(request)
+  for _ in 0..<20 {
+    await Task.yield()
+  }
+
+  #expect(first == "cached")
+  #expect(second == "cached")
+  #expect(await transport.count() == 1)
+
+  await transport.resolveAll(
+    with: .success(
+      RawResponse(
+        data: Data("refreshed".utf8),
+        statusCode: 200,
+        headers: cacheControlHeaders("max-age=60")
+      )
+    )
+  )
+  await waitUntil {
+    await store.cachedResponse(for: key)?.data == Data("refreshed".utf8)
+  }
+
+  #expect(try #require(await store.cachedResponse(for: key)).data == Data("refreshed".utf8))
 }
 
 @Test func cacheMiddlewareRespectsVaryHeaderValues() async throws {

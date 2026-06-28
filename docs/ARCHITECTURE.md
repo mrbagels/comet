@@ -649,6 +649,7 @@ The project is generated from `project.yml` with XcodeGen.
 - activity events cover request lifecycle, not decode lifecycle
 - WebSocket session activity is modeled through `WebSocketSessionEvent`, not `NetworkEvent`
 - server-side live transports are deferred for `0.3.0`; see [Server Transport Decision](technical/SERVER_TRANSPORT_DECISION.md)
+- stale-while-revalidate refreshes update cache storage in the background but do not currently emit their own public `NetworkEvent` or completed `RequestTrace`
 
 ---
 
@@ -656,6 +657,5 @@ The project is generated from `project.yml` with XcodeGen.
 
 When Comet grows beyond this release line, the highest-value next additions are likely:
 
-- stale-while-revalidate cache policy semantics
 - richer generated-model support for OpenAPI schemas
 - an explicit server-side live transport after a dependency decision
