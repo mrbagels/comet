@@ -8,6 +8,10 @@ completed v2 foundation.
 
 ## Unreleased
 
+### Added
+
+- Playground response viewer snapshots for demo output, HTTP metadata, failure bodies, and socket transcript results.
+
 ## 0.1.5 - 2026-06-28
 
 ### Added

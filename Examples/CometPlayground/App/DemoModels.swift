@@ -89,3 +89,11 @@ struct DemoRequestInspection: Hashable, Sendable {
     curlCommand != nil
   }
 }
+
+struct DemoResponseSnapshot: Hashable, Sendable {
+  let title: String
+  let summary: String
+  let fields: [DemoInspectorField]
+  let body: String
+  let rawValue: String
+}

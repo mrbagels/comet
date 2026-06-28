@@ -339,6 +339,7 @@ final class DemoCatalog {
     var output: String
     var status: Status
     var detail: String
+    var response: DemoResponseSnapshot? = nil
   }
 
   var mode: ClientMode = .mock {
@@ -438,37 +439,77 @@ final class DemoCatalog {
       switch demo {
       case .json:
         let todo = try await self.client.send(TodoRequest())
+        let output = Self.prettyPrintedJSON(for: todo)
         self.demoStates[demo] = DemoState(
-          output: Self.prettyPrintedJSON(for: todo),
+          output: output,
           status: .passed,
-          detail: "Decoded a typed `DemoTodo` and rendered formatted JSON."
+          detail: "Decoded a typed `DemoTodo` and rendered formatted JSON.",
+          response: Self.responseSnapshot(
+            title: "Decoded JSON response",
+            summary: "A `DemoTodo` value decoded through `ResponseSerializer.json`.",
+            fields: [
+              DemoInspectorField(label: "Format", value: "JSON"),
+              DemoInspectorField(label: "Model", value: String(describing: DemoTodo.self)),
+              DemoInspectorField(label: "Expected status", value: "200")
+            ],
+            body: output
+          )
         )
       case .text:
         let text = try await self.client.send(TextDemoRequest())
         self.demoStates[demo] = DemoState(
           output: text,
           status: .passed,
-          detail: "Read plain text without JSON decoding."
+          detail: "Read plain text without JSON decoding.",
+          response: Self.responseSnapshot(
+            title: "Plain text response",
+            summary: "A string payload decoded through `ResponseSerializer.string`.",
+            fields: [
+              DemoInspectorField(label: "Format", value: "Text"),
+              DemoInspectorField(label: "Expected status", value: "200")
+            ],
+            body: text
+          )
         )
       case .empty:
         _ = try await self.client.send(EmptyDemoRequest())
+        let output = "Received an EmptyResponse successfully."
         self.demoStates[demo] = DemoState(
-          output: "Received an EmptyResponse successfully.",
+          output: output,
           status: .passed,
-          detail: "Validated a payload-free success response."
+          detail: "Validated a payload-free success response.",
+          response: Self.responseSnapshot(
+            title: "Empty response",
+            summary: "A payload-free response validated through `EmptyResponse`.",
+            fields: [
+              DemoInspectorField(label: "Format", value: "Empty"),
+              DemoInspectorField(label: "Expected status", value: "204")
+            ],
+            body: "No response body."
+          )
         )
       case .raw:
         let raw = try await self.client.sendRaw(RawTodoRequest())
-        self.demoStates[demo] = DemoState(
-          output: """
+        let output = """
             status: \(raw.statusCode)
             content-type: \(raw.headers[.contentType] ?? "n/a")
             bytes: \(raw.data.count)
 
             \(String(decoding: raw.data, as: UTF8.self))
-            """,
+            """
+        self.demoStates[demo] = DemoState(
+          output: output,
           status: .passed,
-          detail: "Inspected a raw response before decoding."
+          detail: "Inspected a raw response before decoding.",
+          response: Self.responseSnapshot(
+            title: "Raw HTTP response",
+            summary: "A raw response inspected before serializer decoding.",
+            fields: [
+              DemoInspectorField(label: "Status", value: "\(raw.statusCode)"),
+              DemoInspectorField(label: "Bytes", value: "\(raw.data.count)")
+            ] + Self.headerFields(from: raw.headers),
+            body: String(decoding: raw.data, as: UTF8.self)
+          )
         )
       case .timeout:
         let output = try await self.expectedNetworkFailureOutput(
@@ -479,21 +520,47 @@ final class DemoCatalog {
         self.demoStates[demo] = DemoState(
           output: output,
           status: .passed,
-          detail: "Verified timeout handling and failure activity."
+          detail: "Verified timeout handling and failure activity.",
+          response: Self.responseSnapshot(
+            title: "Timeout failure",
+            summary: "The transport surfaced a timeout before a response body arrived.",
+            fields: [
+              DemoInspectorField(label: "Result", value: "Expected failure"),
+              DemoInspectorField(label: "Error", value: "NetworkError.timeout")
+            ],
+            body: output
+          )
         )
       case .unauthorized:
         let output = try await self.unauthorizedFailureOutput()
         self.demoStates[demo] = DemoState(
           output: output,
           status: .passed,
-          detail: "Verified typed 401 decoding and raw HTTP preservation."
+          detail: "Verified typed 401 decoding and raw HTTP preservation.",
+          response: Self.responseSnapshot(
+            title: "Typed error response",
+            summary: "A structured HTTP error body decoded through `ErrorResponseSerializer`.",
+            fields: [
+              DemoInspectorField(label: "Result", value: "Expected HTTP failure"),
+              DemoInspectorField(label: "Status", value: "401")
+            ],
+            body: output
+          )
         )
       case .rateLimited:
         let output = try await self.rateLimitOutput()
         self.demoStates[demo] = DemoState(
           output: output,
           status: .passed,
-          detail: "Verified retry middleware behavior for rate limiting."
+          detail: "Verified retry middleware behavior for rate limiting.",
+          response: Self.responseSnapshot(
+            title: "Rate-limit result",
+            summary: "Retry middleware either recovered after a 429 or preserved the final rate-limit response.",
+            fields: [
+              DemoInspectorField(label: "Result", value: self.mode == .mock ? "Recovered" : "HTTP 429")
+            ],
+            body: output
+          )
         )
       case .serverError:
         let output = try await self.expectedNetworkFailureOutput(
@@ -504,7 +571,16 @@ final class DemoCatalog {
         self.demoStates[demo] = DemoState(
           output: output,
           status: .passed,
-          detail: "Verified HTTP 500 status and body diagnostics."
+          detail: "Verified HTTP 500 status and body diagnostics.",
+          response: Self.responseSnapshot(
+            title: "Server error response",
+            summary: "The response viewer preserves the HTTP failure body and status.",
+            fields: [
+              DemoInspectorField(label: "Result", value: "Expected HTTP failure"),
+              DemoInspectorField(label: "Status", value: "500")
+            ],
+            body: output
+          )
         )
       case .malformedJSON:
         let output = try await self.expectedNetworkFailureOutput(
@@ -518,28 +594,64 @@ final class DemoCatalog {
         self.demoStates[demo] = DemoState(
           output: output,
           status: .passed,
-          detail: "Verified malformed JSON decoding diagnostics."
+          detail: "Verified malformed JSON decoding diagnostics.",
+          response: Self.responseSnapshot(
+            title: "Decoding failure",
+            summary: "The HTTP response arrived but the JSON serializer rejected the payload shape.",
+            fields: [
+              DemoInspectorField(label: "Result", value: "Expected decoding failure"),
+              DemoInspectorField(label: "Serializer", value: "ResponseSerializer.json")
+            ],
+            body: output
+          )
         )
       case .cancelled:
         let output = try await self.cancellationOutput()
         self.demoStates[demo] = DemoState(
           output: output,
           status: .passed,
-          detail: "Verified cancellation error normalization."
+          detail: "Verified cancellation error normalization.",
+          response: Self.responseSnapshot(
+            title: "Cancellation result",
+            summary: "The request was cancelled before a response body arrived.",
+            fields: [
+              DemoInspectorField(label: "Result", value: "Expected cancellation")
+            ],
+            body: output
+          )
         )
       case .webSocket:
         let transcript = try await self.runWebSocketDemo()
+        let output = Self.prettyPrintedJSON(for: transcript)
         self.demoStates[demo] = DemoState(
-          output: Self.prettyPrintedJSON(for: transcript),
+          output: output,
           status: .passed,
-          detail: "Opened a socket, echoed JSON, and closed the session cleanly."
+          detail: "Opened a socket, echoed JSON, and closed the session cleanly.",
+          response: Self.responseSnapshot(
+            title: "Socket transcript",
+            summary: "A realtime exchange represented as a structured transcript.",
+            fields: [
+              DemoInspectorField(label: "Transport", value: transcript.transport),
+              DemoInspectorField(label: "Close code", value: "\(transcript.closeCode)")
+            ],
+            body: output
+          )
         )
       case .webSocketClose:
         let output = try await self.webSocketCloseOutput()
         self.demoStates[demo] = DemoState(
           output: output,
           status: .passed,
-          detail: "Verified WebSocket close diagnostics."
+          detail: "Verified WebSocket close diagnostics.",
+          response: Self.responseSnapshot(
+            title: "Socket close result",
+            summary: "The socket close frame was surfaced as a typed networking failure.",
+            fields: [
+              DemoInspectorField(label: "Result", value: "Expected close frame"),
+              DemoInspectorField(label: "Close code", value: "\(WebSocketCloseCode.goingAway.rawValue)")
+            ],
+            body: output
+          )
         )
       }
 
@@ -557,7 +669,15 @@ final class DemoCatalog {
       self.demoStates[demo] = DemoState(
         output: "Error: \(error)",
         status: .failed,
-        detail: "The demo failed before verification could complete."
+        detail: "The demo failed before verification could complete.",
+        response: Self.responseSnapshot(
+          title: "Unexpected failure",
+          summary: "The demo failed before its expected verifier completed.",
+          fields: [
+            DemoInspectorField(label: "Error", value: error.localizedDescription)
+          ],
+          body: "Error: \(error)"
+        )
       )
       self.runSummary = "Latest failure: \(demo.title) in \(self.mode.title) mode."
     }
@@ -1006,6 +1126,23 @@ final class DemoCatalog {
     status: \(error.statusCode?.formatted(.number) ?? "n/a")
     body: \(error.bodyString ?? "n/a")
     """
+  }
+
+  private static func responseSnapshot(
+    title: String,
+    summary: String,
+    fields: [DemoInspectorField],
+    body: String
+  ) -> DemoResponseSnapshot {
+    let fieldLines = fields.map { "\($0.label): \($0.value)" }
+    let rawValue = ([title, summary] + fieldLines + ["", body]).joined(separator: "\n")
+    return DemoResponseSnapshot(
+      title: title,
+      summary: summary,
+      fields: fields,
+      body: body,
+      rawValue: rawValue
+    )
   }
 
   private static func messageText(from message: WebSocketMessage) -> String {

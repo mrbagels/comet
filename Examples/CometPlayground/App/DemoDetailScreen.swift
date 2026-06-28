@@ -22,6 +22,7 @@ struct DemoDetailScreen: View {
         header
         summaryPanel
         requestInspectorPanel
+        responseViewerPanel
         verificationPanel
         packageSurfacePanel
         outputPanel
@@ -148,6 +149,42 @@ struct DemoDetailScreen: View {
             .padding(.vertical, 10)
             .liquidPanel(tint: demo.accent, cornerRadius: 18)
         }
+      }
+    }
+  }
+
+  private var responseViewerPanel: some View {
+    GlassPanel(tint: demo.accent) {
+      SectionEyebrow(text: "Response Viewer")
+
+      if let response = state.response {
+        VStack(alignment: .leading, spacing: 8) {
+          Text(response.title)
+            .font(.system(.headline, design: .rounded).weight(.semibold))
+            .foregroundStyle(ThemeColor.ink)
+
+          Text(response.summary)
+            .font(.system(.body))
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+
+        InspectorFieldList(fields: response.fields)
+
+        VStack(alignment: .leading, spacing: 10) {
+          SectionEyebrow(text: "Body")
+          OutputConsole(value: response.body)
+        }
+
+        VStack(alignment: .leading, spacing: 10) {
+          SectionEyebrow(text: "Snapshot")
+          OutputConsole(value: response.rawValue)
+        }
+      } else {
+        Text("Run the demo to inspect the latest response, failure, or socket result.")
+          .font(.system(.body))
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
       }
     }
   }
