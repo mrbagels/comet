@@ -49,6 +49,15 @@ public struct OpenAPIGenerator: Sendable {
     document: OpenAPIDocument,
     configuration: OpenAPIGeneratorConfiguration
   ) throws -> String {
+    let componentSchemas = document.components?.schemas ?? [:]
+    let models = try componentSchemas.keys.sorted().map { name in
+      try GeneratedSchemaModel(
+        name: name,
+        schema: componentSchemas[name]!,
+        components: componentSchemas,
+        accessModifier: configuration.accessModifier
+      )
+    }
     var operations: [GeneratedOperation] = []
 
     for path in document.paths.keys.sorted() {
@@ -61,6 +70,7 @@ public struct OpenAPIGenerator: Sendable {
             method: method,
             operation: operation,
             inheritedParameters: item.parameters,
+            components: componentSchemas,
             accessModifier: configuration.accessModifier
           )
         )
@@ -80,6 +90,23 @@ public struct OpenAPIGenerator: Sendable {
         "Multiple operations generate duplicate request type names: \(duplicateTypeNames.joined(separator: ", "))."
       )
     }
+    let duplicateModelNames = Dictionary(grouping: models, by: \.typeName)
+      .filter { $0.value.count > 1 }
+      .map(\.key)
+      .sorted()
+    guard duplicateModelNames.isEmpty else {
+      throw OpenAPIGeneratorError.invalidDocument(
+        "Multiple component schemas generate duplicate Swift type names: \(duplicateModelNames.joined(separator: ", "))."
+      )
+    }
+    let collidingNames = Set(models.map(\.typeName))
+      .intersection(Set(operations.map(\.typeName)))
+      .sorted()
+    guard collidingNames.isEmpty else {
+      throw OpenAPIGeneratorError.invalidDocument(
+        "Component schemas and operations generate duplicate Swift type names: \(collidingNames.joined(separator: ", "))."
+      )
+    }
 
     var lines: [String] = []
     if configuration.includeHeaderComment {
@@ -92,11 +119,12 @@ public struct OpenAPIGenerator: Sendable {
     }
     lines.append("")
 
-    for (index, operation) in operations.enumerated() {
+    let generatedBlocks = try models.map { try $0.renderedLines() } + operations.map { $0.renderedLines() }
+    for (index, block) in generatedBlocks.enumerated() {
       if index > 0 {
         lines.append("")
       }
-      lines.append(contentsOf: operation.renderedLines())
+      lines.append(contentsOf: block)
     }
 
     return lines.joined(separator: "\n") + "\n"
@@ -128,6 +156,7 @@ private struct GeneratedOperation {
   let accessModifier: String
   let typeName: String
   let genericBodyType: Bool
+  let bodyPayloadType: String?
   let method: HTTPMethodName
   let pathExpression: String
   let parameters: [GeneratedParameter]
@@ -144,6 +173,7 @@ private struct GeneratedOperation {
     method: HTTPMethodName,
     operation: OpenAPIOperation,
     inheritedParameters: [OpenAPIParameter],
+    components: [String: OpenAPISchema],
     accessModifier: String
   ) throws {
     self.accessModifier = accessModifier
@@ -155,7 +185,7 @@ private struct GeneratedOperation {
       inheritedParameters,
       overridingWith: operation.parameters
     )
-    let parameters = try mergedParameters.map { try GeneratedParameter($0) }
+    let parameters = try mergedParameters.map { try GeneratedParameter($0, components: components) }
     let duplicateSwiftParameterNames = Dictionary(grouping: parameters, by: \.swiftName)
       .filter { $0.value.count > 1 }
       .map(\.key)
@@ -171,19 +201,24 @@ private struct GeneratedOperation {
     self.pathExpression = try Self.pathExpression(path: path, parameters: parameters)
 
     if let requestBody = operation.requestBody {
-      guard requestBody.content.keys.contains("application/json") else {
+      guard let jsonBody = requestBody.content["application/json"] else {
         throw OpenAPIGeneratorError.unsupported(
           "\(self.operationID) declares a request body without application/json content."
         )
       }
       self.hasJSONBody = true
-      self.genericBodyType = true
+      self.bodyPayloadType = try jsonBody.schema?.swiftType(
+        components: components,
+        inlineObjectFallback: nil
+      )
+      self.genericBodyType = self.bodyPayloadType == nil
     } else {
       self.hasJSONBody = false
+      self.bodyPayloadType = nil
       self.genericBodyType = false
     }
 
-    let response = Self.successResponse(from: operation.responses)
+    let response = try Self.successResponse(from: operation.responses, components: components)
     self.responseType = response.type
     self.responseSerializer = response.serializer
     self.hasTypedErrorResponse = operation.responses.contains { status, _ in
@@ -207,7 +242,7 @@ private struct GeneratedOperation {
       lines.append("  \(self.accessModifier) let \(parameter.swiftName): \(parameter.swiftType)")
     }
     if self.hasJSONBody {
-      lines.append("  \(self.accessModifier) let bodyPayload: Body")
+      lines.append("  \(self.accessModifier) let bodyPayload: \(self.bodyPayloadType ?? "Body")")
     }
 
     if !self.parameters.isEmpty || self.hasJSONBody {
@@ -278,7 +313,7 @@ private struct GeneratedOperation {
       "    \(parameter.swiftName): \(parameter.swiftType)"
     }
     if self.hasJSONBody {
-      arguments.append("    bodyPayload: Body")
+      arguments.append("    bodyPayload: \(self.bodyPayloadType ?? "Body")")
     }
     for index in arguments.indices {
       lines.append(arguments[index] + (index == arguments.indices.last ? "" : ","))
@@ -336,7 +371,10 @@ private struct GeneratedOperation {
     return ([base] + expressions).joined(separator: " / ")
   }
 
-  private static func successResponse(from responses: [String: OpenAPIResponse]) -> (type: String, serializer: String) {
+  private static func successResponse(
+    from responses: [String: OpenAPIResponse],
+    components: [String: OpenAPISchema]
+  ) throws -> (type: String, serializer: String) {
     let success = responses
       .compactMap { status, response -> (Int, OpenAPIResponse)? in
         guard let code = Int(status), (200..<300).contains(code) else { return nil }
@@ -355,6 +393,11 @@ private struct GeneratedOperation {
 
     if success.1.content.keys.contains("text/plain") {
       return ("String", ".string()")
+    }
+
+    if let schema = success.1.content["application/json"]?.schema,
+       let type = try schema.swiftType(components: components, inlineObjectFallback: nil) {
+      return (type, ".json(\(type).self)")
     }
 
     return ("Data", ".data")
@@ -378,6 +421,164 @@ private struct GeneratedOperation {
   }
 }
 
+private struct GeneratedSchemaModel {
+  let accessModifier: String
+  let originalName: String
+  let typeName: String
+  let schema: OpenAPISchema
+  let components: [String: OpenAPISchema]
+
+  init(
+    name: String,
+    schema: OpenAPISchema,
+    components: [String: OpenAPISchema],
+    accessModifier: String
+  ) throws {
+    self.accessModifier = accessModifier
+    self.originalName = name
+    self.typeName = name.swiftTypeName()
+    self.schema = schema
+    self.components = components
+
+    if schema.ref != nil {
+      throw OpenAPIGeneratorError.unsupported("Component schemas cannot be aliases to $ref yet: \(name).")
+    }
+  }
+
+  func renderedLines() throws -> [String] {
+    if let enumValues = self.schema.enumValues, self.schema.type == "string" {
+      return try self.renderedEnumLines(enumValues)
+    }
+    if self.schema.type == "object" || !self.schema.properties.isEmpty {
+      return try self.renderedObjectLines()
+    }
+    if self.schema.type == "array", let items = self.schema.items {
+      let elementType = try items.swiftType(components: self.components, inlineObjectFallback: nil)
+        ?? "Data"
+      return [
+        "\(self.accessModifier) typealias \(self.typeName) = [\(elementType)]"
+      ]
+    }
+
+    let aliasedType = try self.schema.swiftType(
+      components: self.components,
+      inlineObjectFallback: "Data"
+    ) ?? "Data"
+    return [
+      "\(self.accessModifier) typealias \(self.typeName) = \(aliasedType)"
+    ]
+  }
+
+  private func renderedEnumLines(_ values: [String]) throws -> [String] {
+    var cases: [(name: String, value: String)] = []
+    for value in values {
+      cases.append((name: value.swiftIdentifier(), value: value))
+    }
+    let duplicateCaseNames = Dictionary(grouping: cases, by: \.name)
+      .filter { $0.value.count > 1 }
+      .map(\.key)
+      .sorted()
+    guard duplicateCaseNames.isEmpty else {
+      throw OpenAPIGeneratorError.invalidDocument(
+        "\(self.originalName) has enum values that generate duplicate Swift case names: \(duplicateCaseNames.joined(separator: ", "))."
+      )
+    }
+
+    var lines: [String] = []
+    lines.append("\(self.accessModifier) enum \(self.typeName): String, Codable, Sendable {")
+    for item in cases {
+      lines.append("  case \(item.name) = \(item.value.swiftLiteral)")
+    }
+    lines.append("}")
+    return lines
+  }
+
+  private func renderedObjectLines() throws -> [String] {
+    let properties = try self.schema.properties.keys.sorted().map { name in
+      try GeneratedSchemaProperty(
+        name: name,
+        schema: self.schema.properties[name]!,
+        isRequired: self.schema.required.contains(name),
+        components: self.components
+      )
+    }
+    let duplicatePropertyNames = Dictionary(grouping: properties, by: \.swiftName)
+      .filter { $0.value.count > 1 }
+      .map(\.key)
+      .sorted()
+    guard duplicatePropertyNames.isEmpty else {
+      throw OpenAPIGeneratorError.invalidDocument(
+        "\(self.originalName) has properties that generate duplicate Swift names: \(duplicatePropertyNames.joined(separator: ", "))."
+      )
+    }
+
+    var lines: [String] = []
+    lines.append("\(self.accessModifier) struct \(self.typeName): Codable, Sendable {")
+    if properties.isEmpty {
+      lines.append("  \(self.accessModifier) init() {}")
+      lines.append("}")
+      return lines
+    }
+
+    for property in properties {
+      lines.append("  \(self.accessModifier) let \(property.swiftName): \(property.swiftType)")
+    }
+
+    lines.append("")
+    lines.append("  \(self.accessModifier) init(")
+    for index in properties.indices {
+      lines.append(properties[index].initArgument + (index == properties.indices.last ? "" : ","))
+    }
+    lines.append("  ) {")
+    for property in properties {
+      lines.append("    self.\(property.swiftName) = \(property.swiftName)")
+    }
+    lines.append("  }")
+
+    if properties.contains(where: { $0.swiftName.unescapedSwiftIdentifier != $0.originalName }) {
+      lines.append("")
+      lines.append("  private enum CodingKeys: String, CodingKey {")
+      for property in properties {
+        if property.swiftName.unescapedSwiftIdentifier == property.originalName {
+          lines.append("    case \(property.swiftName)")
+        } else {
+          lines.append("    case \(property.swiftName) = \(property.originalName.swiftLiteral)")
+        }
+      }
+      lines.append("  }")
+    }
+
+    lines.append("}")
+    return lines
+  }
+}
+
+private struct GeneratedSchemaProperty {
+  let originalName: String
+  let swiftName: String
+  let swiftType: String
+  let isRequired: Bool
+
+  init(
+    name: String,
+    schema: OpenAPISchema,
+    isRequired: Bool,
+    components: [String: OpenAPISchema]
+  ) throws {
+    self.originalName = name
+    self.swiftName = name.swiftIdentifier()
+    self.isRequired = isRequired && !schema.nullable
+    guard let type = try schema.swiftType(components: components, inlineObjectFallback: nil) else {
+      throw OpenAPIGeneratorError.unsupported("Nested inline object schemas are not generated yet: \(name).")
+    }
+    self.swiftType = self.isRequired ? type : "\(type)?"
+  }
+
+  var initArgument: String {
+    "    \(self.swiftName): \(self.swiftType)\(self.isRequired ? "" : " = nil")"
+  }
+}
+
 private struct GeneratedParameter {
   let originalName: String
   let swiftName: String
@@ -386,7 +587,7 @@ private struct GeneratedParameter {
   let baseType: String
   let swiftType: String
 
-  init(_ parameter: OpenAPIParameter) throws {
+  init(_ parameter: OpenAPIParameter, components: [String: OpenAPISchema]) throws {
     guard parameter.location != .cookie else {
       throw OpenAPIGeneratorError.unsupported("Cookie parameters are not generated yet: \(parameter.name).")
     }
@@ -398,7 +599,10 @@ private struct GeneratedParameter {
     self.swiftName = parameter.name.swiftIdentifier()
     self.location = parameter.location
     self.isRequired = parameter.required || parameter.location == .path
-    self.baseType = parameter.schema.swiftType
+    self.baseType = try parameter.schema.swiftType(
+      components: components,
+      inlineObjectFallback: "String"
+    ) ?? "String"
     self.swiftType = self.isRequired ? self.baseType : "\(self.baseType)?"
   }
 
@@ -428,7 +632,21 @@ private struct GeneratedParameter {
 
 private struct OpenAPIDocument: Decodable {
   let openapi: String?
+  let components: OpenAPIComponents?
   let paths: [String: OpenAPIPathItem]
+}
+
+private struct OpenAPIComponents: Decodable {
+  let schemas: [String: OpenAPISchema]
+
+  private enum CodingKeys: String, CodingKey {
+    case schemas
+  }
+
+  init(from decoder: any Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    self.schemas = try container.decodeIfPresent([String: OpenAPISchema].self, forKey: .schemas) ?? [:]
+  }
 }
 
 private struct OpenAPIPathItem: Decodable {
@@ -556,17 +774,104 @@ private struct OpenAPIMediaType: Decodable {
   let schema: OpenAPISchema?
 }
 
-private struct OpenAPISchema: Decodable {
+private final class OpenAPISchema: Decodable {
+  let ref: String?
   let type: String?
   let format: String?
+  let nullable: Bool
+  let enumValues: [String]?
+  let items: OpenAPISchema?
+  let properties: [String: OpenAPISchema]
+  let required: Set<String>
 
-  init(type: String? = nil, format: String? = nil) {
+  init(
+    ref: String? = nil,
+    type: String? = nil,
+    format: String? = nil,
+    nullable: Bool = false,
+    enumValues: [String]? = nil,
+    items: OpenAPISchema? = nil,
+    properties: [String: OpenAPISchema] = [:],
+    required: Set<String> = []
+  ) {
+    self.ref = ref
     self.type = type
     self.format = format
+    self.nullable = nullable
+    self.enumValues = enumValues
+    self.items = items
+    self.properties = properties
+    self.required = required
   }
 
-  var swiftType: String {
+  private enum CodingKeys: String, CodingKey {
+    case ref = "$ref"
+    case type
+    case format
+    case nullable
+    case enumValues = "enum"
+    case items
+    case properties
+    case required
+  }
+
+  convenience init(from decoder: any Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    let decodedType: String?
+    let nullableFromType: Bool
+    if let type = try? container.decode(String.self, forKey: .type) {
+      decodedType = type
+      nullableFromType = false
+    } else if let types = try? container.decode([String].self, forKey: .type) {
+      decodedType = types.first { $0 != "null" }
+      nullableFromType = types.contains("null")
+    } else {
+      decodedType = nil
+      nullableFromType = false
+    }
+
+    self.init(
+      ref: try container.decodeIfPresent(String.self, forKey: .ref),
+      type: decodedType,
+      format: try container.decodeIfPresent(String.self, forKey: .format),
+      nullable: (try container.decodeIfPresent(Bool.self, forKey: .nullable) ?? false) || nullableFromType,
+      enumValues: try container.decodeIfPresent([String].self, forKey: .enumValues),
+      items: try container.decodeIfPresent(OpenAPISchema.self, forKey: .items),
+      properties: try container.decodeIfPresent([String: OpenAPISchema].self, forKey: .properties) ?? [:],
+      required: Set(try container.decodeIfPresent([String].self, forKey: .required) ?? [])
+    )
+  }
+
+  func swiftType(
+    components: [String: OpenAPISchema],
+    inlineObjectFallback: String?
+  ) throws -> String? {
+    if let ref {
+      let componentName = try Self.componentName(forReference: ref)
+      guard components[componentName] != nil else {
+        throw OpenAPIGeneratorError.invalidDocument("Schema reference was not found: \(ref).")
+      }
+      return componentName.swiftTypeName()
+    }
+    if let enumValues, !enumValues.isEmpty, self.type == "string" {
+      return "String"
+    }
+    if self.type == "array" {
+      let itemType = try self.items?.swiftType(components: components, inlineObjectFallback: inlineObjectFallback)
+        ?? "String"
+      return "[\(itemType)]"
+    }
+    if self.type == "object" || !self.properties.isEmpty {
+      return inlineObjectFallback
+    }
+
     switch (self.type, self.format) {
+    case ("string", "binary"):
+      return "Data"
+    case ("string", "date"), ("string", "date-time"):
+      return "Date"
+    case ("string", "uuid"):
+      return "UUID"
     case ("integer", "int64"):
       return "Int64"
     case ("integer", _):
@@ -580,8 +885,18 @@ private struct OpenAPISchema: Decodable {
     case ("string", _):
       return "String"
     default:
-      return "String"
+      return inlineObjectFallback ?? "String"
     }
+  }
+
+  private static func componentName(forReference ref: String) throws -> String {
+    guard let name = ref.split(separator: "/").last.map(String.init), !name.isEmpty else {
+      throw OpenAPIGeneratorError.invalidDocument("Unsupported schema reference: \(ref).")
+    }
+    guard ref.hasPrefix("#/components/schemas/") else {
+      throw OpenAPIGeneratorError.unsupported("Only local component schema references are generated: \(ref).")
+    }
+    return name.swiftTypeName()
   }
 }
 
@@ -626,6 +941,19 @@ private extension String {
     let prefixedName = name.prefixedIfNeededForSwiftIdentifier(prefix: "value")
     guard prefixedName != "self" else { return "selfValue" }
     return SwiftKeywords.escaped(prefixedName)
+  }
+
+  func swiftTypeName() -> String {
+    let name = self.identifierWords().map(\.capitalized).joined()
+    guard !name.isEmpty else { return "GeneratedValue" }
+    return SwiftKeywords.escapedTypeName(name.prefixedIfNeededForSwiftIdentifier(prefix: "Generated"))
+  }
+
+  var unescapedSwiftIdentifier: String {
+    if self.hasPrefix("`"), self.hasSuffix("`") {
+      return String(self.dropFirst().dropLast())
+    }
+    return self
   }
 
   func identifierWords() -> [String] {
@@ -727,6 +1055,10 @@ private enum SwiftKeywords {
   ]
 
   static func escaped(_ name: String) -> String {
+    self.values.contains(name) ? "`\(name)`" : name
+  }
+
+  static func escapedTypeName(_ name: String) -> String {
     self.values.contains(name) ? "`\(name)`" : name
   }
 }
