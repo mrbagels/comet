@@ -41,6 +41,8 @@ The shipped live transports today are ``URLSessionTransport`` and ``URLSessionWe
 - ``CachedHTTPResponse``
 - ``HTTPCacheStore``
 - ``MemoryHTTPCacheStore``
+- ``FileHTTPCacheStore``
+- ``FileHTTPCacheStoreConfiguration``
 - ``PreparedRequest``
 - ``ResponseSerializer``
 - ``ErrorResponseSerializer``

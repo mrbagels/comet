@@ -1353,6 +1353,156 @@ private func durationMilliseconds(_ duration: Duration) -> Int64 {
   #expect(stored.data == Data("cached".utf8))
 }
 
+@Test func cacheMiddlewareServesStaleResponseWhenNetworkFailsIfPolicyAllows() async throws {
+  let key = HTTPCacheKey(method: .get, url: URL(string: "https://example.com/cache")!)
+  var cachedHeaders = HTTPFields()
+  cachedHeaders[HTTPField.Name("Cache-Control")!] = "max-age=0"
+  let store = MemoryHTTPCacheStore(
+    responses: [
+      key: CachedHTTPResponse(
+        data: Data("cached".utf8),
+        statusCode: 200,
+        headers: cachedHeaders,
+        storedAt: Date(timeIntervalSince1970: 0)
+      )
+    ]
+  )
+  let transportState = SequenceTransportState(results: [.failure(.timeout)])
+  let client = HTTPClient.live(
+    configuration: ClientConfiguration(
+      baseURL: URL(string: "https://example.com")!,
+      middleware: [
+        CacheMiddleware(
+          store: store,
+          now: { Date(timeIntervalSince1970: 10) }
+        )
+      ]
+    ),
+    transport: SequenceTransport(state: transportState)
+  )
+  var traces = client.traces.makeAsyncIterator()
+  let request = TestRequest(
+    path: "cache",
+    method: .get,
+    responseSerializer: .string(),
+    options: RequestOptions(
+      cachePolicy: HTTPCachePolicy(
+        strategy: .returnCacheElseLoad,
+        allowsStaleIfError: true
+      )
+    )
+  )
+
+  let response = try await client.send(request)
+  let trace = try #require(await traces.next())
+
+  #expect(response == "cached")
+  #expect(await transportState.count() == 1)
+  #expect(trace.cacheEvents.map(\.kind) == [.stale, .revalidate, .hit])
+  #expect(trace.cacheEvents[1].reason == .noValidator)
+  #expect(trace.cacheEvents.last?.reason == .staleIfError)
+}
+
+@Test func fileHTTPCacheStorePersistsResponsesAcrossInstances() async throws {
+  let directory = FileManager.default.temporaryDirectory
+    .appendingPathComponent("CometFileCacheTests-\(UUID().uuidString)", isDirectory: true)
+  defer { try? FileManager.default.removeItem(at: directory) }
+
+  let configuration = FileHTTPCacheStoreConfiguration(
+    directoryURL: directory,
+    namespace: "unit",
+    maximumSizeBytes: 10_000
+  )
+  let key = HTTPCacheKey(method: .get, url: URL(string: "https://example.com/cache")!)
+  var headers = HTTPFields()
+  headers[.contentType] = "text/plain"
+  let storedAt = Date(timeIntervalSince1970: 1_717_171_717)
+
+  let writer = FileHTTPCacheStore(configuration: configuration)
+  await writer.store(
+    CachedHTTPResponse(
+      data: Data("cached".utf8),
+      statusCode: 200,
+      headers: headers,
+      storedAt: storedAt
+    ),
+    for: key
+  )
+
+  let reader = FileHTTPCacheStore(configuration: configuration)
+  let cached = try #require(await reader.cachedResponse(for: key))
+
+  #expect(cached.data == Data("cached".utf8))
+  #expect(cached.statusCode == 200)
+  #expect(cached.headers[.contentType] == "text/plain")
+  #expect(cached.storedAt == storedAt)
+  #expect(await reader.count() == 1)
+}
+
+@Test func fileHTTPCacheStorePrunesOldestEntriesWhenSizeLimitIsExceeded() async throws {
+  let directory = FileManager.default.temporaryDirectory
+    .appendingPathComponent("CometFileCacheTests-\(UUID().uuidString)", isDirectory: true)
+  defer { try? FileManager.default.removeItem(at: directory) }
+
+  let store = FileHTTPCacheStore(
+    configuration: FileHTTPCacheStoreConfiguration(
+      directoryURL: directory,
+      namespace: "unit",
+      maximumSizeBytes: 1_000
+    )
+  )
+  let firstKey = HTTPCacheKey(method: .get, url: URL(string: "https://example.com/first")!)
+  let secondKey = HTTPCacheKey(method: .get, url: URL(string: "https://example.com/second")!)
+
+  await store.store(
+    CachedHTTPResponse(
+      data: Data(repeating: 1, count: 256),
+      statusCode: 200,
+      storedAt: Date(timeIntervalSince1970: 1)
+    ),
+    for: firstKey
+  )
+  await store.store(
+    CachedHTTPResponse(
+      data: Data(repeating: 2, count: 256),
+      statusCode: 200,
+      storedAt: Date(timeIntervalSince1970: 2)
+    ),
+    for: secondKey
+  )
+
+  #expect(await store.cachedResponse(for: firstKey) == nil)
+  let cached = try #require(await store.cachedResponse(for: secondKey))
+  #expect(cached.data == Data(repeating: 2, count: 256))
+  #expect(await store.count() == 1)
+  #expect(await store.currentSizeBytes() <= 1_000)
+}
+
+@Test func fileHTTPCacheStoreRemovesCorruptedEntriesWhenRead() async throws {
+  let directory = FileManager.default.temporaryDirectory
+    .appendingPathComponent("CometFileCacheTests-\(UUID().uuidString)", isDirectory: true)
+  defer { try? FileManager.default.removeItem(at: directory) }
+
+  let configuration = FileHTTPCacheStoreConfiguration(
+    directoryURL: directory,
+    namespace: "unit",
+    maximumSizeBytes: 10_000
+  )
+  let store = FileHTTPCacheStore(configuration: configuration)
+  let key = HTTPCacheKey(method: .get, url: URL(string: "https://example.com/cache")!)
+
+  await store.store(CachedHTTPResponse(data: Data("cached".utf8), statusCode: 200), for: key)
+  let files = try FileManager.default.contentsOfDirectory(
+    at: configuration.resolvedDirectoryURL,
+    includingPropertiesForKeys: nil
+  )
+  let file = try #require(files.first)
+  try Data("not-json".utf8).write(to: file)
+
+  #expect(await store.cachedResponse(for: key) == nil)
+  #expect(await store.count() == 0)
+}
+
 @Test func httpClientStreamsResponseLines() async throws {
   let client = HTTPClient.live(
     configuration: .default(baseURL: URL(string: "https://example.com")!),

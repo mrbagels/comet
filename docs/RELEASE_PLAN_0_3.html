@@ -364,7 +364,7 @@
         <article class="phase cache">
           <span class="tag">0.2.5</span>
           <h3>Persistent Cache And Playground Cache Lab</h3>
-          <p>Add file-backed storage, pruning, stale policies where the model allows, cache demos, cache DocC, and deterministic smoke coverage.</p>
+          <p>Package cache persistence is implemented with file-backed storage, namespaces, pruning, corrupted-entry cleanup, and stale-if-error fallback. Playground cache demos remain.</p>
         </article>
 
         <article class="phase workflow">
@@ -465,7 +465,7 @@ xcodebuild test -project CometPlayground.xcodeproj -scheme CometPlaygroundApp -d
       <h2>Decision Points</h2>
       <div class="panel">
         <ul>
-          <li>Before `0.2.5`: whether file cache storage needs encryption hooks.</li>
+          <li>Before finishing `0.2.5`: whether file cache storage needs encryption hooks or should stay as application-managed policy.</li>
           <li>Before `0.2.7`: whether `MockServer` includes a real local HTTP listener.</li>
           <li>Before `0.2.8`: whether generator dependencies are acceptable.</li>
           <li>Before `0.2.9`: whether server support belongs in this package now.</li>

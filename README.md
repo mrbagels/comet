@@ -18,7 +18,7 @@
 
 Comet turns API endpoints into Swift types. It ships with a `URLSession`-backed live client, middleware for production behavior, opt-in response caching, deterministic testing transports, cassette recording and replay, request activity and trace streams, response streaming, transfer progress hooks, and resilient WebSocket sessions.
 
-The latest published release is `0.2.0`, the completed V2 foundation. Larger systems such as caching, server-side live transports, generated clients, and mock-server workflows remain future minor-version work.
+The latest published release is `0.2.0`, the completed V2 foundation. The `next` branch is carrying the `0.2.x` patch train toward `0.3.0`, including cache, trace, contract-testing, generated-client, and server-direction work.
 
 ## At A Glance
 
@@ -200,11 +200,32 @@ var options: RequestOptions {
 }
 ```
 
+Use `FileHTTPCacheStore` when responses should survive process restarts:
+
+```swift
+let cache = FileHTTPCacheStore(
+  namespace: "api-v1",
+  maximumSizeBytes: 25 * 1024 * 1024
+)
+```
+
 `returnCacheElseLoad` serves fresh cached responses and revalidates stale entries
 when `ETag` or `Last-Modified` validators are available. Use `.revalidate` to
 force a conditional request, `.cacheOnly` for offline reads, `.networkOnly` to
 avoid reading or writing the cache, or `.reloadIgnoringCache` to fetch and store
 a replacement.
+
+For offline-tolerant reads, opt in to stale fallback when the network request
+fails:
+
+```swift
+RequestOptions(
+  cachePolicy: HTTPCachePolicy(
+    strategy: .returnCacheElseLoad,
+    allowsStaleIfError: true
+  )
+)
+```
 
 Cache decisions are included in completed traces:
 

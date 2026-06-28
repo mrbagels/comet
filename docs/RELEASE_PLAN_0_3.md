@@ -141,15 +141,20 @@ Acceptance:
 Purpose: make the cache useful beyond a single process and make the behavior
 inspectable.
 
+Status: package-level persistent cache is implemented in `Unreleased` with a
+file-backed store, namespace configuration, size pruning, corrupted-entry
+cleanup, and stale-if-error fallback. Playground cache lab scenarios remain.
+
 Deliverables:
 
 - Add a file-backed cache store for Apple platforms.
 - Add size limits, entry pruning, and cache namespace configuration.
-- Add stale-if-error and stale-while-revalidate policies if they fit the public
-  model cleanly.
+- Add stale-if-error fallback.
 - Add cache scenarios to the playground: first load, fresh hit, stale
   revalidation, offline stale fallback, and clear cache.
 - Add DocC article: cache-aware requests and revalidation.
+- Defer stale-while-revalidate until the background refresh semantics can be
+  modeled without surprising request traces.
 
 Acceptance:
 

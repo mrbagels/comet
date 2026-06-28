@@ -312,10 +312,12 @@ Dependencies:
 
 Add cache helpers around HTTP semantics.
 
-Status: cache core and HTTP revalidation are implemented in `Unreleased` with
-memory storage, request-level policies, freshness parsing, validators,
-conditional requests, `304` merging, and cache trace events. Persistent storage,
-pruning, stale-if-error, and stale-while-revalidate remain future work.
+Status: cache core, HTTP revalidation, and package-level persistent cache
+storage are implemented in `Unreleased` with memory and file-backed stores,
+namespace configuration, size pruning, corrupted-entry cleanup, request-level
+policies, freshness parsing, validators, conditional requests, `304` merging,
+stale-if-error fallback, and cache trace events. Playground cache lab scenarios
+and stale-while-revalidate remain future work.
 
 Technical shape:
 

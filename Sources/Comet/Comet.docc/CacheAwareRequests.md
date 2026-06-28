@@ -1,6 +1,6 @@
 # Cache-Aware Requests
 
-Use ``CacheMiddleware`` when read requests should reuse process-local HTTP responses without changing request types or transports.
+Use ``CacheMiddleware`` when read requests should reuse HTTP responses without changing request types or transports.
 
 ## Add A Cache Store
 
@@ -17,6 +17,22 @@ let client = HTTPClient.live(
   transport: URLSessionTransport()
 )
 ```
+
+``MemoryHTTPCacheStore`` is the lightest option for tests, previews, and
+process-local reads. Use ``FileHTTPCacheStore`` when cached responses should
+survive app launches:
+
+```swift
+let cache = FileHTTPCacheStore(
+  namespace: "api-v1",
+  maximumSizeBytes: 25 * 1024 * 1024
+)
+```
+
+The file store writes JSON entries under
+``FileHTTPCacheStoreConfiguration/resolvedDirectoryURL``, isolates entries by
+namespace, prunes oldest entries when the configured size limit is exceeded, and
+removes corrupted entries when they are encountered.
 
 Caching is disabled unless a request opts in with ``RequestOptions/cachePolicy``. The default policy for cache-aware reads is ``HTTPCachePolicy/returnCacheElseLoad``.
 
@@ -55,9 +71,25 @@ var options: RequestOptions {
 }
 ```
 
+For offline-tolerant reads, enable stale fallback explicitly. When a stale cached
+response exists and the network request fails, ``CacheMiddleware`` returns the
+stale response and records a cache hit with
+``RequestCacheTraceEvent/Reason/staleIfError``.
+
+```swift
+var options: RequestOptions {
+  RequestOptions(
+    cachePolicy: HTTPCachePolicy(
+      strategy: .returnCacheElseLoad,
+      allowsStaleIfError: true
+    )
+  )
+}
+```
+
 ## Inspect Cache Decisions
 
-Completed ``RequestTrace`` values include cache events for hits, misses, bypasses, stale entries, revalidation attempts, `304` updates, stores, and skipped stores.
+Completed ``RequestTrace`` values include cache events for hits, misses, bypasses, stale entries, revalidation attempts, stale fallbacks, `304` updates, stores, and skipped stores.
 
 ```swift
 for await trace in client.traces {
@@ -67,4 +99,7 @@ for await trace in client.traces {
 }
 ```
 
-The current cache core is intentionally conservative. It keeps cache entries in a configured store and supports freshness metadata, validators, and `304 Not Modified` merging. Persistent stores, pruning, stale-if-error, and stale-while-revalidate are planned as separate patch milestones.
+The current cache core is intentionally conservative. It keeps cache entries in a
+configured memory or file store and supports freshness metadata, validators,
+`304 Not Modified` merging, size pruning, and stale-if-error fallback.
+Stale-while-revalidate remains a future milestone.

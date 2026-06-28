@@ -14,13 +14,16 @@ public struct HTTPCachePolicy: Sendable, Hashable {
 
   public var strategy: Strategy
   public var allowsUnsafeMethods: Bool
+  public var allowsStaleIfError: Bool
 
   public init(
     strategy: Strategy = .returnCacheElseLoad,
-    allowsUnsafeMethods: Bool = false
+    allowsUnsafeMethods: Bool = false,
+    allowsStaleIfError: Bool = false
   ) {
     self.strategy = strategy
     self.allowsUnsafeMethods = allowsUnsafeMethods
+    self.allowsStaleIfError = allowsStaleIfError
   }
 
   public static let disabled = Self(strategy: .disabled)
@@ -284,6 +287,7 @@ public struct RequestCacheTraceEvent: Sendable, Hashable {
     case notModified
     case replaced
     case cacheHit
+    case staleIfError
   }
 
   public let kind: Kind
@@ -436,6 +440,10 @@ public struct CacheMiddleware: ResponseProvidingMiddleware {
       return .proceed(result)
     }
     guard case .success(let response) = result else {
+      if policy.allowsStaleIfError, let cached = requestState?.cachedResponse {
+        await context.recordCacheEvent(.init(kind: .hit, key: key, policy: policy, reason: .staleIfError))
+        return .proceed(.success(cached.rawResponse))
+      }
       return .proceed(result)
     }
     if response.statusCode == 304, let cached = requestState?.cachedResponse {

@@ -21,6 +21,8 @@ live transports remain future minor-version work.
 - HTTP cache revalidation with conditional `If-None-Match` and `If-Modified-Since` requests, `304 Not Modified` merge behavior, and replacement storage for refreshed `200` responses.
 - Cache-only, network-only, return-cache-else-load, reload-ignoring-cache, and revalidate request policies.
 - Cache hit, miss, bypass, stale, revalidate, update, store, and skipped-store events on completed `RequestTrace` values.
+- `FileHTTPCacheStore` and `FileHTTPCacheStoreConfiguration` for namespace-isolated persistent cache entries with size limits, oldest-entry pruning, and corrupted-entry cleanup.
+- Stale-if-error cache fallback through `HTTPCachePolicy(allowsStaleIfError:)`.
 
 ### Changed
 
