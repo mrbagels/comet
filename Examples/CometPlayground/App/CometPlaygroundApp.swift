@@ -5,7 +5,7 @@ import SwiftUI
 struct CometPlaygroundApp: App {
   init() {
     prepareDependencies {
-      try! $0.bootstrapDatabase()
+      $0.bootstrapDatabase()
     }
   }
 

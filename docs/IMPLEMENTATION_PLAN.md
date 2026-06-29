@@ -145,6 +145,7 @@ Delivered:
 - `DependencyValues.httpClient`
 - `Effect.request`
 - `Effect.trackedRequest`
+- `Effect.cancelTrackedRequest`
 - `CometRequestAction`
 - `CometRequestState`
 
@@ -303,7 +304,7 @@ The highest-value follow-ups moved into the V3 release plan and later patch work
 - contract testing and mock-server scenarios
 - JSON and YAML OpenAPI request generation
 - server-side direction documentation
-- reachability hints and lightweight TCA request state
+- reachability hints and tracked TCA request state/effects
 
 Those items are now implemented or documented in the current release line. The
 executable `0.3.0` release plan lives in [RELEASE_PLAN_0_3.md](RELEASE_PLAN_0_3.md).

@@ -2,6 +2,20 @@ import ComposableArchitecture
 import Comet
 
 public extension Effect where Action: Sendable {
+  /// Cancels an in-flight tracked request and emits a cancellation lifecycle action.
+  ///
+  /// Use this with ``trackedRequest(_:cancellationID:cancelInFlight:action:)`` when a reducer
+  /// wants explicit cancellation to flow through its normal ``CometRequestAction`` handling.
+  static func cancelTrackedRequest<Value: Sendable, CancellationID: Hashable & Sendable>(
+    id cancellationID: CancellationID,
+    action: @escaping @Sendable (CometRequestAction<Value>) -> Action
+  ) -> Self {
+    .concatenate(
+      .cancel(id: cancellationID),
+      .send(action(.cancelled))
+    )
+  }
+
   /// Builds an effect that executes a Comet request with the injected ``HTTPClient`` dependency.
   static func request<R: APIRequest>(
     _ request: R,
@@ -63,7 +77,12 @@ public extension Effect where Action: Sendable {
     .concatenate(
       .send(action(.started)),
       .request(request, using: client) { result in
-        action(.response(result))
+        switch result {
+        case .failure(.cancelled):
+          action(.cancelled)
+        default:
+          action(.response(result))
+        }
       }
     )
   }

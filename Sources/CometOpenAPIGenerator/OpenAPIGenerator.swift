@@ -85,10 +85,10 @@ public struct OpenAPIGenerator: Sendable {
   ) throws -> String {
     let components = document.components ?? OpenAPIComponents()
     let componentSchemas = components.schemas
-    let models = try componentSchemas.keys.sorted().map { name in
+    let models = try componentSchemas.sorted { $0.key < $1.key }.map { name, schema in
       try GeneratedSchemaModel(
         name: name,
-        schema: componentSchemas[name]!,
+        schema: schema,
         components: componentSchemas,
         accessModifier: configuration.accessModifier
       )
@@ -231,6 +231,11 @@ public struct OpenAPIGenerator: Sendable {
       "private struct CometOpenAPIAdditionalCodingKey: CodingKey {",
       "  var stringValue: String",
       "  var intValue: Int?",
+      "",
+      "  init(_ stringValue: String) {",
+      "    self.stringValue = stringValue",
+      "    self.intValue = nil",
+      "  }",
       "",
       "  init?(stringValue: String) {",
       "    self.stringValue = stringValue",
@@ -388,14 +393,14 @@ private enum GeneratedRequestBody {
       var lines = ["  \(accessModifier) var body: HTTPBody {"]
       if required {
         lines.append("    var items: [QueryItem] = []")
-        lines.append("    for key in self.formFields.keys.sorted() {")
-        lines.append("      items.append(QueryItem(key, String(describing: self.formFields[key]!)))")
+        lines.append("    for (key, value) in self.formFields.sorted(by: { $0.key < $1.key }) {")
+        lines.append("      items.append(QueryItem(key, String(describing: value)))")
         lines.append("    }")
       } else {
         lines.append("    guard let formFields = self.formFields, !formFields.isEmpty else { return .none }")
         lines.append("    var items: [QueryItem] = []")
-        lines.append("    for key in formFields.keys.sorted() {")
-        lines.append("      items.append(QueryItem(key, String(describing: formFields[key]!)))")
+        lines.append("    for (key, value) in formFields.sorted(by: { $0.key < $1.key }) {")
+        lines.append("      items.append(QueryItem(key, String(describing: value)))")
         lines.append("    }")
       }
       lines.append("    return .formURLEncoded(items)")
@@ -419,21 +424,21 @@ private enum GeneratedRequestBody {
       var lines = ["  \(accessModifier) var body: HTTPBody {"]
       if required {
         lines.append("    var parts: [HTTPBody.MultipartPart] = []")
-        lines.append("    for key in self.multipartFields.keys.sorted() {")
+        lines.append("    for (key, value) in self.multipartFields.sorted(by: { $0.key < $1.key }) {")
         if isBinary {
-          lines.append("      parts.append(.data(name: key, data: self.multipartFields[key]!, filename: key, contentType: \"application/octet-stream\"))")
+          lines.append("      parts.append(.data(name: key, data: value, filename: key, contentType: \"application/octet-stream\"))")
         } else {
-          lines.append("      parts.append(.text(name: key, value: String(describing: self.multipartFields[key]!)))")
+          lines.append("      parts.append(.text(name: key, value: String(describing: value)))")
         }
         lines.append("    }")
       } else {
         lines.append("    guard let multipartFields = self.multipartFields, !multipartFields.isEmpty else { return .none }")
         lines.append("    var parts: [HTTPBody.MultipartPart] = []")
-        lines.append("    for key in multipartFields.keys.sorted() {")
+        lines.append("    for (key, value) in multipartFields.sorted(by: { $0.key < $1.key }) {")
         if isBinary {
-          lines.append("      parts.append(.data(name: key, data: multipartFields[key]!, filename: key, contentType: \"application/octet-stream\"))")
+          lines.append("      parts.append(.data(name: key, data: value, filename: key, contentType: \"application/octet-stream\"))")
         } else {
-          lines.append("      parts.append(.text(name: key, value: String(describing: multipartFields[key]!)))")
+          lines.append("      parts.append(.text(name: key, value: String(describing: value)))")
         }
         lines.append("    }")
       }
@@ -671,7 +676,7 @@ private struct GeneratedOperation {
           lines.append(contentsOf: parameter.cookieLines())
         }
         lines.append("    if !cookies.isEmpty {")
-        lines.append("      headers[HTTPField.Name(\"Cookie\")!] = cookies.joined(separator: \"; \")")
+        lines.append("      headers[.cookie] = cookies.joined(separator: \"; \")")
         lines.append("    }")
       }
       lines.append("    return headers")
@@ -1499,8 +1504,8 @@ private struct GeneratedObjectSchemaRenderer {
       }
     }
     lines.append("\(self.indentation)    var additionalContainer = encoder.container(keyedBy: CometOpenAPIAdditionalCodingKey.self)")
-    lines.append("\(self.indentation)    for key in self.\(additionalProperties.swiftName).keys.sorted() where !Self.knownAdditionalPropertyKeys.contains(key) {")
-    lines.append("\(self.indentation)      try additionalContainer.encode(self.\(additionalProperties.swiftName)[key]!, forKey: CometOpenAPIAdditionalCodingKey(stringValue: key)!)")
+    lines.append("\(self.indentation)    for (key, value) in self.\(additionalProperties.swiftName).sorted(by: { $0.key < $1.key }) where !Self.knownAdditionalPropertyKeys.contains(key) {")
+    lines.append("\(self.indentation)      try additionalContainer.encode(value, forKey: CometOpenAPIAdditionalCodingKey(key))")
     lines.append("\(self.indentation)    }")
     lines.append("\(self.indentation)  }")
     return lines
@@ -2258,10 +2263,10 @@ private final class OpenAPISchema: Decodable {
       entries.append(contentsOf: try resolvedSchema.objectPropertyEntries(components: components))
     }
     entries.append(
-      contentsOf: self.properties.keys.sorted().map { name in
+      contentsOf: self.properties.sorted { $0.key < $1.key }.map { name, schema in
         OpenAPIObjectPropertyEntry(
           name: name,
-          schema: self.properties[name]!,
+          schema: schema,
           isRequired: self.required.contains(name)
         )
       }

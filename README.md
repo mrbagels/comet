@@ -18,7 +18,7 @@
 
 Comet turns API endpoints into Swift types. It ships with a `URLSession`-backed live HTTP client, middleware for production behavior, opt-in response caching, deterministic testing and contract transports, cassette recording and replay, OpenAPI request generation, request activity and trace streams, response streaming, transfer progress hooks, and resilient WebSocket sessions.
 
-The latest published release is `0.4.4`, the V3 foundation plus stale-while-revalidate caching and observability, proof bundle exports, the SwiftPM OpenAPI command plugin, expanded OpenAPI schema and request generation, YAML input, optional SQLiteData persistence, TCA playground coverage, cache and middleware hardening, and server Swift live HTTP support.
+The latest published release is `0.4.5`, the V3 foundation plus stale-while-revalidate caching and observability, proof bundle exports, the SwiftPM OpenAPI command plugin, expanded OpenAPI schema and request generation, YAML input, optional SQLiteData persistence, TCA playground coverage, cache and middleware hardening, server Swift live HTTP support, hardened OpenAPI output, LocalMockServer IPv6 handling, and tracked TCA cancellation.
 
 ## At A Glance
 
@@ -29,7 +29,7 @@ The latest published release is `0.4.4`, the V3 foundation plus stale-while-reva
 | `CometOpenAPIGenerator` | JSON and YAML OpenAPI 3.x request generator core plus the `comet-openapi-generate` executable |
 | `CometOpenAPIPlugin` | SwiftPM command plugin for package-root OpenAPI generation |
 | `CometSQLiteData` | Optional SQLiteData tables, migrations, and storage helpers for Comet activity events and generated artifacts |
-| `CometTCA` | Lightweight Composable Architecture helpers for request effects, tracked request effects, and request state |
+| `CometTCA` | Lightweight Composable Architecture helpers for request effects, tracked request effects, tracked cancellation, and request state |
 | `CometPlayground` | iPhone-first verification app for HTTP, cache, contracts, replay, activity, and realtime flows |
 
 ## Toolchain And Platforms
@@ -45,7 +45,7 @@ The shipped live HTTP transport is `URLSession`-backed and imports `FoundationNe
 ## Install
 
 ```swift
-.package(url: "https://github.com/mrbagels/comet.git", from: "0.4.4")
+.package(url: "https://github.com/mrbagels/comet.git", from: "0.4.5")
 ```
 
 Import the target you need:
@@ -598,7 +598,7 @@ GitHub Actions runs the Swift package suite, a Linux core-target build, secret s
 Check for public API changes against the latest release:
 
 ```sh
-.github/scripts/check-api-breaking-changes.sh v0.4.4
+.github/scripts/check-api-breaking-changes.sh v0.4.5
 ```
 
 Run a fresh external client smoke check:

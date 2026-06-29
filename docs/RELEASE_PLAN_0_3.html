@@ -473,7 +473,7 @@ xcodebuild test \
       <div class="panel">
         <ul>
           <li>File cache storage stays plain file-backed storage with user-owned protection policy.</li>
-          <li>`MockServer` remains transport-level for `0.3.0`; a real local HTTP listener is deferred.</li>
+          <li>`MockServer` shipped as a transport-level contract runner for `0.3.0`; the patch line now also includes `LocalMockServer` for real local HTTP tests.</li>
           <li>OpenAPI generation supports JSON directly and YAML through Yams. The SwiftPM command plugin now covers package-root generation; full JSON Schema coverage and formatting integration remain future polish.</li>
           <li>Server-side live transports are deferred for `0.3.0` and documented in the server decision record.</li>
         </ul>

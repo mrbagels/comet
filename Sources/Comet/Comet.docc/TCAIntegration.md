@@ -95,6 +95,7 @@ struct UserFeature {
   }
 
   enum Action {
+    case cancelButtonTapped
     case task
     case user(CometRequestAction<User>)
   }
@@ -106,6 +107,9 @@ struct UserFeature {
   var body: some Reducer<State, Action> {
     Reduce { state, action in
       switch action {
+      case .cancelButtonTapped:
+        return .cancelTrackedRequest(id: CancelID.user, action: Action.user)
+
       case .task:
         return .trackedRequest(
           GetUser(userID: 42),

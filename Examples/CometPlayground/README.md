@@ -123,6 +123,7 @@ Each scenario in the UI shows the exact Comet API surface it is proving. The dem
 - `CometRequestState`
 - `Effect.request`
 - `Effect.trackedRequest`
+- `Effect.cancelTrackedRequest`
 
 ## Useful Files
 

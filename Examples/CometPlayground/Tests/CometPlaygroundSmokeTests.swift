@@ -149,7 +149,7 @@ final class CometPlaygroundSmokeTests: XCTestCase {
   @MainActor
   private func makeCatalog() -> DemoCatalog {
     withDependencies {
-      try! $0.bootstrapDatabase()
+      $0.bootstrapDatabase()
     } operation: {
       DemoCatalog()
     }

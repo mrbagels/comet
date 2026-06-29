@@ -3,6 +3,10 @@
 .swiftpm/
 .derived-data/
 DerivedData/
+/*.d
+/*.dia
+/*.o
+/*.swiftdeps
 .env
 .env.*
 

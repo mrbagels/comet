@@ -119,12 +119,9 @@ public final class LocalMockServer: @unchecked Sendable {
               return
             }
 
-            guard var components = URLComponents(string: "http://\(host)") else {
-              resolver.resume(
-                throwing: NetworkError.invalidRequest("Unable to build local mock server base URL.")
-              )
-              return
-            }
+            var components = URLComponents()
+            components.scheme = "http"
+            components.host = localMockServerURLHost(for: host)
             components.port = Int(resolvedPort.rawValue)
 
             guard let baseURL = components.url else {
@@ -161,6 +158,13 @@ public final class LocalMockServer: @unchecked Sendable {
       throw NetworkError.from(error)
     }
   }
+}
+
+private func localMockServerURLHost(for host: String) -> String {
+  if host.filter({ $0 == ":" }).count > 1, !host.hasPrefix("[") {
+    return "[\(host)]"
+  }
+  return host
 }
 
 private final class LocalMockServerStartResolver: @unchecked Sendable {
@@ -462,6 +466,8 @@ private enum LocalHTTPRequestParser {
     case failure(String)
   }
 
+  private static let hostHeaderName = HTTPField.Name("Host")!
+
   static func parse(_ data: Data, host: String) -> Result {
     let separator = Data("\r\n\r\n".utf8)
     guard let headerRange = data.range(of: separator) else {
@@ -552,16 +558,31 @@ private enum LocalHTTPRequestParser {
     }
 
     components.scheme = "http"
-    components.host = host
+    components.host = localMockServerURLHost(for: host)
 
-    let hostHeader = headers[HTTPField.Name("Host")!]
-    if let portText = hostHeader?.split(separator: ":").last,
-       let port = Int(portText),
-       hostHeader?.contains(":") == true {
+    if let port = Self.port(fromHostHeader: headers[Self.hostHeaderName]) {
       components.port = port
     }
 
     return components.url
+  }
+
+  private static func port(fromHostHeader hostHeader: String?) -> Int? {
+    guard let hostHeader, !hostHeader.isEmpty else { return nil }
+
+    if hostHeader.hasPrefix("[") {
+      guard let closingBracket = hostHeader.firstIndex(of: "]") else { return nil }
+      let suffix = hostHeader[hostHeader.index(after: closingBracket)...]
+      guard suffix.first == ":" else { return nil }
+      return Int(suffix.dropFirst())
+    }
+
+    guard hostHeader.filter({ $0 == ":" }).count == 1,
+          let separator = hostHeader.firstIndex(of: ":")
+    else {
+      return nil
+    }
+    return Int(hostHeader[hostHeader.index(after: separator)...])
   }
 }
 #else

@@ -203,15 +203,16 @@ Deliverables:
 - Provide fixture registration by `APIRequest` type where possible.
 - Support deterministic latency, failures, and ordered scenarios.
 - Add playground demos that switch between mock server scenarios.
-- Decide whether a real local HTTP listener belongs in `CometTesting` or should
-  wait for a separate server-transport product.
+- Ship the transport-level mock server first, then add a local HTTP listener
+  once the contract surface proves stable.
 
 Acceptance:
 
 - UI/demo flows can run against the same scenario definitions used by package
   tests.
 - Scenario failures produce contract reports.
-- If a real HTTP listener is deferred, the docs state the boundary clearly.
+- The local HTTP listener can reuse the same contract definitions when tests
+  need to exercise a real `URLSessionTransport`.
 
 ### 0.2.8: OpenAPI Generator
 
@@ -313,8 +314,8 @@ Acceptance:
 
 - File cache storage stays plain file-backed storage with user-owned file
   protection and app-level encryption decisions.
-- `MockServer` remains transport-level for `0.3.0`; a real local HTTP listener
-  is deferred.
+- `MockServer` shipped as a transport-level contract runner for `0.3.0`; the
+  patch line now also includes `LocalMockServer` for real local HTTP tests.
 - OpenAPI generation supports JSON directly and YAML through Yams. The SwiftPM
   command plugin now covers package-root generation; full JSON Schema coverage
   and formatting integration remain future polish.

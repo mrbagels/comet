@@ -125,6 +125,7 @@ private struct TrackedRequestFeature {
   }
 
   enum Action {
+    case cancel
     case load
     case request(CometRequestAction<String>)
   }
@@ -136,6 +137,9 @@ private struct TrackedRequestFeature {
   var body: some ReducerOf<Self> {
     Reduce { state, action in
       switch action {
+      case .cancel:
+        return .cancelTrackedRequest(id: CancelID.request, action: Action.request)
+
       case .load:
         return .trackedRequest(
           CometTCATestRequest(),
@@ -208,6 +212,37 @@ private struct ExplicitTrackedRequestFeature {
 }
 
 @MainActor
+@Test func trackedRequestCancelEffectEmitsCancelledAction() async {
+  let store = TestStore(initialState: TrackedRequestFeature.State()) {
+    TrackedRequestFeature()
+  } withDependencies: {
+    $0.httpClient = .mock { (_: PreparedRequest) async throws(NetworkError) -> RawResponse in
+      do {
+        try await Task.sleep(for: .seconds(60))
+        return RawResponse(data: Data("too late".utf8), statusCode: 200)
+      } catch {
+        throw NetworkError.cancelled
+      }
+    }
+  }
+
+  await store.send(.load)
+  await store.receive({ action in
+    guard case .request(.started) = action else { return false }
+    return true
+  }) {
+    $0.request.start()
+  }
+  await store.send(.cancel)
+  await store.receive({ action in
+    guard case .request(.cancelled) = action else { return false }
+    return true
+  }) {
+    $0.request.cancel()
+  }
+}
+
+@MainActor
 @Test func trackedRequestEmitsLifecycleActionsAndUpdatesRequestState() async {
   let store = TestStore(initialState: TrackedRequestFeature.State()) {
     TrackedRequestFeature()
@@ -254,6 +289,29 @@ private struct ExplicitTrackedRequestFeature {
     return true
   }) {
     $0.request.succeed("explicit tracked")
+  }
+}
+
+@MainActor
+@Test func trackedRequestMapsNetworkCancellationToCancelledAction() async {
+  let store = TestStore(initialState: TrackedRequestFeature.State()) {
+    TrackedRequestFeature()
+  } withDependencies: {
+    $0.httpClient = .failing(with: .cancelled)
+  }
+
+  await store.send(.load)
+  await store.receive({ action in
+    guard case .request(.started) = action else { return false }
+    return true
+  }) {
+    $0.request.start()
+  }
+  await store.receive({ action in
+    guard case .request(.cancelled) = action else { return false }
+    return true
+  }) {
+    $0.request.cancel()
   }
 }
 

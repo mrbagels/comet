@@ -689,6 +689,36 @@ private struct LocalMockServerPostRequest: APIRequest {
   #endif
 }
 
+@Test func localMockServerServesContractsThroughIPv6BaseURL() async throws {
+  #if canImport(Network)
+  let server = try await LocalMockServer.start(
+    expectations: [
+      ContractExpectation(
+        id: "get-ipv6-local",
+        method: .get,
+        path: "/local",
+        query: [ContractQueryExpectation(name: "expand", value: .exact("details"))],
+        outcome: .response(RawResponse(data: Data("ipv6-ok".utf8), statusCode: 200))
+      )
+    ],
+    host: "::1"
+  )
+  defer { server.stop() }
+
+  #expect(server.baseURL.absoluteString.hasPrefix("http://[::1]:"))
+
+  let client = HTTPClient.live(
+    configuration: .default(baseURL: server.baseURL),
+    transport: URLSessionTransport()
+  )
+
+  let value = try await client.send(LocalMockServerGetRequest())
+
+  #expect(value == "ipv6-ok")
+  try await server.verifyComplete()
+  #endif
+}
+
 @Test func localMockServerValidatesBodiesFromURLSessionTransport() async throws {
   #if canImport(Network)
   let server = try await LocalMockServer.start(

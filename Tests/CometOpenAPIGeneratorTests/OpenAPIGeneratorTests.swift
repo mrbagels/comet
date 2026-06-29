@@ -805,15 +805,15 @@ import CometOpenAPIGenerator
   #expect(output.contains("public struct SubmitDynamicFormRequest: APIRequest"))
   #expect(output.contains("public let formFields: [String: String]"))
   #expect(output.contains("formFields: [String: String]"))
-  #expect(output.contains("for key in self.formFields.keys.sorted()"))
-  #expect(output.contains("items.append(QueryItem(key, String(describing: self.formFields[key]!)))"))
+  #expect(output.contains("for (key, value) in self.formFields.sorted(by: { $0.key < $1.key })"))
+  #expect(output.contains("items.append(QueryItem(key, String(describing: value)))"))
   #expect(output.contains("return .formURLEncoded(items)"))
 
   #expect(output.contains("public struct UploadDynamicFilesRequest: APIRequest"))
   #expect(output.contains("public let multipartFields: [String: Data]?"))
   #expect(output.contains("multipartFields: [String: Data]? = nil"))
   #expect(output.contains("guard let multipartFields = self.multipartFields, !multipartFields.isEmpty else { return .none }"))
-  #expect(output.contains(#"parts.append(.data(name: key, data: multipartFields[key]!, filename: key, contentType: "application/octet-stream"))"#))
+  #expect(output.contains(#"parts.append(.data(name: key, data: value, filename: key, contentType: "application/octet-stream"))"#))
   #expect(output.contains("return .multipartFormData(parts)"))
 }
 
@@ -1273,7 +1273,7 @@ import CometOpenAPIGenerator
   #expect(output.contains("var cookies: [String] = []"))
   #expect(output.contains("if let session = self.session"))
   #expect(output.contains(#"cookies.append("session=" + String(describing: session))"#))
-  #expect(output.contains(#"headers[HTTPField.Name("Cookie")!] = cookies.joined(separator: "; ")"#))
+  #expect(output.contains(#"headers[.cookie] = cookies.joined(separator: "; ")"#))
 }
 
 @Test func openAPIGeneratorRejectsDuplicateGeneratedTypeNames() throws {
@@ -1379,7 +1379,8 @@ import CometOpenAPIGenerator
   #expect(output.contains(#"private static let knownAdditionalPropertyKeys: Set<String> = ["id"]"#))
   #expect(output.contains("self.id = try container.decodeIfPresent(String.self, forKey: .id)"))
   #expect(output.contains("additionalProperties[key.stringValue] = try additionalContainer.decode(String.self, forKey: key)"))
-  #expect(output.contains("try additionalContainer.encode(self.additionalProperties[key]!, forKey: CometOpenAPIAdditionalCodingKey(stringValue: key)!)"))
+  #expect(output.contains("for (key, value) in self.additionalProperties.sorted(by: { $0.key < $1.key })"))
+  #expect(output.contains("try additionalContainer.encode(value, forKey: CometOpenAPIAdditionalCodingKey(key))"))
 }
 
 @Test func openAPIGeneratorRejectsDuplicateSwiftParameterNames() throws {

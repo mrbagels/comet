@@ -623,6 +623,7 @@ Current surface:
 - `DependencyValues.httpClient`
 - `Effect.request`
 - `Effect.trackedRequest`
+- `Effect.cancelTrackedRequest`
 - `CometRequestAction`
 - `CometRequestState`
 

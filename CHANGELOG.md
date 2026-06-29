@@ -23,8 +23,34 @@ preserving the `0.4.x` public API contract.
 The `0.4.4` patch release adds server Swift live HTTP support through the
 existing `URLSessionTransport` and a Linux build gate for the core `Comet`
 target while preserving the `0.4.x` public API contract.
+The `0.4.5` patch release hardens generated OpenAPI output, local HTTP mock
+server URL handling, TCA tracked request cancellation, playground persistence
+bootstrap, and release-build hygiene while preserving the `0.4.x` public API
+contract.
 
 ## Unreleased
+
+## 0.4.5 - 2026-06-29
+
+### Added
+
+- `Effect.cancelTrackedRequest(id:action:)` for cancelling a tracked TCA request and emitting the normal `CometRequestAction.cancelled` lifecycle action from the reducer path.
+- LocalMockServer coverage for real URLSession requests through IPv6 base URLs.
+- Root-scoped ignore rules for Swift macro object, dependency, and diagnostic byproducts that SwiftPM can emit during API-diff and test builds.
+
+### Changed
+
+- Generated OpenAPI request code now avoids force unwraps when encoding dictionary-backed form bodies, multipart bodies, component schemas, object properties, and `additionalProperties`.
+- Generated OpenAPI cookie headers now use the typed `.cookie` header field name.
+- The playground TCA demo now routes explicit cancellation through the tracked request lifecycle instead of updating request state manually before cancelling the effect.
+- Playground database bootstrap now falls back to an in-memory Comet database and reports bootstrap failures instead of crashing at launch.
+- Release docs now describe the shipped `LocalMockServer` and tracked TCA request/effect support.
+
+### Fixed
+
+- LocalMockServer Host header port parsing now handles IPv6 literals and avoids reading bare IPv6 address segments as ports.
+- LocalMockServer base URL and parsed request URL construction now normalize IPv6 hosts with brackets.
+- Transport-level `NetworkError.cancelled` in `Effect.trackedRequest` now maps to `.cancelled` instead of a failure response action.
 
 ## 0.4.4 - 2026-06-29
 

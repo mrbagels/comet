@@ -40,10 +40,7 @@ struct TCADemoFeature {
     Reduce { state, action in
       switch action {
       case .cancelButtonTapped:
-        state.request.cancel(keepingPreviousValue: false)
-        state.output = "Request cancelled."
-        state.fields = []
-        return .cancel(id: CancelID.request)
+        return .cancelTrackedRequest(id: CancelID.request, action: Action.request)
 
       case .resetButtonTapped:
         state.request.reset()
@@ -90,7 +87,7 @@ struct TCADemoFeature {
         return .none
 
       case .request(.cancelled):
-        state.request.apply(.cancelled)
+        state.request.cancel(keepingPreviousValue: false)
         state.output = "Request cancelled."
         state.fields = []
         return .none
