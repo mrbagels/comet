@@ -382,6 +382,15 @@ import CometOpenAPIGenerator
             "type": "object",
             "additionalProperties": { "type": "string" }
           },
+          "RulesByName": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean" }
+              }
+            }
+          },
           "ScoreMap": {
             "type": "object",
             "additionalProperties": { "type": "integer" }
@@ -404,6 +413,7 @@ import CometOpenAPIGenerator
                 "type": "object",
                 "additionalProperties": { "$ref": "#/components/schemas/Owner" }
               },
+              "rules": { "$ref": "#/components/schemas/RulesByName" },
               "scores": { "$ref": "#/components/schemas/ScoreMap" }
             }
           }
@@ -439,10 +449,12 @@ import CometOpenAPIGenerator
   )
 
   #expect(output.contains("public typealias MetadataMap = [String: String]"))
+  #expect(output.contains("public typealias RulesByName = [String: CometOpenAPIJSONValue]"))
   #expect(output.contains("public typealias ScoreMap = [String: Int]"))
   #expect(output.contains("public struct Owner: Codable, Sendable"))
   #expect(output.contains("public let labels: [String: String]?"))
   #expect(output.contains("public let ownersByRole: [String: Owner]?"))
+  #expect(output.contains("public let rules: RulesByName?"))
   #expect(output.contains("public let scores: ScoreMap?"))
   #expect(output.contains("public typealias Response = Pet"))
 }
@@ -472,6 +484,10 @@ import CometOpenAPIGenerator
             "allOf": [
               { "$ref": "#/components/schemas/User" },
               { "$ref": "#/components/schemas/Audited" },
+              {
+                "type": "object",
+                "additionalProperties": { "type": "string" }
+              },
               {
                 "type": "object",
                 "required": ["role"],
@@ -514,6 +530,8 @@ import CometOpenAPIGenerator
   #expect(output.contains("public let createdAt: Date?"))
   #expect(output.contains("public let permissions: [String]?"))
   #expect(output.contains("public let role: String"))
+  #expect(output.contains("public let additionalProperties: [String: String]"))
+  #expect(output.contains("additionalProperties: [String: String] = [:]"))
   #expect(output.contains("role: String"))
   #expect(output.contains("permissions: [String]? = nil"))
   #expect(output.contains("public typealias Response = AdminUser"))
@@ -734,6 +752,165 @@ import CometOpenAPIGenerator
   #expect(output.contains("if let isPublic = self.isPublic"))
   #expect(output.contains(#"parts.append(.text(name: "isPublic", value: String(describing: isPublic)))"#))
   #expect(output.contains("return .multipartFormData(parts)"))
+}
+
+@Test func openAPIGeneratorCreatesDictionaryRequestBodies() throws {
+  let output = try OpenAPIGenerator().generate(
+    jsonString: """
+    {
+      "openapi": "3.1.0",
+      "paths": {
+        "/form": {
+          "post": {
+            "operationId": "submitDynamicForm",
+            "requestBody": {
+              "required": true,
+              "content": {
+                "application/x-www-form-urlencoded; charset=utf-8": {
+                  "schema": {
+                    "type": "object",
+                    "additionalProperties": { "type": "string" }
+                  }
+                }
+              }
+            },
+            "responses": {
+              "204": { "description": "No Content" }
+            }
+          }
+        },
+        "/files": {
+          "post": {
+            "operationId": "uploadDynamicFiles",
+            "requestBody": {
+              "content": {
+                "multipart/form-data": {
+                  "schema": {
+                    "type": "object",
+                    "additionalProperties": { "type": "string", "format": "binary" }
+                  }
+                }
+              }
+            },
+            "responses": {
+              "204": { "description": "No Content" }
+            }
+          }
+        }
+      }
+    }
+    """
+  )
+
+  #expect(output.contains("public struct SubmitDynamicFormRequest: APIRequest"))
+  #expect(output.contains("public let formFields: [String: String]"))
+  #expect(output.contains("formFields: [String: String]"))
+  #expect(output.contains("for key in self.formFields.keys.sorted()"))
+  #expect(output.contains("items.append(QueryItem(key, String(describing: self.formFields[key]!)))"))
+  #expect(output.contains("return .formURLEncoded(items)"))
+
+  #expect(output.contains("public struct UploadDynamicFilesRequest: APIRequest"))
+  #expect(output.contains("public let multipartFields: [String: Data]?"))
+  #expect(output.contains("multipartFields: [String: Data]? = nil"))
+  #expect(output.contains("guard let multipartFields = self.multipartFields, !multipartFields.isEmpty else { return .none }"))
+  #expect(output.contains(#"parts.append(.data(name: key, data: multipartFields[key]!, filename: key, contentType: "application/octet-stream"))"#))
+  #expect(output.contains("return .multipartFormData(parts)"))
+}
+
+@Test func openAPIGeneratorHonorsRequestBodyContentTypeVariants() throws {
+  let output = try OpenAPIGenerator().generate(
+    jsonString: """
+    {
+      "openapi": "3.1.0",
+      "components": {
+        "schemas": {
+          "PatchPayload": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" }
+            }
+          },
+          "Problem": {
+            "type": "object",
+            "required": ["title"],
+            "properties": {
+              "title": { "type": "string" }
+            }
+          }
+        }
+      },
+      "paths": {
+        "/pets/{petId}": {
+          "patch": {
+            "operationId": "patchPet",
+            "parameters": [
+              {
+                "name": "petId",
+                "in": "path",
+                "required": true,
+                "schema": { "type": "integer" }
+              }
+            ],
+            "requestBody": {
+              "required": true,
+              "content": {
+                "application/merge-patch+json": {
+                  "schema": { "$ref": "#/components/schemas/PatchPayload" }
+                }
+              }
+            },
+            "responses": {
+              "200": {
+                "description": "OK",
+                "content": {
+                  "text/plain; charset=utf-8": {
+                    "schema": { "type": "string" }
+                  }
+                }
+              },
+              "400": {
+                "description": "Invalid",
+                "content": {
+                  "application/problem+json": {
+                    "schema": { "$ref": "#/components/schemas/Problem" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "/messages": {
+          "post": {
+            "operationId": "sendText",
+            "requestBody": {
+              "content": {
+                "text/plain; charset=utf-8": {
+                  "schema": { "type": "string" }
+                }
+              }
+            },
+            "responses": {
+              "204": { "description": "No Content" }
+            }
+          }
+        }
+      }
+    }
+    """
+  )
+
+  #expect(output.contains("public struct PatchPetRequest: APIRequestWithErrorResponse"))
+  #expect(output.contains("public let bodyPayload: PatchPayload"))
+  #expect(output.contains("return HTTPBody { (configuration: ClientConfiguration) throws(NetworkError) -> HTTPBody.Resolved in"))
+  #expect(output.contains(#"headers[.contentType] = "application/merge-patch+json""#))
+  #expect(output.contains("return HTTPBody.Resolved(data: try encoder.encode(self.bodyPayload), headers: headers)"))
+  #expect(output.contains("public typealias Response = String"))
+  #expect(output.contains("public typealias ErrorResponse = Problem"))
+  #expect(output.contains("public let errorResponseSerializer: ErrorResponseSerializer<Problem> = .json(Problem.self)"))
+
+  #expect(output.contains("public struct SendTextRequest: APIRequest"))
+  #expect(output.contains("public let bodyText: String?"))
+  #expect(output.contains(#"return .text(bodyText, contentType: "text/plain; charset=utf-8")"#))
 }
 
 @Test func openAPIGeneratorCarriesSecurityRequirementsInMetadata() throws {
@@ -1066,33 +1243,37 @@ import CometOpenAPIGenerator
   #expect(output.contains(#"items.append(QueryItem("includeInactive", self.includeInactive))"#))
 }
 
-@Test func openAPIGeneratorRejectsUnsupportedCookieParameters() throws {
-  #expect(throws: OpenAPIGeneratorError.self) {
-    _ = try OpenAPIGenerator().generate(
-      jsonString: """
-      {
-        "openapi": "3.1.0",
-        "paths": {
-          "/session": {
-            "get": {
-              "operationId": "getSession",
-              "parameters": [
-                {
-                  "name": "session",
-                  "in": "cookie",
-                  "schema": { "type": "string" }
-                }
-              ],
-              "responses": {
-                "204": { "description": "No Content" }
+@Test func openAPIGeneratorCreatesCookieParameters() throws {
+  let output = try OpenAPIGenerator().generate(
+    jsonString: """
+    {
+      "openapi": "3.1.0",
+      "paths": {
+        "/session": {
+          "get": {
+            "operationId": "getSession",
+            "parameters": [
+              {
+                "name": "session",
+                "in": "cookie",
+                "schema": { "type": "string" }
               }
+            ],
+            "responses": {
+              "204": { "description": "No Content" }
             }
           }
         }
       }
-      """
-    )
-  }
+    }
+    """
+  )
+
+  #expect(output.contains("public let session: String?"))
+  #expect(output.contains("var cookies: [String] = []"))
+  #expect(output.contains("if let session = self.session"))
+  #expect(output.contains(#"cookies.append("session=" + String(describing: session))"#))
+  #expect(output.contains(#"headers[HTTPField.Name("Cookie")!] = cookies.joined(separator: "; ")"#))
 }
 
 @Test func openAPIGeneratorRejectsDuplicateGeneratedTypeNames() throws {
@@ -1153,34 +1334,32 @@ import CometOpenAPIGenerator
   }
 }
 
-@Test func openAPIGeneratorRejectsUnsupportedAdditionalPropertiesShapes() throws {
-  #expect(throws: OpenAPIGeneratorError.self) {
-    _ = try OpenAPIGenerator().generate(
-      jsonString: """
-      {
-        "openapi": "3.1.0",
-        "components": {
-          "schemas": {
-            "Mixed": {
-              "type": "object",
-              "properties": {
-                "id": { "type": "string" }
-              },
-              "additionalProperties": { "type": "string" }
-            }
+@Test func openAPIGeneratorCreatesAdditionalPropertiesModels() throws {
+  let output = try OpenAPIGenerator().generate(
+    jsonString: """
+    {
+      "openapi": "3.1.0",
+      "components": {
+        "schemas": {
+          "Mixed": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" }
+            },
+            "additionalProperties": { "type": "string" }
           }
-        },
-        "paths": {
-          "/mixed": {
-            "get": {
-              "operationId": "getMixed",
-              "responses": {
-                "200": {
-                  "description": "OK",
-                  "content": {
-                    "application/json": {
-                      "schema": { "$ref": "#/components/schemas/Mixed" }
-                    }
+        }
+      },
+      "paths": {
+        "/mixed": {
+          "get": {
+            "operationId": "getMixed",
+            "responses": {
+              "200": {
+                "description": "OK",
+                "content": {
+                  "application/json": {
+                    "schema": { "$ref": "#/components/schemas/Mixed" }
                   }
                 }
               }
@@ -1188,9 +1367,19 @@ import CometOpenAPIGenerator
           }
         }
       }
-      """
-    )
-  }
+    }
+    """
+  )
+
+  #expect(output.contains("private struct CometOpenAPIAdditionalCodingKey: CodingKey"))
+  #expect(output.contains("public struct Mixed: Codable, Sendable"))
+  #expect(output.contains("public let id: String?"))
+  #expect(output.contains("public let additionalProperties: [String: String]"))
+  #expect(output.contains("additionalProperties: [String: String] = [:]"))
+  #expect(output.contains(#"private static let knownAdditionalPropertyKeys: Set<String> = ["id"]"#))
+  #expect(output.contains("self.id = try container.decodeIfPresent(String.self, forKey: .id)"))
+  #expect(output.contains("additionalProperties[key.stringValue] = try additionalContainer.decode(String.self, forKey: key)"))
+  #expect(output.contains("try additionalContainer.encode(self.additionalProperties[key]!, forKey: CometOpenAPIAdditionalCodingKey(stringValue: key)!)"))
 }
 
 @Test func openAPIGeneratorRejectsDuplicateSwiftParameterNames() throws {

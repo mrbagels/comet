@@ -162,6 +162,12 @@ public struct OpenAPIGenerator: Sendable {
       lines.append(contentsOf: Self.jsonValueLines(accessModifier: configuration.accessModifier))
       lines.append("")
     }
+    if generatedBlocks.contains(where: { block in
+      block.contains { $0.contains("CometOpenAPIAdditionalCodingKey") }
+    }) {
+      lines.append(contentsOf: Self.additionalCodingKeyLines())
+      lines.append("")
+    }
     for (index, block) in generatedBlocks.enumerated() {
       if index > 0 {
         lines.append("")
@@ -219,6 +225,25 @@ public struct OpenAPIGenerator: Sendable {
       "}"
     ]
   }
+
+  private static func additionalCodingKeyLines() -> [String] {
+    [
+      "private struct CometOpenAPIAdditionalCodingKey: CodingKey {",
+      "  var stringValue: String",
+      "  var intValue: Int?",
+      "",
+      "  init?(stringValue: String) {",
+      "    self.stringValue = stringValue",
+      "    self.intValue = nil",
+      "  }",
+      "",
+      "  init?(intValue: Int) {",
+      "    self.stringValue = String(intValue)",
+      "    self.intValue = intValue",
+      "  }",
+      "}"
+    ]
+  }
 }
 
 /// Errors emitted by the OpenAPI generator.
@@ -249,13 +274,15 @@ private struct GeneratedResponseSerialization {
 
 private enum GeneratedRequestBody {
   case none
-  case json(payloadType: String?, required: Bool)
-  case text(required: Bool)
+  case json(payloadType: String?, required: Bool, contentType: String?)
+  case text(required: Bool, contentType: String?)
   case form(fields: [GeneratedFormField], required: Bool)
+  case formDictionary(valueType: String, required: Bool)
   case multipart(fields: [GeneratedFormField], required: Bool)
+  case multipartDictionary(valueType: String, isBinary: Bool, required: Bool)
 
   var genericBodyType: Bool {
-    guard case .json(nil, _) = self else { return false }
+    guard case .json(nil, _, _) = self else { return false }
     return true
   }
 
@@ -268,15 +295,19 @@ private enum GeneratedRequestBody {
     switch self {
     case .none:
       return []
-    case let .json(payloadType, required):
+    case let .json(payloadType, required, _):
       let type = payloadType ?? "Body"
       return ["bodyPayload: \(required ? type : "\(type)?")"]
-    case let .text(required):
+    case let .text(required, _):
       return ["bodyText: \(required ? "String" : "String?")"]
     case let .form(fields, _):
       return fields.map { "\($0.swiftName): \($0.swiftType)" }
+    case let .formDictionary(valueType, required):
+      return ["formFields: \(required ? "[String: \(valueType)]" : "[String: \(valueType)]?")"]
     case let .multipart(fields, _):
       return fields.map { "\($0.swiftName): \($0.swiftType)" }
+    case let .multipartDictionary(valueType, _, required):
+      return ["multipartFields: \(required ? "[String: \(valueType)]" : "[String: \(valueType)]?")"]
     }
   }
 
@@ -284,15 +315,19 @@ private enum GeneratedRequestBody {
     switch self {
     case .none:
       return []
-    case let .json(payloadType, required):
+    case let .json(payloadType, required, _):
       let type = payloadType ?? "Body"
       return ["bodyPayload: \(required ? type : "\(type)? = nil")"]
-    case let .text(required):
+    case let .text(required, _):
       return ["bodyText: \(required ? "String" : "String? = nil")"]
     case let .form(fields, _):
       return fields.map(\.initArgument)
+    case let .formDictionary(valueType, required):
+      return ["formFields: \(required ? "[String: \(valueType)]" : "[String: \(valueType)]? = nil")"]
     case let .multipart(fields, _):
       return fields.map(\.initArgument)
+    case let .multipartDictionary(valueType, _, required):
+      return ["multipartFields: \(required ? "[String: \(valueType)]" : "[String: \(valueType)]? = nil")"]
     }
   }
 
@@ -306,8 +341,12 @@ private enum GeneratedRequestBody {
       return ["    self.bodyText = bodyText"]
     case let .form(fields, _):
       return fields.map { "    self.\($0.swiftName) = \($0.swiftName)" }
+    case .formDictionary:
+      return ["    self.formFields = formFields"]
     case let .multipart(fields, _):
       return fields.map { "    self.\($0.swiftName) = \($0.swiftName)" }
+    case .multipartDictionary:
+      return ["    self.multipartFields = multipartFields"]
     }
   }
 
@@ -315,32 +354,20 @@ private enum GeneratedRequestBody {
     switch self {
     case .none:
       return []
-    case let .json(_, required):
+    case let .json(_, required, contentType):
+      return self.jsonBodyLines(accessModifier: accessModifier, required: required, contentType: contentType)
+    case let .text(required, contentType):
       if required {
         return [
           "  \(accessModifier) var body: HTTPBody {",
-          "    .json(self.bodyPayload)",
-          "  }"
-        ]
-      }
-      return [
-        "  \(accessModifier) var body: HTTPBody {",
-        "    guard let bodyPayload = self.bodyPayload else { return .none }",
-        "    return .json(bodyPayload)",
-        "  }"
-      ]
-    case let .text(required):
-      if required {
-        return [
-          "  \(accessModifier) var body: HTTPBody {",
-          "    .text(self.bodyText)",
+          "    .text(self.bodyText\(contentType.map { ", contentType: \($0.swiftLiteral)" } ?? ""))",
           "  }"
         ]
       }
       return [
         "  \(accessModifier) var body: HTTPBody {",
         "    guard let bodyText = self.bodyText else { return .none }",
-        "    return .text(bodyText)",
+        "    return .text(bodyText\(contentType.map { ", contentType: \($0.swiftLiteral)" } ?? ""))",
         "  }"
       ]
     case let .form(fields, required):
@@ -353,6 +380,23 @@ private enum GeneratedRequestBody {
       }
       if !required {
         lines.append("    guard !items.isEmpty else { return .none }")
+      }
+      lines.append("    return .formURLEncoded(items)")
+      lines.append("  }")
+      return lines
+    case let .formDictionary(_, required):
+      var lines = ["  \(accessModifier) var body: HTTPBody {"]
+      if required {
+        lines.append("    var items: [QueryItem] = []")
+        lines.append("    for key in self.formFields.keys.sorted() {")
+        lines.append("      items.append(QueryItem(key, String(describing: self.formFields[key]!)))")
+        lines.append("    }")
+      } else {
+        lines.append("    guard let formFields = self.formFields, !formFields.isEmpty else { return .none }")
+        lines.append("    var items: [QueryItem] = []")
+        lines.append("    for key in formFields.keys.sorted() {")
+        lines.append("      items.append(QueryItem(key, String(describing: formFields[key]!)))")
+        lines.append("    }")
       }
       lines.append("    return .formURLEncoded(items)")
       lines.append("  }")
@@ -371,7 +415,72 @@ private enum GeneratedRequestBody {
       lines.append("    return .multipartFormData(parts)")
       lines.append("  }")
       return lines
+    case let .multipartDictionary(_, isBinary, required):
+      var lines = ["  \(accessModifier) var body: HTTPBody {"]
+      if required {
+        lines.append("    var parts: [HTTPBody.MultipartPart] = []")
+        lines.append("    for key in self.multipartFields.keys.sorted() {")
+        if isBinary {
+          lines.append("      parts.append(.data(name: key, data: self.multipartFields[key]!, filename: key, contentType: \"application/octet-stream\"))")
+        } else {
+          lines.append("      parts.append(.text(name: key, value: String(describing: self.multipartFields[key]!)))")
+        }
+        lines.append("    }")
+      } else {
+        lines.append("    guard let multipartFields = self.multipartFields, !multipartFields.isEmpty else { return .none }")
+        lines.append("    var parts: [HTTPBody.MultipartPart] = []")
+        lines.append("    for key in multipartFields.keys.sorted() {")
+        if isBinary {
+          lines.append("      parts.append(.data(name: key, data: multipartFields[key]!, filename: key, contentType: \"application/octet-stream\"))")
+        } else {
+          lines.append("      parts.append(.text(name: key, value: String(describing: multipartFields[key]!)))")
+        }
+        lines.append("    }")
+      }
+      lines.append("    return .multipartFormData(parts)")
+      lines.append("  }")
+      return lines
     }
+  }
+
+  private func jsonBodyLines(
+    accessModifier: String,
+    required: Bool,
+    contentType: String?
+  ) -> [String] {
+    guard let contentType else {
+      if required {
+        return [
+          "  \(accessModifier) var body: HTTPBody {",
+          "    .json(self.bodyPayload)",
+          "  }"
+        ]
+      }
+      return [
+        "  \(accessModifier) var body: HTTPBody {",
+        "    guard let bodyPayload = self.bodyPayload else { return .none }",
+        "    return .json(bodyPayload)",
+        "  }"
+      ]
+    }
+
+    let payloadExpression = required ? "self.bodyPayload" : "bodyPayload"
+    var lines = ["  \(accessModifier) var body: HTTPBody {"]
+    if !required {
+      lines.append("    guard let bodyPayload = self.bodyPayload else { return .none }")
+    }
+    lines.append("    return HTTPBody { (configuration: ClientConfiguration) throws(NetworkError) -> HTTPBody.Resolved in")
+    lines.append("      do {")
+    lines.append("        let encoder = configuration.makeJSONEncoder()")
+    lines.append("        var headers = HTTPFields()")
+    lines.append("        headers[.contentType] = \(contentType.swiftLiteral)")
+    lines.append("        return HTTPBody.Resolved(data: try encoder.encode(\(payloadExpression)), headers: headers)")
+    lines.append("      } catch {")
+    lines.append("        throw NetworkError.encoding(String(describing: error))")
+    lines.append("      }")
+    lines.append("    }")
+    lines.append("  }")
+    return lines
   }
 }
 
@@ -442,6 +551,7 @@ private struct GeneratedOperation {
   let parameters: [GeneratedParameter]
   let queryParameters: [GeneratedParameter]
   let headerParameters: [GeneratedParameter]
+  let cookieParameters: [GeneratedParameter]
   let responseType: String
   let responseSerializer: String
   let errorResponse: GeneratedResponseSerialization?
@@ -484,6 +594,7 @@ private struct GeneratedOperation {
     self.parameters = parameters
     self.queryParameters = parameters.filter { $0.location == .query }
     self.headerParameters = parameters.filter { $0.location == .header }
+    self.cookieParameters = parameters.filter { $0.location == .cookie }
     self.pathExpression = try Self.pathExpression(path: path, parameters: parameters)
 
     if let requestBody = operation.requestBody {
@@ -547,12 +658,21 @@ private struct GeneratedOperation {
       lines.append("  }")
     }
 
-    if !self.headerParameters.isEmpty {
+    if !self.headerParameters.isEmpty || !self.cookieParameters.isEmpty {
       lines.append("")
       lines.append("  \(self.accessModifier) var headers: HTTPFields {")
       lines.append("    var headers = HTTPFields()")
       for parameter in self.headerParameters {
         lines.append(contentsOf: parameter.headerLines())
+      }
+      if !self.cookieParameters.isEmpty {
+        lines.append("    var cookies: [String] = []")
+        for parameter in self.cookieParameters {
+          lines.append(contentsOf: parameter.cookieLines())
+        }
+        lines.append("    if !cookies.isEmpty {")
+        lines.append("      headers[HTTPField.Name(\"Cookie\")!] = cookies.joined(separator: \"; \")")
+        lines.append("    }")
       }
       lines.append("    return headers")
       lines.append("  }")
@@ -694,11 +814,11 @@ private struct GeneratedOperation {
     from response: OpenAPIResponse,
     components: [String: OpenAPISchema]
   ) throws -> GeneratedResponseSerialization {
-    if response.content.keys.contains("text/plain") {
+    if Self.selectedMediaType(from: response.content, normalizedName: "text/plain") != nil {
       return GeneratedResponseSerialization(type: "String", serializer: ".string()")
     }
 
-    if let schema = response.content["application/json"]?.schema,
+    if let schema = Self.selectedJSONMediaType(from: response.content)?.mediaType.schema,
        let type = try schema.swiftType(components: components, inlineObjectFallback: nil) {
       return GeneratedResponseSerialization(type: type, serializer: ".json(\(type).self)")
     }
@@ -711,27 +831,38 @@ private struct GeneratedOperation {
     components: [String: OpenAPISchema],
     operationID: String
   ) throws -> GeneratedRequestBody {
-    if let mediaType = requestBody.content["application/json"] {
+    if let selected = Self.selectedJSONMediaType(from: requestBody.content) {
       return .json(
-        payloadType: try mediaType.schema?.swiftType(components: components, inlineObjectFallback: nil),
-        required: requestBody.required
+        payloadType: try selected.mediaType.schema?.swiftType(components: components, inlineObjectFallback: nil),
+        required: requestBody.required,
+        contentType: selected.contentType == "application/json" ? nil : selected.contentType
       )
     }
 
-    if requestBody.content.keys.contains("text/plain") {
-      return .text(required: requestBody.required)
+    if let selected = Self.selectedMediaType(from: requestBody.content, normalizedName: "text/plain") {
+      return .text(
+        required: requestBody.required,
+        contentType: selected.contentType == "text/plain" ? nil : selected.contentType
+      )
     }
 
-    if let schema = requestBody.content["application/x-www-form-urlencoded"]?.schema {
+    if let schema = Self.selectedMediaType(
+      from: requestBody.content,
+      normalizedName: "application/x-www-form-urlencoded"
+    )?.mediaType.schema {
       let resolvedSchema = try schema.resolved(components: components)
       guard resolvedSchema.isObjectLike else {
         throw OpenAPIGeneratorError.unsupported(
           "\(operationID) form URL-encoded request bodies must use object schemas."
         )
       }
-      guard try resolvedSchema.dictionarySwiftType(components: components, inlineObjectFallback: nil) == nil else {
-        throw OpenAPIGeneratorError.unsupported(
-          "\(operationID) form URL-encoded dictionary request bodies are not generated yet."
+      if let valueType = try resolvedSchema.dictionaryValueSwiftType(
+        components: components,
+        inlineObjectFallback: "CometOpenAPIJSONValue"
+      ) {
+        return .formDictionary(
+          valueType: valueType,
+          required: requestBody.required
         )
       }
       let fields = try resolvedSchema.objectPropertyEntries(components: components).map { entry in
@@ -753,16 +884,24 @@ private struct GeneratedOperation {
       return .form(fields: fields, required: requestBody.required)
     }
 
-    if let schema = requestBody.content["multipart/form-data"]?.schema {
+    if let schema = Self.selectedMediaType(
+      from: requestBody.content,
+      normalizedName: "multipart/form-data"
+    )?.mediaType.schema {
       let resolvedSchema = try schema.resolved(components: components)
       guard resolvedSchema.isObjectLike else {
         throw OpenAPIGeneratorError.unsupported(
           "\(operationID) multipart form-data request bodies must use object schemas."
         )
       }
-      guard try resolvedSchema.dictionarySwiftType(components: components, inlineObjectFallback: nil) == nil else {
-        throw OpenAPIGeneratorError.unsupported(
-          "\(operationID) multipart form-data dictionary request bodies are not generated yet."
+      if let valueType = try resolvedSchema.dictionaryValueSwiftType(
+        components: components,
+        inlineObjectFallback: "CometOpenAPIJSONValue"
+      ) {
+        return .multipartDictionary(
+          valueType: valueType,
+          isBinary: resolvedSchema.additionalPropertiesValueIsBinary(components: components),
+          required: requestBody.required
         )
       }
       let fields = try resolvedSchema.objectPropertyEntries(components: components).map { entry in
@@ -787,6 +926,59 @@ private struct GeneratedOperation {
     throw OpenAPIGeneratorError.unsupported(
       "\(operationID) uses a request body content type that is not generated yet."
     )
+  }
+
+  private struct SelectedMediaType {
+    let contentType: String
+    let mediaType: OpenAPIMediaType
+  }
+
+  private static func selectedJSONMediaType(
+    from content: [String: OpenAPIMediaType]
+  ) -> SelectedMediaType? {
+    content
+      .compactMap { contentType, mediaType -> (rank: Int, contentType: String, mediaType: OpenAPIMediaType)? in
+        let normalized = Self.normalizedMediaType(contentType)
+        let rank: Int
+        if contentType == "application/json" {
+          rank = 0
+        } else if normalized == "application/json" {
+          rank = 1
+        } else if normalized.hasSuffix("+json") {
+          rank = 2
+        } else {
+          return nil
+        }
+        return (rank, contentType, mediaType)
+      }
+      .sorted { lhs, rhs in
+        lhs.rank == rhs.rank ? lhs.contentType < rhs.contentType : lhs.rank < rhs.rank
+      }
+      .first
+      .map { SelectedMediaType(contentType: $0.contentType, mediaType: $0.mediaType) }
+  }
+
+  private static func selectedMediaType(
+    from content: [String: OpenAPIMediaType],
+    normalizedName: String
+  ) -> SelectedMediaType? {
+    content
+      .filter { Self.normalizedMediaType($0.key) == normalizedName }
+      .sorted { lhs, rhs in
+        if lhs.key == normalizedName { return true }
+        if rhs.key == normalizedName { return false }
+        return lhs.key < rhs.key
+      }
+      .first
+      .map { SelectedMediaType(contentType: $0.key, mediaType: $0.value) }
+  }
+
+  private static func normalizedMediaType(_ mediaType: String) -> String {
+    mediaType
+      .split(separator: ";", maxSplits: 1)
+      .first
+      .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+      ?? mediaType.lowercased()
   }
 
   private static func securityTags(
@@ -869,7 +1061,7 @@ private struct GeneratedSchemaModel {
     }
     if let dictionaryType = try self.schema.dictionarySwiftType(
       components: self.components,
-      inlineObjectFallback: nil
+      inlineObjectFallback: "CometOpenAPIJSONValue"
     ) {
       return [
         "\(self.accessModifier) typealias \(self.typeName) = \(dictionaryType)"
@@ -1184,6 +1376,11 @@ private struct GeneratedObjectSchemaRenderer {
         "\(self.originalName) has properties that generate duplicate Swift names: \(duplicatePropertyNames.joined(separator: ", "))."
       )
     }
+    let additionalProperties = try GeneratedAdditionalProperties(
+      schema: self.schema,
+      usedSwiftNames: Set(properties.map(\.swiftName)),
+      components: self.components
+    )
     let nestedModels = properties.flatMap(\.nestedModels)
     let duplicateNestedTypeNames = Dictionary(grouping: nestedModels, by: \.typeName)
       .filter { $0.value.count > 1 }
@@ -1197,7 +1394,7 @@ private struct GeneratedObjectSchemaRenderer {
 
     var lines: [String] = []
     lines.append("\(self.indentation)\(self.accessModifier) struct \(self.typeName): Codable, Sendable {")
-    if properties.isEmpty {
+    if properties.isEmpty, additionalProperties == nil {
       lines.append("\(self.indentation)  \(self.accessModifier) init() {}")
       lines.append("\(self.indentation)}")
       return lines
@@ -1211,32 +1408,101 @@ private struct GeneratedObjectSchemaRenderer {
     for property in properties {
       lines.append("\(self.indentation)  \(self.accessModifier) let \(property.swiftName): \(property.swiftType)")
     }
+    if let additionalProperties {
+      lines.append("\(self.indentation)  \(self.accessModifier) let \(additionalProperties.swiftName): \(additionalProperties.swiftType)")
+    }
 
     lines.append("")
     lines.append("\(self.indentation)  \(self.accessModifier) init(")
-    for index in properties.indices {
-      lines.append(properties[index].initArgument(indentation: self.indentation) + (index == properties.indices.last ? "" : ","))
+    let additionalInitArguments = additionalProperties.map {
+      [$0.initArgument(indentation: self.indentation)]
+    } ?? []
+    let initArguments =
+      properties.map { $0.initArgument(indentation: self.indentation) }
+      + additionalInitArguments
+    for index in initArguments.indices {
+      lines.append(initArguments[index] + (index == initArguments.indices.last ? "" : ","))
     }
     lines.append("\(self.indentation)  ) {")
     for property in properties {
       lines.append("\(self.indentation)    self.\(property.swiftName) = \(property.swiftName)")
     }
+    if let additionalProperties {
+      lines.append("\(self.indentation)    self.\(additionalProperties.swiftName) = \(additionalProperties.swiftName)")
+    }
     lines.append("\(self.indentation)  }")
 
-    if properties.contains(where: { $0.swiftName.unescapedSwiftIdentifier != $0.originalName }) {
+    if let additionalProperties {
       lines.append("")
-      lines.append("\(self.indentation)  private enum CodingKeys: String, CodingKey {")
-      for property in properties {
-        if property.swiftName.unescapedSwiftIdentifier == property.originalName {
-          lines.append("\(self.indentation)    case \(property.swiftName)")
-        } else {
-          lines.append("\(self.indentation)    case \(property.swiftName) = \(property.originalName.swiftLiteral)")
-        }
-      }
-      lines.append("\(self.indentation)  }")
+      lines.append(contentsOf: self.additionalPropertiesCodableLines(
+        properties: properties,
+        additionalProperties: additionalProperties
+      ))
+    } else if properties.contains(where: { $0.swiftName.unescapedSwiftIdentifier != $0.originalName }) {
+      lines.append("")
+      lines.append(contentsOf: self.codingKeyLines(properties: properties))
     }
 
     lines.append("\(self.indentation)}")
+    return lines
+  }
+
+  private func codingKeyLines(properties: [GeneratedSchemaProperty]) -> [String] {
+    var lines: [String] = []
+    lines.append("\(self.indentation)  private enum CodingKeys: String, CodingKey {")
+    for property in properties {
+      if property.swiftName.unescapedSwiftIdentifier == property.originalName {
+        lines.append("\(self.indentation)    case \(property.swiftName)")
+      } else {
+        lines.append("\(self.indentation)    case \(property.swiftName) = \(property.originalName.swiftLiteral)")
+      }
+    }
+    lines.append("\(self.indentation)  }")
+    return lines
+  }
+
+  private func additionalPropertiesCodableLines(
+    properties: [GeneratedSchemaProperty],
+    additionalProperties: GeneratedAdditionalProperties
+  ) -> [String] {
+    var lines: [String] = []
+    if !properties.isEmpty {
+      lines.append(contentsOf: self.codingKeyLines(properties: properties))
+      lines.append("")
+    }
+
+    let knownKeys = "[" + properties.map(\.originalName).map(\.swiftLiteral).joined(separator: ", ") + "]"
+    lines.append("\(self.indentation)  private static let knownAdditionalPropertyKeys: Set<String> = \(knownKeys)")
+
+    lines.append("")
+    lines.append("\(self.indentation)  \(self.accessModifier) init(from decoder: any Decoder) throws {")
+    if !properties.isEmpty {
+      lines.append("\(self.indentation)    let container = try decoder.container(keyedBy: CodingKeys.self)")
+      for property in properties {
+        lines.append(property.decodeAssignmentLine(indentation: self.indentation))
+      }
+    }
+    lines.append("\(self.indentation)    let additionalContainer = try decoder.container(keyedBy: CometOpenAPIAdditionalCodingKey.self)")
+    lines.append("\(self.indentation)    var \(additionalProperties.swiftName): \(additionalProperties.swiftType) = [:]")
+    lines.append("\(self.indentation)    for key in additionalContainer.allKeys where !Self.knownAdditionalPropertyKeys.contains(key.stringValue) {")
+    lines.append("\(self.indentation)      \(additionalProperties.swiftName)[key.stringValue] = try additionalContainer.decode(\(additionalProperties.valueType).self, forKey: key)")
+    lines.append("\(self.indentation)    }")
+    lines.append("\(self.indentation)    self.\(additionalProperties.swiftName) = \(additionalProperties.swiftName)")
+    lines.append("\(self.indentation)  }")
+
+    lines.append("")
+    lines.append("\(self.indentation)  \(self.accessModifier) func encode(to encoder: any Encoder) throws {")
+    if !properties.isEmpty {
+      lines.append("\(self.indentation)    var container = encoder.container(keyedBy: CodingKeys.self)")
+      for property in properties {
+        lines.append(property.encodeLine(indentation: self.indentation))
+      }
+    }
+    lines.append("\(self.indentation)    var additionalContainer = encoder.container(keyedBy: CometOpenAPIAdditionalCodingKey.self)")
+    lines.append("\(self.indentation)    for key in self.\(additionalProperties.swiftName).keys.sorted() where !Self.knownAdditionalPropertyKeys.contains(key) {")
+    lines.append("\(self.indentation)      try additionalContainer.encode(self.\(additionalProperties.swiftName)[key]!, forKey: CometOpenAPIAdditionalCodingKey(stringValue: key)!)")
+    lines.append("\(self.indentation)    }")
+    lines.append("\(self.indentation)  }")
     return lines
   }
 }
@@ -1244,6 +1510,7 @@ private struct GeneratedObjectSchemaRenderer {
 private struct GeneratedSchemaProperty {
   let originalName: String
   let swiftName: String
+  let baseType: String
   let swiftType: String
   let isRequired: Bool
   let nestedModels: [GeneratedNestedSchemaModel]
@@ -1259,7 +1526,13 @@ private struct GeneratedSchemaProperty {
     self.swiftName = name.swiftIdentifier()
     self.isRequired = isRequired && !schema.nullable
     let baseType: String
-    if let type = try schema.swiftType(components: components, inlineObjectFallback: nil) {
+    if let dictionaryType = try schema.dictionarySwiftType(
+      components: components,
+      inlineObjectFallback: "CometOpenAPIJSONValue"
+    ) {
+      baseType = dictionaryType
+      self.nestedModels = []
+    } else if let type = try schema.swiftType(components: components, inlineObjectFallback: nil) {
       baseType = type
       self.nestedModels = []
     } else if schema.isInlineObject {
@@ -1285,11 +1558,56 @@ private struct GeneratedSchemaProperty {
     } else {
       throw OpenAPIGeneratorError.unsupported("Nested inline object schemas are not generated yet: \(name).")
     }
+    self.baseType = baseType
     self.swiftType = self.isRequired ? baseType : "\(baseType)?"
   }
 
   func initArgument(indentation: String) -> String {
     "\(indentation)    \(self.swiftName): \(self.swiftType)\(self.isRequired ? "" : " = nil")"
+  }
+
+  func decodeAssignmentLine(indentation: String) -> String {
+    if self.isRequired {
+      return "\(indentation)    self.\(self.swiftName) = try container.decode(\(self.baseType).self, forKey: .\(self.swiftName))"
+    }
+    return "\(indentation)    self.\(self.swiftName) = try container.decodeIfPresent(\(self.baseType).self, forKey: .\(self.swiftName))"
+  }
+
+  func encodeLine(indentation: String) -> String {
+    if self.isRequired {
+      return "\(indentation)    try container.encode(self.\(self.swiftName), forKey: .\(self.swiftName))"
+    }
+    return "\(indentation)    try container.encodeIfPresent(self.\(self.swiftName), forKey: .\(self.swiftName))"
+  }
+}
+
+private struct GeneratedAdditionalProperties {
+  let swiftName: String
+  let valueType: String
+
+  init?(
+    schema: OpenAPISchema,
+    usedSwiftNames: Set<String>,
+    components: [String: OpenAPISchema]
+  ) throws {
+    guard let valueType = try schema.combinedAdditionalPropertiesValueSwiftType(
+      components: components,
+      inlineObjectFallback: "CometOpenAPIJSONValue"
+    ) else {
+      return nil
+    }
+    self.swiftName = usedSwiftNames.contains("additionalProperties")
+      ? "additionalPropertiesValue"
+      : "additionalProperties"
+    self.valueType = valueType
+  }
+
+  var swiftType: String {
+    "[String: \(self.valueType)]"
+  }
+
+  func initArgument(indentation: String) -> String {
+    "\(indentation)    \(self.swiftName): \(self.swiftType) = [:]"
   }
 }
 
@@ -1325,9 +1643,6 @@ private struct GeneratedParameter {
     guard let name = parameter.name, let location = parameter.location else {
       throw OpenAPIGeneratorError.invalidDocument("Parameter is missing a required name or location.")
     }
-    guard location != .cookie else {
-      throw OpenAPIGeneratorError.unsupported("Cookie parameters are not generated yet: \(name).")
-    }
     guard location != .header || name.isValidHTTPFieldName else {
       throw OpenAPIGeneratorError.invalidDocument("Header parameter has an invalid HTTP field name: \(name).")
     }
@@ -1362,6 +1677,18 @@ private struct GeneratedParameter {
     return [
       "    if let \(self.swiftName) = self.\(self.swiftName) {",
       "      headers[\(headerName)] = String(describing: \(self.swiftName))",
+      "    }"
+    ]
+  }
+
+  func cookieLines() -> [String] {
+    let prefix = "\(self.originalName)=".swiftLiteral
+    if self.isRequired {
+      return ["    cookies.append(\(prefix) + String(describing: self.\(self.swiftName)))"]
+    }
+    return [
+      "    if let \(self.swiftName) = self.\(self.swiftName) {",
+      "      cookies.append(\(prefix) + String(describing: \(self.swiftName)))",
       "    }"
     ]
   }
@@ -1887,24 +2214,28 @@ private final class OpenAPISchema: Decodable {
     components: [String: OpenAPISchema],
     inlineObjectFallback: String?
   ) throws -> String? {
-    guard let additionalProperties else { return nil }
     let hasNamedShape = !self.properties.isEmpty || !self.allOf.isEmpty
+    guard !hasNamedShape else { return nil }
+    guard let valueType = try self.dictionaryValueSwiftType(
+      components: components,
+      inlineObjectFallback: inlineObjectFallback
+    ) else {
+      return nil
+    }
+    return "[String: \(valueType)]"
+  }
+
+  func dictionaryValueSwiftType(
+    components: [String: OpenAPISchema],
+    inlineObjectFallback: String?
+  ) throws -> String? {
+    guard let additionalProperties else { return nil }
     switch additionalProperties {
     case .disallowed:
       return nil
     case .allowed:
-      guard hasNamedShape else {
-        return "[String: CometOpenAPIJSONValue]"
-      }
-      throw OpenAPIGeneratorError.unsupported(
-        "Object schemas that combine named properties and additionalProperties are not generated yet."
-      )
+      return "CometOpenAPIJSONValue"
     case let .schema(valueSchema):
-      guard !hasNamedShape else {
-        throw OpenAPIGeneratorError.unsupported(
-          "Object schemas that combine named properties and additionalProperties are not generated yet."
-        )
-      }
       guard let valueType = try valueSchema.swiftType(
         components: components,
         inlineObjectFallback: inlineObjectFallback
@@ -1913,32 +2244,16 @@ private final class OpenAPISchema: Decodable {
           "Dictionary schemas with inline object values are not generated yet."
         )
       }
-      return "[String: \(valueType)]"
+      return valueType
     }
   }
 
   func objectPropertyEntries(components: [String: OpenAPISchema]) throws -> [OpenAPIObjectPropertyEntry] {
-    if case .schema = self.additionalProperties, !self.properties.isEmpty || !self.allOf.isEmpty {
-      throw OpenAPIGeneratorError.unsupported(
-        "Object schemas that combine named properties and additionalProperties are not generated yet."
-      )
-    }
-    if case .allowed = self.additionalProperties, !self.properties.isEmpty || !self.allOf.isEmpty {
-      throw OpenAPIGeneratorError.unsupported(
-        "Object schemas that combine named properties and additionalProperties are not generated yet."
-      )
-    }
-
     var entries: [OpenAPIObjectPropertyEntry] = []
     for schema in self.allOf {
       let resolvedSchema = try schema.resolved(components: components)
       guard resolvedSchema.isObjectLike else {
         throw OpenAPIGeneratorError.unsupported("allOf entries must resolve to object schemas.")
-      }
-      if try resolvedSchema.dictionarySwiftType(components: components, inlineObjectFallback: nil) != nil {
-        throw OpenAPIGeneratorError.unsupported(
-          "Dictionary schemas inside allOf object composition are not generated yet."
-        )
       }
       entries.append(contentsOf: try resolvedSchema.objectPropertyEntries(components: components))
     }
@@ -1952,6 +2267,38 @@ private final class OpenAPISchema: Decodable {
       }
     )
     return entries
+  }
+
+  func combinedAdditionalPropertiesValueSwiftType(
+    components: [String: OpenAPISchema],
+    inlineObjectFallback: String?
+  ) throws -> String? {
+    var valueType = try self.dictionaryValueSwiftType(
+      components: components,
+      inlineObjectFallback: inlineObjectFallback
+    )
+    for schema in self.allOf {
+      let resolvedSchema = try schema.resolved(components: components)
+      guard let nextValueType = try resolvedSchema.combinedAdditionalPropertiesValueSwiftType(
+        components: components,
+        inlineObjectFallback: inlineObjectFallback
+      ) else {
+        continue
+      }
+      if let valueType, valueType != nextValueType {
+        throw OpenAPIGeneratorError.unsupported(
+          "allOf entries combine incompatible additionalProperties value types."
+        )
+      }
+      valueType = nextValueType
+    }
+    return valueType
+  }
+
+  func additionalPropertiesValueIsBinary(components: [String: OpenAPISchema]) -> Bool {
+    guard case let .schema(valueSchema) = self.additionalProperties else { return false }
+    let resolvedSchema = (try? valueSchema.resolved(components: components)) ?? valueSchema
+    return resolvedSchema.type == "string" && resolvedSchema.format == "binary"
   }
 
   func resolved(

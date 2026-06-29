@@ -369,7 +369,7 @@ Dependencies:
 
 Generate Comet request types from API specs.
 
-Status: V3 generator shipped in `0.3.0` and expanded with a JSON/YAML OpenAPI core target, `comet-openapi-generate` executable, SwiftPM command plugin, request generation for path/query/header parameters, reusable parameter/request-body/response components, component schema models, nested inline object models, typed and free-form `additionalProperties` dictionaries, simple `allOf` object composition, `oneOf` and `anyOf` union enums, discriminator decoding for component unions, component alias `$ref`s, local schema `$ref`s, JSON, plain-text, form URL-encoded, and multipart form-data bodies, operation metadata, security requirement tags, typed success serializers, typed error-response hooks, and snapshot tests.
+Status: V3 generator shipped in `0.3.0` and expanded with a JSON/YAML OpenAPI core target, `comet-openapi-generate` executable, SwiftPM command plugin, request generation for path/query/header/cookie parameters, reusable parameter/request-body/response components, component schema models, nested inline object models, typed and free-form `additionalProperties` dictionaries, object models that combine named fields with `additionalProperties`, simple `allOf` object composition, `oneOf` and `anyOf` union enums, discriminator decoding for component unions, component alias `$ref`s, local schema `$ref`s, JSON and `+json` media types, plain-text media types, form URL-encoded and multipart form-data bodies, dictionary-backed form bodies, operation metadata, security requirement tags, typed success serializers, typed error-response hooks, and snapshot tests.
 
 Technical shape:
 

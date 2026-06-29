@@ -12,7 +12,7 @@ The MVP described for Comet has been implemented in this repository.
 
 What exists today:
 
-- Swift package with `Comet`, `CometTCA`, and `CometTesting`
+- Swift package with `Comet`, `CometTCA`, `CometTesting`, `CometOpenAPIGenerator`, and `CometSQLiteData`
 - generated iOS playground app using XcodeGen
 - typed request pipeline built around `APIRequest`, `HTTPBody`, and `ResponseSerializer`
 - pluggable transport seam with `URLSessionTransport`
@@ -29,8 +29,11 @@ What exists today:
 - authentication refresh and safe replay middleware
 - mock WebSocket sessions for tests and demos
 - resilient WebSocket session wrapper
-- test utilities and TCA integration
-- DocC workflow tutorials for core package usage
+- deterministic test utilities, contract mocks, cassette replay, and a local HTTP mock listener
+- OpenAPI generation from JSON and YAML through the executable and SwiftPM command plugin
+- cache storage and optional SQLiteData persistence
+- TCA integration with request state and tracked request effects
+- DocC workflow tutorials for core package usage, OpenAPI generation, testing, and TCA integration
 
 Verified commands:
 
@@ -292,28 +295,27 @@ Completed scope:
 
 ## Remaining After V2
 
-The highest-value follow-ups moved into the V3 release plan:
+The highest-value follow-ups moved into the V3 release plan and later patch work:
 
 - fresh-client integration smoke coverage
 - distributed trace propagation
 - cache core, HTTP revalidation, persistent cache storage, and cache playground coverage
 - contract testing and mock-server scenarios
-- JSON OpenAPI request generation
+- JSON and YAML OpenAPI request generation
 - server-side direction documentation
 - reachability hints and lightweight TCA request state
 
-The executable `0.3.0` release plan lives in [RELEASE_PLAN_0_3.md](RELEASE_PLAN_0_3.md).
+Those items are now implemented or documented in the current release line. The
+executable `0.3.0` release plan lives in [RELEASE_PLAN_0_3.md](RELEASE_PLAN_0_3.md).
 
 ---
 
 ## Deferred Roadmap
 
-These remain intentionally out of the MVP:
+These remain intentionally outside the current release line:
 
-- server-side live transport implementation
-- stale-while-revalidate cache semantics
-- a real local HTTP listener for mock-server scenarios
-- YAML OpenAPI input
-- deep JSON Schema model generation
+- server-native Vapor or AsyncHTTPClient adapters
+- full OpenAPI contract coverage, including callbacks, links, and advanced parameter serialization styles
+- complete JSON Schema composition beyond the focused model generation supported today
 
 They should only be added after the current API is used in real projects and proves stable.
