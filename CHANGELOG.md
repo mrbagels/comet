@@ -16,8 +16,14 @@ the `0.4.0` public API contract.
 The `0.4.2` patch release expands OpenAPI schema model generation with nested
 inline object structs and component `$ref` aliases while preserving the `0.4.x`
 public API contract.
+The `0.4.3` patch release expands OpenAPI advanced generation with multipart
+requests, security metadata tags, discriminator-aware unions, broader request
+and response component coverage, and stale refresh observability while
+preserving the `0.4.x` public API contract.
 
 ## Unreleased
+
+## 0.4.3 - 2026-06-29
 
 ### Added
 
