@@ -122,6 +122,7 @@ Each scenario in the UI shows the exact Comet API surface it is proving. The dem
 - `CometTCA`
 - `CometRequestState`
 - `Effect.request`
+- `Effect.trackedRequest`
 
 ## Useful Files
 

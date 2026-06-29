@@ -83,4 +83,43 @@ case .failure(let error):
 }
 ```
 
+For reducers that model request lifecycle actions directly, use
+`CometRequestAction` with `Effect.trackedRequest`:
+
+```swift
+@Reducer
+struct UserFeature {
+  @ObservableState
+  struct State {
+    var user = CometRequestState<User>.idle
+  }
+
+  enum Action {
+    case task
+    case user(CometRequestAction<User>)
+  }
+
+  private enum CancelID {
+    case user
+  }
+
+  var body: some Reducer<State, Action> {
+    Reduce { state, action in
+      switch action {
+      case .task:
+        return .trackedRequest(
+          GetUser(userID: 42),
+          cancellationID: CancelID.user,
+          action: Action.user
+        )
+
+      case .user(let action):
+        state.user.apply(action)
+        return .none
+      }
+    }
+  }
+}
+```
+
 Keep feature-specific error presentation in the feature. CometTCA stays intentionally small so the base package remains usable without TCA.

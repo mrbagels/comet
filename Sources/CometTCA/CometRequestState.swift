@@ -25,8 +25,23 @@ public enum CometRequestState<Value: Sendable>: Sendable {
     return error
   }
 
+  public var isIdle: Bool {
+    guard case .idle = self else { return false }
+    return true
+  }
+
   public var isLoading: Bool {
     guard case .loading = self else { return false }
+    return true
+  }
+
+  public var isLoaded: Bool {
+    guard case .loaded = self else { return false }
+    return true
+  }
+
+  public var isFailed: Bool {
+    guard case .failed = self else { return false }
     return true
   }
 
@@ -40,5 +55,37 @@ public enum CometRequestState<Value: Sendable>: Sendable {
 
   public mutating func fail(_ error: NetworkError) {
     self = .failed(error, previous: self.value)
+  }
+
+  public mutating func finish(_ result: Result<Value, NetworkError>) {
+    switch result {
+    case .success(let value):
+      self.succeed(value)
+    case .failure(let error):
+      self.fail(error)
+    }
+  }
+
+  public mutating func cancel(keepingPreviousValue: Bool = true) {
+    if keepingPreviousValue, let value = self.value {
+      self = .loaded(value)
+    } else {
+      self = .idle
+    }
+  }
+
+  public mutating func reset() {
+    self = .idle
+  }
+
+  public mutating func apply(_ action: CometRequestAction<Value>) {
+    switch action {
+    case .started:
+      self.start()
+    case .response(let result):
+      self.finish(result)
+    case .cancelled:
+      self.cancel()
+    }
   }
 }

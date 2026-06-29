@@ -27,8 +27,8 @@ struct TCADemoFeature {
 
   enum Action {
     case cancelButtonTapped
+    case request(CometRequestAction<DemoTodo>)
     case resetButtonTapped
-    case response(Result<DemoTodo, NetworkError>)
     case runButtonTapped
   }
 
@@ -40,19 +40,30 @@ struct TCADemoFeature {
     Reduce { state, action in
       switch action {
       case .cancelButtonTapped:
-        state.request = .idle
+        state.request.cancel(keepingPreviousValue: false)
         state.output = "Request cancelled."
         state.fields = []
         return .cancel(id: CancelID.request)
 
       case .resetButtonTapped:
-        state.request = .idle
+        state.request.reset()
         state.output = "Run the request from a TCA reducer."
         state.fields = []
         return .cancel(id: CancelID.request)
 
-      case .response(.success(let todo)):
-        state.request.succeed(todo)
+      case .request(.started):
+        state.request.apply(.started)
+        state.output = "Loading TodoRequest..."
+        state.fields = [
+          DemoInspectorField(label: "Request", value: "TodoRequest"),
+          DemoInspectorField(label: "Reducer", value: "TCADemoFeature"),
+          DemoInspectorField(label: "Effect", value: "Effect.trackedRequest"),
+          DemoInspectorField(label: "State", value: "Loading")
+        ]
+        return .none
+
+      case .request(.response(.success(let todo))):
+        state.request.apply(.response(.success(todo)))
         state.output = """
         id: \(todo.id)
         user: \(todo.userId)
@@ -62,31 +73,34 @@ struct TCADemoFeature {
         state.fields = [
           DemoInspectorField(label: "Request", value: "TodoRequest"),
           DemoInspectorField(label: "Reducer", value: "TCADemoFeature"),
-          DemoInspectorField(label: "Effect", value: "Effect.request"),
+          DemoInspectorField(label: "Effect", value: "Effect.trackedRequest"),
           DemoInspectorField(label: "Completed", value: todo.completed ? "Yes" : "No")
         ]
         return .none
 
-      case .response(.failure(let error)):
-        state.request.fail(error)
+      case .request(.response(.failure(let error))):
+        state.request.apply(.response(.failure(error)))
         state.output = error.debugSummary
         state.fields = [
           DemoInspectorField(label: "Request", value: "TodoRequest"),
           DemoInspectorField(label: "Reducer", value: "TCADemoFeature"),
+          DemoInspectorField(label: "Effect", value: "Effect.trackedRequest"),
           DemoInspectorField(label: "Error", value: error.debugSummary)
         ]
         return .none
 
+      case .request(.cancelled):
+        state.request.apply(.cancelled)
+        state.output = "Request cancelled."
+        state.fields = []
+        return .none
+
       case .runButtonTapped:
-        state.request.start()
-        state.output = "Loading TodoRequest..."
-        state.fields = [
-          DemoInspectorField(label: "Request", value: "TodoRequest"),
-          DemoInspectorField(label: "Reducer", value: "TCADemoFeature"),
-          DemoInspectorField(label: "State", value: "Loading")
-        ]
-        return .request(TodoRequest(), map: Action.response)
-          .cancellable(id: CancelID.request, cancelInFlight: true)
+        return .trackedRequest(
+          TodoRequest(),
+          cancellationID: CancelID.request,
+          action: Action.request
+        )
       }
     }
   }
@@ -181,4 +195,3 @@ struct TCATab: View {
     }
   }
 }
-

@@ -622,6 +622,9 @@ Current surface:
 
 - `DependencyValues.httpClient`
 - `Effect.request`
+- `Effect.trackedRequest`
+- `CometRequestAction`
+- `CometRequestState`
 
 This keeps the core package free of `swift-dependencies` and TCA-specific concerns.
 

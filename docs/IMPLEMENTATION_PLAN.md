@@ -141,6 +141,9 @@ Delivered:
 
 - `DependencyValues.httpClient`
 - `Effect.request`
+- `Effect.trackedRequest`
+- `CometRequestAction`
+- `CometRequestState`
 
 ### Phase 5: Hardening Pass
 
@@ -312,6 +315,5 @@ These remain intentionally out of the MVP:
 - a real local HTTP listener for mock-server scenarios
 - YAML OpenAPI input
 - deep JSON Schema model generation
-- higher-level TCA domain helpers beyond generic request state
 
 They should only be added after the current API is used in real projects and proves stable.

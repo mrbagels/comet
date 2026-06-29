@@ -29,7 +29,7 @@ The latest published release is `0.4.4`, the V3 foundation plus stale-while-reva
 | `CometOpenAPIGenerator` | JSON and YAML OpenAPI 3.x request generator core plus the `comet-openapi-generate` executable |
 | `CometOpenAPIPlugin` | SwiftPM command plugin for package-root OpenAPI generation |
 | `CometSQLiteData` | Optional SQLiteData tables, migrations, and storage helpers for Comet activity events and generated artifacts |
-| `CometTCA` | Lightweight Composable Architecture helpers for request effects and request state |
+| `CometTCA` | Lightweight Composable Architecture helpers for request effects, tracked request effects, and request state |
 | `CometPlayground` | iPhone-first verification app for HTTP, cache, contracts, replay, activity, and realtime flows |
 
 ## Toolchain And Platforms
