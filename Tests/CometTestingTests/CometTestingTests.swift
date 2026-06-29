@@ -4,6 +4,22 @@ import HTTPTypes
 import Comet
 import CometTesting
 
+private struct LocalMockServerGetRequest: APIRequest {
+  let path: Path = "local"
+  let method: HTTPMethod = .get
+  var queryItems: [QueryItem] = [
+    .init("expand", "details")
+  ]
+  let responseSerializer: ResponseSerializer<String> = .string()
+}
+
+private struct LocalMockServerPostRequest: APIRequest {
+  let path: Path = "local"
+  let method: HTTPMethod = .post
+  let body: HTTPBody = .text("payload", contentType: "text/plain")
+  let responseSerializer: ResponseSerializer<String> = .string()
+}
+
 @Test func mockTransportReturnsRegisteredResponse() async throws {
   let transport = MockTransport.responses([
     "/ping": RawResponse(data: Data("pong".utf8), statusCode: 200)
@@ -631,4 +647,103 @@ import CometTesting
   await #expect(throws: NetworkError.self) {
     _ = try await task.value
   }
+}
+
+@Test func localMockServerServesContractsThroughURLSessionTransport() async throws {
+  #if canImport(Network)
+  var responseHeaders = HTTPFields()
+  responseHeaders[.contentType] = "text/plain; charset=utf-8"
+
+  let server = try await LocalMockServer.start(
+    expectations: [
+      ContractExpectation(
+        id: "get-local",
+        method: .get,
+        path: "/local",
+        query: [ContractQueryExpectation(name: "expand", value: .exact("details"))],
+        outcome: .response(
+          RawResponse(
+            data: Data("local-ok".utf8),
+            statusCode: 200,
+            headers: responseHeaders
+          )
+        )
+      )
+    ]
+  )
+  defer { server.stop() }
+
+  let client = HTTPClient.live(
+    configuration: .default(baseURL: server.baseURL),
+    transport: URLSessionTransport()
+  )
+
+  let value = try await client.send(LocalMockServerGetRequest())
+
+  #expect(value == "local-ok")
+  try await server.verifyComplete()
+
+  let report = await server.report(generatedAt: Date(timeIntervalSince1970: 0))
+  #expect(report.passed)
+  #expect(report.matches.map(\.expectationID) == ["get-local"])
+  #endif
+}
+
+@Test func localMockServerValidatesBodiesFromURLSessionTransport() async throws {
+  #if canImport(Network)
+  let server = try await LocalMockServer.start(
+    expectations: [
+      ContractExpectation(
+        id: "post-local",
+        method: .post,
+        path: "/local",
+        headers: [ContractHeaderExpectation(name: "content-type", value: .exact("text/plain"))],
+        body: .exact(Data("payload".utf8)),
+        outcome: .response(RawResponse(data: Data("posted".utf8), statusCode: 201))
+      )
+    ]
+  )
+  defer { server.stop() }
+
+  let client = HTTPClient.live(
+    configuration: .default(baseURL: server.baseURL),
+    transport: URLSessionTransport()
+  )
+
+  let value = try await client.send(LocalMockServerPostRequest())
+
+  #expect(value == "posted")
+  try await server.verifyComplete()
+  #endif
+}
+
+@Test func localMockServerReportsHTTPContractViolations() async throws {
+  #if canImport(Network)
+  let server = try await LocalMockServer.start(
+    expectations: [
+      ContractExpectation(
+        id: "expected",
+        method: .get,
+        path: "/expected",
+        outcome: .response(RawResponse(data: Data("ok".utf8), statusCode: 200))
+      )
+    ]
+  )
+  defer { server.stop() }
+
+  let client = HTTPClient.live(
+    configuration: .default(baseURL: server.baseURL),
+    transport: URLSessionTransport()
+  )
+
+  await #expect(throws: NetworkError.self) {
+    _ = try await client.send(LocalMockServerGetRequest())
+  }
+
+  let report = await server.report(generatedAt: Date(timeIntervalSince1970: 0))
+
+  #expect(!report.passed)
+  #expect(report.violations.contains { $0.kind == .mismatch })
+  #expect(report.violations.contains { $0.kind == .unusedExpectation })
+  #endif
 }

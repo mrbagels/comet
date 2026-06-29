@@ -54,3 +54,16 @@ let server = try MockServer(cassette: cassette)
 
 Use ``MockServer`` when a demo, preview, or UI test wants the same scenario
 definitions used by package tests.
+
+Use ``LocalMockServer`` when that scenario should be reached through a real
+``URLSessionTransport``:
+
+```swift
+let server = try await LocalMockServer.start(expectations: expectations)
+defer { server.stop() }
+
+let client = HTTPClient.live(
+  configuration: .default(baseURL: server.baseURL),
+  transport: URLSessionTransport()
+)
+```

@@ -466,6 +466,19 @@ let expectations = try cassette.contractExpectations()
 let mockServer = MockServer(expectations: expectations)
 ```
 
+Use `LocalMockServer` when a demo, integration test, or UI test should hit the
+same contracts through a real `URLSessionTransport`:
+
+```swift
+let localServer = try await LocalMockServer.start(expectations: expectations)
+defer { localServer.stop() }
+
+let client = HTTPClient.live(
+  configuration: .default(baseURL: localServer.baseURL),
+  transport: URLSessionTransport()
+)
+```
+
 ### OpenAPI Generation
 
 Generate Comet request types from JSON or YAML OpenAPI 3.x documents:

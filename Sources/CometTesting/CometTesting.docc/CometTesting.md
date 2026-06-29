@@ -16,6 +16,7 @@ Use it for:
 - replaying fixtures deterministically with ``ReplayTransport``
 - validating strict request contracts with ``ContractTransport``
 - running higher-level mock scenarios with ``MockServer``
+- serving higher-level mock scenarios over local HTTP with ``LocalMockServer``
 - exporting contract reports with ``ContractReport``
 
 ## Topics
@@ -46,3 +47,4 @@ Use it for:
 - ``ContractMatch``
 - ``ContractDifference``
 - ``MockServer``
+- ``LocalMockServer``
