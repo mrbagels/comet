@@ -20,8 +20,23 @@ The `0.4.3` patch release expands OpenAPI advanced generation with multipart
 requests, security metadata tags, discriminator-aware unions, broader request
 and response component coverage, and stale refresh observability while
 preserving the `0.4.x` public API contract.
+The `0.4.4` patch release adds server Swift live HTTP support through the
+existing `URLSessionTransport` and a Linux build gate for the core `Comet`
+target while preserving the `0.4.x` public API contract.
 
 ## Unreleased
+
+## 0.4.4 - 2026-06-29
+
+### Added
+
+- `URLSessionTransport` now imports `FoundationNetworking` where available, so the core `Comet` target can build and run live HTTP requests on server-side Swift.
+- CI now builds the core `Comet` target in a Swift 6.2 Linux container.
+
+### Changed
+
+- `URLSessionTransport.stream` keeps true incremental streaming on Apple platforms and emits buffered stream events on server Swift builds.
+- Server transport docs now mark HTTP live transport as supported and keep `URLSessionWebSocketTransport` scoped to Apple platforms.
 
 ## 0.4.3 - 2026-06-29
 

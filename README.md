@@ -5,7 +5,7 @@
 <h1 align="center">Comet</h1>
 
 <p align="center">
-  <strong>Typed networking for Apple-platform Swift apps.</strong>
+  <strong>Typed networking for Swift apps and services.</strong>
 </p>
 
 <p align="center">
@@ -16,9 +16,9 @@
   <a href="LICENSE"><img src="https://img.shields.io/github/license/mrbagels/comet" alt="License"></a>
 </p>
 
-Comet turns API endpoints into Swift types. It ships with a `URLSession`-backed live client, middleware for production behavior, opt-in response caching, deterministic testing and contract transports, cassette recording and replay, OpenAPI request generation, request activity and trace streams, response streaming, transfer progress hooks, and resilient WebSocket sessions.
+Comet turns API endpoints into Swift types. It ships with a `URLSession`-backed live HTTP client, middleware for production behavior, opt-in response caching, deterministic testing and contract transports, cassette recording and replay, OpenAPI request generation, request activity and trace streams, response streaming, transfer progress hooks, and resilient WebSocket sessions.
 
-The latest published release is `0.4.3`, the V3 foundation plus stale-while-revalidate caching and observability, proof bundle exports, the SwiftPM OpenAPI command plugin, expanded OpenAPI schema and request generation, YAML input, optional SQLiteData persistence, TCA playground coverage, and cache and middleware hardening.
+The latest published release is `0.4.4`, the V3 foundation plus stale-while-revalidate caching and observability, proof bundle exports, the SwiftPM OpenAPI command plugin, expanded OpenAPI schema and request generation, YAML input, optional SQLiteData persistence, TCA playground coverage, cache and middleware hardening, and server Swift live HTTP support.
 
 ## At A Glance
 
@@ -38,13 +38,14 @@ The latest published release is `0.4.3`, the V3 foundation plus stale-while-reva
 - iOS 18+
 - macOS 15+
 - visionOS 2+
+- Linux builds for the core `Comet` target
 
-The shipped live HTTP and WebSocket transports are `URLSession`-backed. Server-side Swift support is possible through the transport protocols, but a server live transport is not included today.
+The shipped live HTTP transport is `URLSession`-backed and imports `FoundationNetworking` where available, so server-side Swift can use `URLSessionTransport` for live HTTP requests without an additional Comet dependency. `URLSessionWebSocketTransport` uses `URLSessionWebSocketTask` and is available only on Apple platforms; server apps can provide a custom `WebSocketTransport`.
 
 ## Install
 
 ```swift
-.package(url: "https://github.com/mrbagels/comet.git", from: "0.4.3")
+.package(url: "https://github.com/mrbagels/comet.git", from: "0.4.4")
 ```
 
 Import the target you need:
@@ -579,12 +580,12 @@ xcodebuild test \
   SWIFT_ENABLE_EXPLICIT_MODULES=NO
 ```
 
-GitHub Actions runs the Swift package suite, secret scanning, public API break gating, and the iOS example smoke tests on every push to `next` and `master`.
+GitHub Actions runs the Swift package suite, a Linux core-target build, secret scanning, public API break gating, and the iOS example smoke tests on every push to `next` and `master`.
 
 Check for public API changes against the latest release:
 
 ```sh
-.github/scripts/check-api-breaking-changes.sh v0.4.3
+.github/scripts/check-api-breaking-changes.sh v0.4.4
 ```
 
 Run a fresh external client smoke check:
