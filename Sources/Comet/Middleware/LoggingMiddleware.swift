@@ -1,6 +1,11 @@
 import Foundation
 import HTTPTypes
 
+@usableFromInline
+func defaultLoggingMiddlewareLogger(_ message: String) {
+  FileHandle.standardError.write(Data((message + "\n").utf8))
+}
+
 /// Emits human-readable request and response logs, with optional cURL output in verbose mode.
 public struct LoggingMiddleware: Middleware {
   /// Controls which phases of the request lifecycle get logged.
@@ -22,9 +27,7 @@ public struct LoggingMiddleware: Middleware {
     redactedHeaders: Set<String>? = nil,
     redactionPolicy: RedactionPolicy? = nil,
     logLevel: LogLevel = .response,
-    logger: @escaping @Sendable (String) -> Void = { message in
-      fputs(message + "\n", stderr)
-    }
+    logger: @escaping @Sendable (String) -> Void = defaultLoggingMiddlewareLogger
   ) {
     self.init(
       isEnabled: isEnabled,
@@ -43,9 +46,7 @@ public struct LoggingMiddleware: Middleware {
     redactionPolicy: RedactionPolicy? = nil,
     logLevel: LogLevel = .response,
     curlCommandOptions: CURLCommandOptions,
-    logger: @escaping @Sendable (String) -> Void = { message in
-      fputs(message + "\n", stderr)
-    }
+    logger: @escaping @Sendable (String) -> Void = defaultLoggingMiddlewareLogger
   ) {
     self.isEnabled = isEnabled
     self.redactionPolicy = redactionPolicy ?? redactedHeaders.map { RedactionPolicy(redactedHeaders: $0) }

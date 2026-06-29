@@ -1,6 +1,6 @@
 # Comet Architecture
 
-> Swift 6.2+ · iOS 18+ today · shipped live transports: `URLSession` HTTP and WebSocket · server-side transport is future work
+> Swift 6.2+ · iOS 18+ · macOS 15+ · visionOS 2+ · server Swift HTTP through `URLSessionTransport`
 
 This document reflects the current implemented architecture of Comet.
 
@@ -116,7 +116,7 @@ Deferred for later:
 - stale-while-revalidate
 - batch requests
 - higher-level TCA domain helpers beyond generic request state
-- a server-specific live transport
+- server-specific live transports beyond the shared `URLSessionTransport`
 
 ---
 
@@ -383,12 +383,13 @@ public protocol HTTPTransport: Sendable {
 
 ### `URLSessionTransport`
 
-`URLSessionTransport` is the shipped live transport for app-side usage.
+`URLSessionTransport` is the shipped live HTTP transport for Apple-platform and
+server-side Swift usage.
 
 Responsibilities:
 
 - adapt `PreparedRequest` into `URLRequest`
-- execute with `URLSession`
+- execute with `URLSession`, importing `FoundationNetworking` where available
 - map transport failures into `NetworkError`
 - return `RawResponse`
 
@@ -404,7 +405,8 @@ public protocol WebSocketTransport: Sendable {
 
 ### `URLSessionWebSocketTransport`
 
-`URLSessionWebSocketTransport` is the shipped live socket transport for app-side usage.
+`URLSessionWebSocketTransport` is the shipped live socket transport for
+Apple-platform usage.
 
 Responsibilities:
 
@@ -645,12 +647,13 @@ The project is generated from `project.yml` with XcodeGen.
 
 ## Current Limitations
 
-- the shipped live transports are `URLSession`-backed and Apple-platform specific
-- server-side Swift support currently means the core abstractions are transport-replaceable, not that a Vapor/AsyncHTTPClient transport ships today
+- the shipped live HTTP transport is `URLSession`-backed and compiles for server-side Swift through `FoundationNetworking`
+- no Vapor or AsyncHTTPClient adapter ships today
+- `URLSessionWebSocketTransport` is Apple-platform only because it depends on `URLSessionWebSocketTask`
 - repeated headers are preserved inside Comet but combined at `Foundation` boundaries
 - activity events cover request lifecycle, not decode lifecycle
 - WebSocket session activity is modeled through `WebSocketSessionEvent`, not `NetworkEvent`
-- server-side live transports are deferred for `0.3.0`; see [Server Transport Decision](technical/SERVER_TRANSPORT_DECISION.md)
+- server-side transport boundaries are documented in [Server Transport Decision](technical/SERVER_TRANSPORT_DECISION.md)
 
 ---
 
@@ -659,4 +662,4 @@ The project is generated from `project.yml` with XcodeGen.
 When Comet grows beyond this release line, the highest-value next additions are likely:
 
 - broader OpenAPI contract coverage, such as callbacks, links, parameter serialization styles, and deeper schema composition cases
-- an explicit server-side live transport after a dependency decision
+- an AsyncHTTPClient, Vapor, or custom WebSocket adapter if Comet needs server-native transport controls

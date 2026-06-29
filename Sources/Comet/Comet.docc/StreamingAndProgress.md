@@ -19,7 +19,7 @@ for try await event in client.stream(StreamEvents()) {
 }
 ```
 
-``URLSessionTransport`` supports true response streaming. Other transports can opt in with ``HTTPStreamingTransport``. Buffered transports fall back to one response event and one byte event.
+``URLSessionTransport`` supports true response streaming on Apple platforms. On server Swift builds it emits buffered stream events through the same ``HTTPStreamingTransport`` surface. Other transports can opt in with ``HTTPStreamingTransport`` when they can provide incremental bytes.
 
 Streaming requests run middleware preparation and terminal cleanup. Response
 providers can satisfy a stream before the transport is opened, so fresh cached

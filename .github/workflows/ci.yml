@@ -85,6 +85,19 @@ jobs:
       - name: Run Swift package tests
         run: swift test --disable-xctest
 
+  server-comet-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    container:
+      image: swift:6.2
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build core target on Linux
+        run: swift build --target Comet
+
   ios-playground:
     runs-on: macos-latest
     timeout-minutes: 25

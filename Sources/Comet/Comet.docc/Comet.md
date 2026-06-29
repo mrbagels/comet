@@ -1,6 +1,6 @@
 # ``Comet``
 
-Typed HTTP requests and WebSocket connections for modern Swift apps.
+Typed HTTP requests and WebSocket connections for modern Swift apps and services.
 
 ## Overview
 
@@ -11,7 +11,7 @@ Comet centers on three concepts:
 - ``HTTPTransport`` performs the actual I/O, which keeps the core testable and replaceable.
 - ``WebSocketClient`` manages realtime sessions through a separate but matching transport seam.
 
-The shipped live transports today are ``URLSessionTransport`` and ``URLSessionWebSocketTransport``, which makes Comet production-ready for Apple-platform client apps. The transport seams are intentionally open so the same public model can also power mocks, recorders, replayers, and future non-`URLSession` transports.
+The shipped live HTTP transport is ``URLSessionTransport``. It uses `URLSession` on Apple platforms and imports `FoundationNetworking` where available, so the core `Comet` target can build for server-side Swift without adding another runtime dependency. ``URLSessionWebSocketTransport`` uses `URLSessionWebSocketTask` and remains Apple-platform only. The transport seams are intentionally open so the same public model can also power mocks, recorders, replayers, and custom server WebSocket transports.
 
 ## Topics
 

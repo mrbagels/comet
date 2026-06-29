@@ -1,6 +1,10 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// A WebSocket transport backed by ``Foundation/URLSessionWebSocketTask``.
+#if os(macOS) || os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
 public struct URLSessionWebSocketTransport: WebSocketTransport, Sendable {
   private let configuration: URLSessionConfiguration
 
@@ -242,3 +246,19 @@ private extension WebSocketCloseCode {
     URLSessionWebSocketTask.CloseCode(rawValue: Int(self.rawValue)) ?? .invalid
   }
 }
+#else
+@available(
+  *,
+  unavailable,
+  message: "URLSessionWebSocketTransport is available only on Apple platforms. Provide a custom WebSocketTransport on server Swift."
+)
+public struct URLSessionWebSocketTransport: WebSocketTransport, Sendable {
+  /// Creates a URLSession-backed WebSocket transport on supported platforms.
+  public init(configuration: URLSessionConfiguration = .default) {}
+
+  /// Server Swift does not expose URLSessionWebSocketTask through FoundationNetworking.
+  public func connect(_ request: WebSocketRequest) async throws(NetworkError) -> WebSocketConnection {
+    throw NetworkError.invalidRequest("URLSessionWebSocketTransport is available only on Apple platforms.")
+  }
+}
+#endif

@@ -77,8 +77,36 @@ extension Duration {
 
 extension String.Encoding {
   init?(ianaCharsetName: String) {
+    #if os(macOS) || os(iOS) || os(tvOS) || os(watchOS) || os(visionOS)
     let encoding = CFStringConvertIANACharSetNameToEncoding(ianaCharsetName as CFString)
     guard encoding != kCFStringEncodingInvalidId else { return nil }
     self.init(rawValue: CFStringConvertEncodingToNSStringEncoding(encoding))
+    #else
+    switch ianaCharsetName
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+      .lowercased()
+      .replacingOccurrences(of: "_", with: "-") {
+    case "utf-8", "utf8":
+      self = .utf8
+    case "us-ascii", "ascii":
+      self = .ascii
+    case "iso-8859-1", "latin1", "latin-1":
+      self = .isoLatin1
+    case "utf-16", "utf16":
+      self = .utf16
+    case "utf-16be", "utf16be":
+      self = .utf16BigEndian
+    case "utf-16le", "utf16le":
+      self = .utf16LittleEndian
+    case "utf-32", "utf32":
+      self = .utf32
+    case "utf-32be", "utf32be":
+      self = .utf32BigEndian
+    case "utf-32le", "utf32le":
+      self = .utf32LittleEndian
+    default:
+      return nil
+    }
+    #endif
   }
 }

@@ -2,6 +2,8 @@
 
 Use ``WebSocketClient`` for realtime connections through the same transport-oriented style as HTTP requests.
 
+``URLSessionWebSocketTransport`` uses `URLSessionWebSocketTask` and is available only on Apple platforms. Server-side Swift apps can keep the same ``WebSocketClient`` and ``WebSocketTransport`` surface by providing a custom transport.
+
 ## Connect
 
 ```swift

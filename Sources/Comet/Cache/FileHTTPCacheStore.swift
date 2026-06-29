@@ -1,4 +1,6 @@
+#if canImport(CryptoKit)
 import CryptoKit
+#endif
 import Foundation
 import HTTPTypes
 
@@ -142,10 +144,37 @@ public actor FileHTTPCacheStore: HTTPCacheStore {
 
   private static func fileName(for key: HTTPCacheKey) -> String {
     let identity = "\(key.method.rawValue)\n\(key.url)"
+    #if canImport(CryptoKit)
     let digest = SHA256.hash(data: Data(identity.utf8))
     let hex = digest.map { String(format: "%02x", $0) }.joined()
+    #else
+    let hex = Self.fallbackDigestHex(for: identity)
+    #endif
     return "\(key.method.rawValue)-\(hex).json"
   }
+
+  #if !canImport(CryptoKit)
+  private static func fallbackDigestHex(for identity: String) -> String {
+    var first: UInt64 = 0xcbf29ce484222325
+    var second: UInt64 = 0x84222325cbf29ce4
+
+    for byte in identity.utf8 {
+      first ^= UInt64(byte)
+      first &*= 0x100000001b3
+
+      second ^= UInt64(byte) &+ 0x9e3779b97f4a7c15
+      second &*= 0x100000001b3
+    }
+
+    return Self.hex(first) + Self.hex(second)
+  }
+
+  private static func hex(_ value: UInt64) -> String {
+    let text = String(value, radix: 16)
+    let padding = max(0, 16 - text.count)
+    return String(repeating: "0", count: padding) + text
+  }
+  #endif
 
   private func pruneIfNeeded() {
     var files = self.entryFiles()

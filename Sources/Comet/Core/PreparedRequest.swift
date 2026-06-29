@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 import HTTPTypes
 
 /// The fully resolved request passed to transports and middleware.
