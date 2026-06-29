@@ -658,5 +658,5 @@ The project is generated from `project.yml` with XcodeGen.
 
 When Comet grows beyond this release line, the highest-value next additions are likely:
 
-- broader OpenAPI contract coverage, such as security scheme integration, multipart bodies, callbacks, discriminators, and richer `allOf` cases
+- broader OpenAPI contract coverage, such as callbacks, links, parameter serialization styles, and deeper schema composition cases
 - an explicit server-side live transport after a dependency decision

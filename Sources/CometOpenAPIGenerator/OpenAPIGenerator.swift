@@ -104,6 +104,7 @@ public struct OpenAPIGenerator: Sendable {
             path: path,
             method: method,
             operation: operation,
+            documentSecurity: document.security,
             inheritedParameters: item.parameters,
             components: components,
             accessModifier: configuration.accessModifier
@@ -251,6 +252,7 @@ private enum GeneratedRequestBody {
   case json(payloadType: String?, required: Bool)
   case text(required: Bool)
   case form(fields: [GeneratedFormField], required: Bool)
+  case multipart(fields: [GeneratedFormField], required: Bool)
 
   var genericBodyType: Bool {
     guard case .json(nil, _) = self else { return false }
@@ -273,6 +275,8 @@ private enum GeneratedRequestBody {
       return ["bodyText: \(required ? "String" : "String?")"]
     case let .form(fields, _):
       return fields.map { "\($0.swiftName): \($0.swiftType)" }
+    case let .multipart(fields, _):
+      return fields.map { "\($0.swiftName): \($0.swiftType)" }
     }
   }
 
@@ -287,6 +291,8 @@ private enum GeneratedRequestBody {
       return ["bodyText: \(required ? "String" : "String? = nil")"]
     case let .form(fields, _):
       return fields.map(\.initArgument)
+    case let .multipart(fields, _):
+      return fields.map(\.initArgument)
     }
   }
 
@@ -299,6 +305,8 @@ private enum GeneratedRequestBody {
     case .text:
       return ["    self.bodyText = bodyText"]
     case let .form(fields, _):
+      return fields.map { "    self.\($0.swiftName) = \($0.swiftName)" }
+    case let .multipart(fields, _):
       return fields.map { "    self.\($0.swiftName) = \($0.swiftName)" }
     }
   }
@@ -349,6 +357,20 @@ private enum GeneratedRequestBody {
       lines.append("    return .formURLEncoded(items)")
       lines.append("  }")
       return lines
+    case let .multipart(fields, required):
+      var lines = [
+        "  \(accessModifier) var body: HTTPBody {",
+        "    var parts: [HTTPBody.MultipartPart] = []"
+      ]
+      for field in fields {
+        lines.append(contentsOf: field.multipartPartLines())
+      }
+      if !required {
+        lines.append("    guard !parts.isEmpty else { return .none }")
+      }
+      lines.append("    return .multipartFormData(parts)")
+      lines.append("  }")
+      return lines
     }
   }
 }
@@ -358,6 +380,7 @@ private struct GeneratedFormField {
   let swiftName: String
   let swiftType: String
   let isRequired: Bool
+  let isBinary: Bool
 
   init(
     entry: OpenAPIObjectPropertyEntry,
@@ -371,6 +394,8 @@ private struct GeneratedFormField {
       components: components,
       inlineObjectFallback: nil
     ) ?? "String"
+    let resolvedSchema = try entry.schema.resolved(components: components)
+    self.isBinary = resolvedSchema.type == "string" && resolvedSchema.format == "binary"
     self.swiftType = self.isRequired ? baseType : "\(baseType)?"
   }
 
@@ -385,6 +410,24 @@ private struct GeneratedFormField {
     return [
       "    if let \(self.swiftName) = self.\(self.swiftName) {",
       "      items.append(QueryItem(\(self.originalName.swiftLiteral), \(self.swiftName)))",
+      "    }"
+    ]
+  }
+
+  func multipartPartLines() -> [String] {
+    let partExpression: String
+    if self.isBinary {
+      partExpression = ".data(name: \(self.originalName.swiftLiteral), data: \(self.isRequired ? "self.\(self.swiftName)" : self.swiftName), filename: \(self.originalName.swiftLiteral), contentType: \"application/octet-stream\")"
+    } else {
+      partExpression = ".text(name: \(self.originalName.swiftLiteral), value: String(describing: \(self.isRequired ? "self.\(self.swiftName)" : self.swiftName)))"
+    }
+
+    if self.isRequired {
+      return ["    parts.append(\(partExpression))"]
+    }
+    return [
+      "    if let \(self.swiftName) = self.\(self.swiftName) {",
+      "      parts.append(\(partExpression))",
       "    }"
     ]
   }
@@ -403,11 +446,13 @@ private struct GeneratedOperation {
   let responseSerializer: String
   let errorResponse: GeneratedResponseSerialization?
   let operationID: String
+  let securityTags: [String]
 
   init(
     path: String,
     method: HTTPMethodName,
     operation: OpenAPIOperation,
+    documentSecurity: [OpenAPISecurityRequirement],
     inheritedParameters: [OpenAPIParameter],
     components: OpenAPIComponents,
     accessModifier: String
@@ -416,6 +461,11 @@ private struct GeneratedOperation {
     self.method = method
     self.operationID = operation.operationID ?? "\(method.rawValue)-\(path)"
     self.typeName = Self.typeName(operationID: operation.operationID, method: method, path: path)
+    self.securityTags = try Self.securityTags(
+      operationSecurity: operation.security,
+      documentSecurity: documentSecurity,
+      securitySchemes: components.securitySchemes
+    )
 
     let mergedParameters = Self.mergedParameters(
       try inheritedParameters.map { try $0.resolved(components: components) },
@@ -517,7 +567,7 @@ private struct GeneratedOperation {
     lines.append("")
     lines.append("  \(self.accessModifier) var options: RequestOptions {")
     lines.append("    RequestOptions(")
-    lines.append("      metadata: RequestMetadata(operationID: \(self.operationID.swiftLiteral))")
+    lines.append("      metadata: \(self.metadataExpression)")
     lines.append("    )")
     lines.append("  }")
     lines.append("")
@@ -529,6 +579,14 @@ private struct GeneratedOperation {
 
     lines.append("}")
     return lines
+  }
+
+  private var metadataExpression: String {
+    guard !self.securityTags.isEmpty else {
+      return "RequestMetadata(operationID: \(self.operationID.swiftLiteral))"
+    }
+    let tags = "[" + self.securityTags.map(\.swiftLiteral).joined(separator: ", ") + "]"
+    return "RequestMetadata(tags: \(tags), operationID: \(self.operationID.swiftLiteral))"
   }
 
   private func initLines() -> [String] {
@@ -695,9 +753,70 @@ private struct GeneratedOperation {
       return .form(fields: fields, required: requestBody.required)
     }
 
+    if let schema = requestBody.content["multipart/form-data"]?.schema {
+      let resolvedSchema = try schema.resolved(components: components)
+      guard resolvedSchema.isObjectLike else {
+        throw OpenAPIGeneratorError.unsupported(
+          "\(operationID) multipart form-data request bodies must use object schemas."
+        )
+      }
+      guard try resolvedSchema.dictionarySwiftType(components: components, inlineObjectFallback: nil) == nil else {
+        throw OpenAPIGeneratorError.unsupported(
+          "\(operationID) multipart form-data dictionary request bodies are not generated yet."
+        )
+      }
+      let fields = try resolvedSchema.objectPropertyEntries(components: components).map { entry in
+        try GeneratedFormField(
+          entry: entry,
+          requestBodyRequired: requestBody.required,
+          components: components
+        )
+      }
+      let duplicateFieldNames = Dictionary(grouping: fields, by: \.swiftName)
+        .filter { $0.value.count > 1 }
+        .map(\.key)
+        .sorted()
+      guard duplicateFieldNames.isEmpty else {
+        throw OpenAPIGeneratorError.invalidDocument(
+          "\(operationID) has multipart form fields that generate duplicate Swift names: \(duplicateFieldNames.joined(separator: ", "))."
+        )
+      }
+      return .multipart(fields: fields, required: requestBody.required)
+    }
+
     throw OpenAPIGeneratorError.unsupported(
       "\(operationID) uses a request body content type that is not generated yet."
     )
+  }
+
+  private static func securityTags(
+    operationSecurity: [OpenAPISecurityRequirement]?,
+    documentSecurity: [OpenAPISecurityRequirement],
+    securitySchemes: [String: OpenAPISecurityScheme]
+  ) throws -> [String] {
+    let requirements = operationSecurity ?? documentSecurity
+    var tags: [String] = []
+    var seen: Set<String> = []
+
+    for requirement in requirements {
+      for schemeName in requirement.keys.sorted() {
+        guard securitySchemes[schemeName] != nil else {
+          throw OpenAPIGeneratorError.invalidDocument("Security requirement references missing scheme: \(schemeName).")
+        }
+        let scopes = requirement[schemeName] ?? []
+        let rawTags: [String]
+        if scopes.isEmpty {
+          rawTags = ["security:\(schemeName)"]
+        } else {
+          rawTags = scopes.sorted().map { "security:\(schemeName):\($0)" }
+        }
+        for tag in rawTags where seen.insert(tag).inserted {
+          tags.append(tag)
+        }
+      }
+    }
+
+    return tags
   }
 
   private static func mergedParameters(
@@ -833,6 +952,13 @@ private struct GeneratedSchemaModel {
       )
     }
 
+    if let discriminator = self.schema.discriminator {
+      return try self.renderedDiscriminatorUnionLines(
+        cases: cases,
+        discriminator: discriminator
+      )
+    }
+
     var lines: [String] = []
     lines.append("\(self.accessModifier) enum \(self.typeName): Codable, Sendable {")
     for item in cases {
@@ -869,11 +995,101 @@ private struct GeneratedSchemaModel {
     return lines
   }
 
+  private func renderedDiscriminatorUnionLines(
+    cases: [GeneratedUnionCase],
+    discriminator: OpenAPIDiscriminator
+  ) throws -> [String] {
+    let mappedComponentNames = try discriminator.mapping.mapValues {
+      try OpenAPIDiscriminator.componentName(forMappingValue: $0)
+    }
+    let caseComponentNames = Set(cases.compactMap(\.componentName))
+    for componentName in mappedComponentNames.values where !caseComponentNames.contains(componentName) {
+      throw OpenAPIGeneratorError.invalidDocument(
+        "\(self.originalName) discriminator mapping references a schema that is not part of the union: \(componentName)."
+      )
+    }
+
+    var valuesByCase: [(GeneratedUnionCase, [String])] = []
+    var allValues: [String: String] = [:]
+    for item in cases {
+      guard let componentName = item.componentName else {
+        throw OpenAPIGeneratorError.unsupported(
+          "\(self.originalName) discriminator unions must reference component schemas."
+        )
+      }
+
+      var rawValues = [componentName]
+      for discriminatorValue in discriminator.mapping.keys.sorted()
+      where mappedComponentNames[discriminatorValue] == componentName {
+        rawValues.append(discriminatorValue)
+      }
+
+      var values: [String] = []
+      var seenValues: Set<String> = []
+      for value in rawValues where seenValues.insert(value).inserted {
+        values.append(value)
+      }
+      for value in values {
+        if let existingCase = allValues[value], existingCase != item.caseName {
+          throw OpenAPIGeneratorError.invalidDocument(
+            "\(self.originalName) discriminator value maps to multiple union cases: \(value)."
+          )
+        }
+        allValues[value] = item.caseName
+      }
+      valuesByCase.append((item, values))
+    }
+
+    var lines: [String] = []
+    lines.append("\(self.accessModifier) enum \(self.typeName): Codable, Sendable {")
+    for item in cases {
+      lines.append("  case \(item.caseName)(\(item.swiftType))")
+    }
+
+    lines.append("")
+    lines.append("  private enum DiscriminatorCodingKeys: String, CodingKey {")
+    lines.append("    case discriminator = \(discriminator.propertyName.swiftLiteral)")
+    lines.append("  }")
+
+    lines.append("")
+    lines.append("  \(self.accessModifier) init(from decoder: any Decoder) throws {")
+    lines.append("    let discriminatorContainer = try decoder.container(keyedBy: DiscriminatorCodingKeys.self)")
+    lines.append("    let discriminatorValue = try discriminatorContainer.decode(String.self, forKey: .discriminator)")
+    lines.append("    switch discriminatorValue {")
+    for (item, values) in valuesByCase {
+      lines.append("    case \(values.map(\.swiftLiteral).joined(separator: ", ")):")
+      lines.append("      self = .\(item.caseName)(try \(item.swiftType)(from: decoder))")
+    }
+    lines.append("    default:")
+    lines.append("      throw DecodingError.dataCorruptedError(")
+    lines.append("        forKey: .discriminator,")
+    lines.append("        in: discriminatorContainer,")
+    let debugDescription = "Unsupported \(self.typeName) discriminator value.".swiftLiteral
+    lines.append("        debugDescription: \(debugDescription)")
+    lines.append("      )")
+    lines.append("    }")
+    lines.append("  }")
+
+    lines.append("")
+    lines.append("  \(self.accessModifier) func encode(to encoder: any Encoder) throws {")
+    lines.append("    var container = encoder.singleValueContainer()")
+    lines.append("    switch self {")
+    for item in cases {
+      lines.append("    case .\(item.caseName)(let value):")
+      lines.append("      try container.encode(value)")
+    }
+    lines.append("    }")
+    lines.append("  }")
+    lines.append("}")
+    return lines
+  }
+
 }
 
 private struct GeneratedUnionCase {
   let caseName: String
   let swiftType: String
+  let componentName: String?
 
   init(
     schema: OpenAPISchema,
@@ -883,21 +1099,31 @@ private struct GeneratedUnionCase {
     guard let swiftType = try schema.swiftType(components: components, inlineObjectFallback: nil) else {
       throw OpenAPIGeneratorError.unsupported("Inline object union entries are not generated yet.")
     }
+    let componentName: String?
+    if let ref = schema.ref {
+      componentName = try OpenAPIReference.componentName(
+        forReference: ref,
+        prefix: "#/components/schemas/",
+        kind: "schema"
+      )
+    } else {
+      componentName = nil
+    }
     self.swiftType = swiftType
-    self.caseName = Self.caseName(schema: schema, swiftType: swiftType, index: index)
+    self.componentName = componentName
+    self.caseName = Self.caseName(
+      componentName: componentName,
+      swiftType: swiftType,
+      index: index
+    )
   }
 
   private static func caseName(
-    schema: OpenAPISchema,
+    componentName: String?,
     swiftType: String,
     index: Int
   ) -> String {
-    if let ref = schema.ref,
-       let componentName = try? OpenAPIReference.componentName(
-         forReference: ref,
-         prefix: "#/components/schemas/",
-         kind: "schema"
-       ) {
+    if let componentName {
       return componentName.swiftIdentifier()
     }
 
@@ -1144,7 +1370,23 @@ private struct GeneratedParameter {
 private struct OpenAPIDocument: Decodable {
   let openapi: String?
   let components: OpenAPIComponents?
+  let security: [OpenAPISecurityRequirement]
   let paths: [String: OpenAPIPathItem]
+
+  private enum CodingKeys: String, CodingKey {
+    case openapi
+    case components
+    case security
+    case paths
+  }
+
+  init(from decoder: any Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    self.openapi = try container.decodeIfPresent(String.self, forKey: .openapi)
+    self.components = try container.decodeIfPresent(OpenAPIComponents.self, forKey: .components)
+    self.security = try container.decodeIfPresent([OpenAPISecurityRequirement].self, forKey: .security) ?? []
+    self.paths = try container.decode([String: OpenAPIPathItem].self, forKey: .paths)
+  }
 }
 
 private struct OpenAPIComponents: Decodable {
@@ -1152,24 +1394,28 @@ private struct OpenAPIComponents: Decodable {
   let parameters: [String: OpenAPIParameter]
   let requestBodies: [String: OpenAPIRequestBody]
   let responses: [String: OpenAPIResponse]
+  let securitySchemes: [String: OpenAPISecurityScheme]
 
   private enum CodingKeys: String, CodingKey {
     case schemas
     case parameters
     case requestBodies
     case responses
+    case securitySchemes
   }
 
   init(
     schemas: [String: OpenAPISchema] = [:],
     parameters: [String: OpenAPIParameter] = [:],
     requestBodies: [String: OpenAPIRequestBody] = [:],
-    responses: [String: OpenAPIResponse] = [:]
+    responses: [String: OpenAPIResponse] = [:],
+    securitySchemes: [String: OpenAPISecurityScheme] = [:]
   ) {
     self.schemas = schemas
     self.parameters = parameters
     self.requestBodies = requestBodies
     self.responses = responses
+    self.securitySchemes = securitySchemes
   }
 
   init(from decoder: any Decoder) throws {
@@ -1178,8 +1424,16 @@ private struct OpenAPIComponents: Decodable {
     self.parameters = try container.decodeIfPresent([String: OpenAPIParameter].self, forKey: .parameters) ?? [:]
     self.requestBodies = try container.decodeIfPresent([String: OpenAPIRequestBody].self, forKey: .requestBodies) ?? [:]
     self.responses = try container.decodeIfPresent([String: OpenAPIResponse].self, forKey: .responses) ?? [:]
+    self.securitySchemes = try container.decodeIfPresent(
+      [String: OpenAPISecurityScheme].self,
+      forKey: .securitySchemes
+    ) ?? [:]
   }
 }
+
+private typealias OpenAPISecurityRequirement = [String: [String]]
+
+private struct OpenAPISecurityScheme: Decodable {}
 
 private enum OpenAPIReference {
   static func componentName(
@@ -1257,12 +1511,14 @@ private struct OpenAPIOperation: Decodable {
   let parameters: [OpenAPIParameter]
   let requestBody: OpenAPIRequestBody?
   let responses: [String: OpenAPIResponse]
+  let security: [OpenAPISecurityRequirement]?
 
   private enum CodingKeys: String, CodingKey {
     case operationID = "operationId"
     case parameters
     case requestBody
     case responses
+    case security
   }
 
   init(from decoder: any Decoder) throws {
@@ -1271,6 +1527,7 @@ private struct OpenAPIOperation: Decodable {
     self.parameters = try container.decodeIfPresent([OpenAPIParameter].self, forKey: .parameters) ?? []
     self.requestBody = try container.decodeIfPresent(OpenAPIRequestBody.self, forKey: .requestBody)
     self.responses = try container.decodeIfPresent([String: OpenAPIResponse].self, forKey: .responses) ?? [:]
+    self.security = try container.decodeIfPresent([OpenAPISecurityRequirement].self, forKey: .security)
   }
 }
 
@@ -1411,6 +1668,38 @@ private struct OpenAPIMediaType: Decodable {
   let schema: OpenAPISchema?
 }
 
+private struct OpenAPIDiscriminator: Decodable {
+  let propertyName: String
+  let mapping: [String: String]
+
+  private enum CodingKeys: String, CodingKey {
+    case propertyName
+    case mapping
+  }
+
+  init(from decoder: any Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    self.propertyName = try container.decode(String.self, forKey: .propertyName)
+    self.mapping = try container.decodeIfPresent([String: String].self, forKey: .mapping) ?? [:]
+  }
+
+  static func componentName(forMappingValue value: String) throws -> String {
+    if value.hasPrefix("#/components/schemas/") {
+      return try OpenAPIReference.componentName(
+        forReference: value,
+        prefix: "#/components/schemas/",
+        kind: "schema"
+      )
+    }
+    guard !value.contains("/") else {
+      throw OpenAPIGeneratorError.unsupported(
+        "Only local discriminator mapping references are generated: \(value)."
+      )
+    }
+    return value
+  }
+}
+
 private enum OpenAPIAdditionalProperties: Decodable {
   case allowed
   case disallowed
@@ -1445,6 +1734,7 @@ private final class OpenAPISchema: Decodable {
   let allOf: [OpenAPISchema]
   let oneOf: [OpenAPISchema]
   let anyOf: [OpenAPISchema]
+  let discriminator: OpenAPIDiscriminator?
 
   init(
     ref: String? = nil,
@@ -1458,7 +1748,8 @@ private final class OpenAPISchema: Decodable {
     additionalProperties: OpenAPIAdditionalProperties? = nil,
     allOf: [OpenAPISchema] = [],
     oneOf: [OpenAPISchema] = [],
-    anyOf: [OpenAPISchema] = []
+    anyOf: [OpenAPISchema] = [],
+    discriminator: OpenAPIDiscriminator? = nil
   ) {
     self.ref = ref
     self.type = type
@@ -1472,6 +1763,7 @@ private final class OpenAPISchema: Decodable {
     self.allOf = allOf
     self.oneOf = oneOf
     self.anyOf = anyOf
+    self.discriminator = discriminator
   }
 
   private enum CodingKeys: String, CodingKey {
@@ -1487,6 +1779,7 @@ private final class OpenAPISchema: Decodable {
     case allOf
     case oneOf
     case anyOf
+    case discriminator
   }
 
   convenience init(from decoder: any Decoder) throws {
@@ -1519,7 +1812,8 @@ private final class OpenAPISchema: Decodable {
       ),
       allOf: try container.decodeIfPresent([OpenAPISchema].self, forKey: .allOf) ?? [],
       oneOf: try container.decodeIfPresent([OpenAPISchema].self, forKey: .oneOf) ?? [],
-      anyOf: try container.decodeIfPresent([OpenAPISchema].self, forKey: .anyOf) ?? []
+      anyOf: try container.decodeIfPresent([OpenAPISchema].self, forKey: .anyOf) ?? [],
+      discriminator: try container.decodeIfPresent(OpenAPIDiscriminator.self, forKey: .discriminator)
     )
   }
 

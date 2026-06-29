@@ -3,6 +3,55 @@ import HTTPTypes
 
 /// Builds an HTTP request body and any headers implied by that body.
 public struct HTTPBody: Sendable {
+  /// A single `multipart/form-data` part.
+  public struct MultipartPart: Sendable {
+    public let name: String
+    public let filename: String?
+    public let contentType: String?
+    public let data: Data
+
+    /// Creates a multipart body part.
+    public init(
+      name: String,
+      data: Data,
+      filename: String? = nil,
+      contentType: String? = nil
+    ) {
+      self.name = name
+      self.filename = filename
+      self.contentType = contentType
+      self.data = data
+    }
+
+    /// Creates a text field part.
+    public static func text(
+      name: String,
+      value: String,
+      contentType: String? = nil
+    ) -> Self {
+      Self(
+        name: name,
+        data: Data(value.utf8),
+        contentType: contentType
+      )
+    }
+
+    /// Creates a binary data part.
+    public static func data(
+      name: String,
+      data: Data,
+      filename: String? = nil,
+      contentType: String? = nil
+    ) -> Self {
+      Self(
+        name: name,
+        data: data,
+        filename: filename,
+        contentType: contentType
+      )
+    }
+  }
+
   /// The concrete body data and headers produced for a specific client configuration.
   public struct Resolved: Sendable {
     public let data: Data?
@@ -89,6 +138,55 @@ public struct HTTPBody: Sendable {
     }
   }
 
+  /// Encodes parts using the `multipart/form-data` body format.
+  public static func multipartFormData(
+    _ parts: [MultipartPart],
+    boundary: String? = nil
+  ) -> Self {
+    HTTPBody { (_: ClientConfiguration) throws(NetworkError) -> Resolved in
+      let boundary = boundary ?? "CometBoundary-\(UUID().uuidString)"
+      guard boundary.isValidMultipartHeaderValue else {
+        throw NetworkError.encoding("Invalid multipart form-data boundary.")
+      }
+
+      var data = Data()
+      func append(_ string: String) {
+        data.append(Data(string.utf8))
+      }
+
+      for part in parts {
+        guard part.name.isValidMultipartHeaderValue else {
+          throw NetworkError.encoding("Invalid multipart form-data part name.")
+        }
+        if let filename = part.filename, !filename.isValidMultipartHeaderValue {
+          throw NetworkError.encoding("Invalid multipart form-data filename.")
+        }
+        if let contentType = part.contentType, !contentType.isValidMultipartHeaderValue {
+          throw NetworkError.encoding("Invalid multipart form-data content type.")
+        }
+
+        append("--\(boundary)\r\n")
+        append("Content-Disposition: form-data; name=\"\(part.name.escapedMultipartHeaderValue)\"")
+        if let filename = part.filename {
+          append("; filename=\"\(filename.escapedMultipartHeaderValue)\"")
+        }
+        append("\r\n")
+        if let contentType = part.contentType {
+          append("Content-Type: \(contentType)\r\n")
+        }
+        append("\r\n")
+        data.append(part.data)
+        append("\r\n")
+      }
+
+      append("--\(boundary)--\r\n")
+
+      var headers = HTTPFields()
+      headers[.contentType] = "multipart/form-data; boundary=\(boundary)"
+      return Resolved(data: data, headers: headers)
+    }
+  }
+
   func resolved(using configuration: ClientConfiguration) throws(NetworkError) -> Resolved {
     try self.resolve(configuration)
   }
@@ -112,5 +210,17 @@ public struct HTTPBody: Sendable {
     default:
       return "text/plain"
     }
+  }
+}
+
+private extension String {
+  var isValidMultipartHeaderValue: Bool {
+    !self.isEmpty && !self.unicodeScalars.contains { $0.value == 13 || $0.value == 10 }
+  }
+
+  var escapedMultipartHeaderValue: String {
+    self
+      .replacingOccurrences(of: "\\", with: "\\\\")
+      .replacingOccurrences(of: "\"", with: "\\\"")
   }
 }

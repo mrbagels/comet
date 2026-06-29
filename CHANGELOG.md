@@ -23,8 +23,12 @@ public API contract.
 
 - OpenAPI reusable component references now resolve for parameters, request bodies, and responses.
 - OpenAPI request generation now covers JSON bodies without schemas, plain-text bodies, and form URL-encoded bodies.
+- OpenAPI request generation now covers multipart form-data bodies backed by `HTTPBody.multipartFormData`.
 - OpenAPI error responses now generate typed JSON, string, or raw data serializers from the declared response content.
 - OpenAPI schema generation now covers free-form `additionalProperties` dictionaries through `CometOpenAPIJSONValue` and `oneOf` or `anyOf` union enums.
+- OpenAPI discriminator metadata now generates discriminator-aware decoding for component union schemas.
+- OpenAPI security requirements now populate generated request metadata tags.
+- `HTTPBody.MultipartPart` and `HTTPBody.multipartFormData` for constructing multipart form-data requests.
 - Stale-while-revalidate background refreshes now emit request lifecycle activity and completed `RequestTrace` values for refresh successes and failures.
 
 ### Changed

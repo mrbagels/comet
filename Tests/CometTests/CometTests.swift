@@ -2830,6 +2830,45 @@ private func waitUntil(
   }
 }
 
+@Test func multipartFormDataBodyEncodesFieldsAndFiles() throws {
+  let body = HTTPBody.multipartFormData(
+    [
+      .text(name: "name", value: "Comet"),
+      .data(
+        name: "avatar",
+        data: Data([0x01, 0x02]),
+        filename: "avatar.bin",
+        contentType: "application/octet-stream"
+      )
+    ],
+    boundary: "Boundary"
+  )
+
+  let resolved = try body.resolved(using: .default(baseURL: URL(string: "https://example.com")!))
+  let data = try #require(resolved.data)
+  let text = try #require(String(data: data, encoding: .utf8))
+
+  #expect(resolved.headers[.contentType] == "multipart/form-data; boundary=Boundary")
+  #expect(text.contains("Content-Disposition: form-data; name=\"name\"\r\n\r\nComet"))
+  #expect(text.contains("Content-Disposition: form-data; name=\"avatar\"; filename=\"avatar.bin\""))
+  #expect(text.contains("Content-Type: application/octet-stream"))
+  #expect(data.range(of: Data([0x01, 0x02])) != nil)
+  #expect(text.hasSuffix("--Boundary--\r\n"))
+}
+
+@Test func multipartFormDataBodyRejectsUnsafeHeaderValues() {
+  let body = HTTPBody.multipartFormData(
+    [
+      .text(name: "bad\r\nname", value: "Comet")
+    ],
+    boundary: "Boundary"
+  )
+
+  #expect(throws: NetworkError.self) {
+    _ = try body.resolved(using: .default(baseURL: URL(string: "https://example.com")!))
+  }
+}
+
 @Test func jsonPresetHelpersExposeStandardAndSnakeCaseBehaviors() throws {
   struct Payload: Codable, Sendable {
     let userId: Int

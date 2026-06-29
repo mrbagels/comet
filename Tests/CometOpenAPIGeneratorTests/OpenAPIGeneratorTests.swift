@@ -680,6 +680,118 @@ import CometOpenAPIGenerator
   #expect(output.contains("public typealias Response = String"))
 }
 
+@Test func openAPIGeneratorCreatesMultipartFormDataRequests() throws {
+  let output = try OpenAPIGenerator().generate(
+    jsonString: """
+    {
+      "openapi": "3.1.0",
+      "paths": {
+        "/pets/{petId}/avatar": {
+          "post": {
+            "operationId": "uploadPetAvatar",
+            "parameters": [
+              {
+                "name": "petId",
+                "in": "path",
+                "required": true,
+                "schema": { "type": "integer" }
+              }
+            ],
+            "requestBody": {
+              "required": true,
+              "content": {
+                "multipart/form-data": {
+                  "schema": {
+                    "type": "object",
+                    "required": ["file", "description"],
+                    "properties": {
+                      "file": { "type": "string", "format": "binary" },
+                      "description": { "type": "string" },
+                      "isPublic": { "type": "boolean" }
+                    }
+                  }
+                }
+              }
+            },
+            "responses": {
+              "204": { "description": "No Content" }
+            }
+          }
+        }
+      }
+    }
+    """
+  )
+
+  #expect(output.contains("public struct UploadPetAvatarRequest: APIRequest"))
+  #expect(output.contains("public let petId: Int"))
+  #expect(output.contains("public let description: String"))
+  #expect(output.contains("public let file: Data"))
+  #expect(output.contains("public let isPublic: Bool?"))
+  #expect(output.contains("var parts: [HTTPBody.MultipartPart] = []"))
+  #expect(output.contains(#"parts.append(.text(name: "description", value: String(describing: self.description)))"#))
+  #expect(output.contains(#"parts.append(.data(name: "file", data: self.file, filename: "file", contentType: "application/octet-stream"))"#))
+  #expect(output.contains("if let isPublic = self.isPublic"))
+  #expect(output.contains(#"parts.append(.text(name: "isPublic", value: String(describing: isPublic)))"#))
+  #expect(output.contains("return .multipartFormData(parts)"))
+}
+
+@Test func openAPIGeneratorCarriesSecurityRequirementsInMetadata() throws {
+  let output = try OpenAPIGenerator().generate(
+    jsonString: """
+    {
+      "openapi": "3.1.0",
+      "security": [
+        { "ApiKeyAuth": [] }
+      ],
+      "components": {
+        "securitySchemes": {
+          "ApiKeyAuth": {
+            "type": "apiKey",
+            "in": "header",
+            "name": "X-API-Key"
+          },
+          "OAuth2": {
+            "type": "oauth2",
+            "flows": {
+              "clientCredentials": {
+                "tokenUrl": "https://example.com/token",
+                "scopes": {
+                  "pets:read": "Read pets",
+                  "pets:write": "Write pets"
+                }
+              }
+            }
+          }
+        }
+      },
+      "paths": {
+        "/pets": {
+          "get": {
+            "operationId": "listPets",
+            "responses": {
+              "204": { "description": "No Content" }
+            }
+          },
+          "post": {
+            "operationId": "createPet",
+            "security": [
+              { "OAuth2": ["pets:write", "pets:read"] }
+            ],
+            "responses": {
+              "204": { "description": "No Content" }
+            }
+          }
+        }
+      }
+    }
+    """
+  )
+
+  #expect(output.contains(#"RequestMetadata(tags: ["security:ApiKeyAuth"], operationID: "listPets")"#))
+  #expect(output.contains(#"RequestMetadata(tags: ["security:OAuth2:pets:read", "security:OAuth2:pets:write"], operationID: "createPet")"#))
+}
+
 @Test func openAPIGeneratorCreatesTextRequestsAndStringErrorResponses() throws {
   let output = try OpenAPIGenerator().generate(
     jsonString: """
@@ -802,6 +914,103 @@ import CometOpenAPIGenerator
   #expect(output.contains("case string(String)"))
   #expect(output.contains("case int(Int)"))
   #expect(output.contains("public typealias Response = PetEvent"))
+}
+
+@Test func openAPIGeneratorCreatesDiscriminatorUnionModels() throws {
+  let output = try OpenAPIGenerator().generate(
+    jsonString: """
+    {
+      "openapi": "3.1.0",
+      "components": {
+        "schemas": {
+          "PetBase": {
+            "type": "object",
+            "required": ["petType"],
+            "properties": {
+              "petType": { "type": "string" }
+            }
+          },
+          "Cat": {
+            "allOf": [
+              { "$ref": "#/components/schemas/PetBase" },
+              {
+                "type": "object",
+                "required": ["meows"],
+                "properties": {
+                  "meows": { "type": "boolean" }
+                }
+              }
+            ]
+          },
+          "Dog": {
+            "allOf": [
+              { "$ref": "#/components/schemas/PetBase" },
+              {
+                "type": "object",
+                "required": ["barks"],
+                "properties": {
+                  "barks": { "type": "boolean" }
+                }
+              }
+            ]
+          },
+          "Pet": {
+            "oneOf": [
+              { "$ref": "#/components/schemas/Cat" },
+              { "$ref": "#/components/schemas/Dog" }
+            ],
+            "discriminator": {
+              "propertyName": "petType",
+              "mapping": {
+                "doggo": "#/components/schemas/Dog",
+                "kitty": "#/components/schemas/Cat"
+              }
+            }
+          }
+        }
+      },
+      "paths": {
+        "/pets/{petId}": {
+          "get": {
+            "operationId": "getPet",
+            "parameters": [
+              {
+                "name": "petId",
+                "in": "path",
+                "required": true,
+                "schema": { "type": "integer" }
+              }
+            ],
+            "responses": {
+              "200": {
+                "description": "OK",
+                "content": {
+                  "application/json": {
+                    "schema": { "$ref": "#/components/schemas/Pet" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    """
+  )
+
+  #expect(output.contains("public struct Cat: Codable, Sendable"))
+  #expect(output.contains("public let petType: String"))
+  #expect(output.contains("public let meows: Bool"))
+  #expect(output.contains("public enum Pet: Codable, Sendable"))
+  #expect(output.contains("case cat(Cat)"))
+  #expect(output.contains("case dog(Dog)"))
+  #expect(output.contains("private enum DiscriminatorCodingKeys: String, CodingKey"))
+  #expect(output.contains(#"case discriminator = "petType""#))
+  #expect(output.contains("let discriminatorValue = try discriminatorContainer.decode(String.self, forKey: .discriminator)"))
+  #expect(output.contains(#"case "Cat", "kitty":"#))
+  #expect(output.contains("self = .cat(try Cat(from: decoder))"))
+  #expect(output.contains(#"case "Dog", "doggo":"#))
+  #expect(output.contains("self = .dog(try Dog(from: decoder))"))
 }
 
 @Test func openAPIGeneratorInheritsAndOverridesPathItemParameters() throws {
